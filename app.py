@@ -253,14 +253,14 @@ with st.sidebar:
     contract_type = st.selectbox(
         "合同类型", [
             "房屋租赁合同", "劳动合同", "买卖合同", "服务合同", "合作协议",
-            "技术开发合同", "股权转让合同", "借款合同", "建设工程合同",
+            "股权转让合同", "借款合同", "建设工程合同",
             "委托合同", "居间中介合同", "特许经营合同", "广告合同",
             "自定义",
         ],
         label_visibility="collapsed",
     )
     if contract_type == "自定义":
-        contract_type = st.text_input("输入合同类型", placeholder="如：技术开发合同", label_visibility="collapsed")
+        contract_type = st.text_input("输入合同类型", placeholder="如：软件开发合同", label_visibility="collapsed")
 
     st.markdown("**上传合同**")
     uploaded_file = st.file_uploader(
@@ -284,23 +284,24 @@ with st.sidebar:
     # ── 历史报告 ──
     if st.session_state.report_history:
         st.markdown("**📂 历史报告**")
-        for i, h in enumerate(st.session_state.report_history):
-            col_btn, col_info = st.columns([1, 3])
-            with col_btn:
-                safe_type = h["type"].replace("/", "_")
-                st.download_button(
-                    f"⬇ {h['time']}",
-                    h["report"],
-                    file_name=f"审查报告_{safe_type}_{h['time'].replace(':', '').replace(' ', '_')}.txt",
-                    mime="text/plain",
-                    key=f"hist_dl_{i}",
-                    help=f"{h['type']} · {h['summary'].get('high', '-')}高/{h['summary'].get('medium', '-')}中",
-                )
-            with col_info:
-                st.markdown(
-                    f"<small>{h['type']} · 🔴{h['summary'].get('high', '-')} 🟡{h['summary'].get('medium', '-')}</small>",
-                    unsafe_allow_html=True,
-                )
+        items_per_row = 3
+        for row_start in range(0, len(st.session_state.report_history), items_per_row):
+            row_items = st.session_state.report_history[row_start:row_start + items_per_row]
+            cols = st.columns(items_per_row)
+            for j, h in enumerate(row_items):
+                i = row_start + j
+                with cols[j]:
+                    safe_type = h["type"].replace("/", "_")
+                    st.download_button(
+                        f"⬇ {h['time']}",
+                        h["report"],
+                        file_name=f"审查报告_{safe_type}_{h['time'].replace(':', '').replace(' ', '_')}.txt",
+                        mime="text/plain",
+                        key=f"hist_dl_{i}",
+                        help=f"{h['type']} · 🔴{h['summary'].get('high', '-')} 🟡{h['summary'].get('medium', '-')}",
+                        use_container_width=True,
+                    )
+                    st.caption(f"{h['type']} · 🔴{h['summary'].get('high', '-')} 🟡{h['summary'].get('medium', '-')}")
 
     st.caption("© 2026 法眼 · Powered by Qwen-Plus")
 
