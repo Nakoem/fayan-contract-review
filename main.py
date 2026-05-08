@@ -45,7 +45,7 @@ class ContractReviewAgent:
     """ReAct Agent：自主决定审查步骤，循环 思考→行动→观察。"""
 
     def __init__(self, api_key: str, verbose: bool = True):
-        self.client = LLMClient(api_key=api_key, model="qwen-max")
+        self.client = LLMClient(api_key=api_key)
         self.verbose = verbose
         self._contract_text = ""
         self._risk_findings: list[dict] = []
@@ -289,6 +289,7 @@ class ContractReviewAgent:
                             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                             f"  ✅ 可签 / ⚠️ 修改后签 / ❌ 不建议签\n"
                             f"  （一句话理由）\n\n"
+                            f"📅 审查日期：{today_str}\n\n"
                             f"🛑 同一条款不重复计数，所有风险点不能遗漏，数字逐条数过再写。"
                         ),
                     })
