@@ -243,6 +243,23 @@ class ContractReviewAgent:
                 resp = self.client.chat(messages, tools=AGENT_TOOLS)
             except Exception as e:
                 err_msg = str(e)
+                # qwen-plus通病：function.arguments非法JSON。直接纯文本兜底，不浪费重试
+                if "function.arguments" in err_msg and "JSON" in err_msg:
+                    if self.verbose:
+                        print(f"  🔄 工具调用JSON错误，切换纯文本输出")
+                    messages.append({
+                        "role": "user",
+                        "content": "请直接以文本输出最终审查报告，不要再调用任何工具。报告须严格按五段式模板（总体风险概览→高风险条款详解→中风险条款详解→修改优先级建议→签约建议），每条风险含▸原文、▸风险说明（引用法条）、▸修改建议。",
+                    })
+                    try:
+                        resp = self.client.chat(messages, tools=None)
+                        final_msg = resp.choices[0].message
+                        print(f"\n{'='*60}")
+                        print(final_msg.content or "")
+                        return final_msg.content or ""
+                    except Exception:
+                        raise e
+
                 if api_retries < 3:
                     api_retries += 1
                     messages.append({
