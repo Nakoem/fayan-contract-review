@@ -44,7 +44,8 @@ class ContractReviewAgent:
     """ReAct Agent：自主决定审查步骤，循环 思考→行动→观察。"""
 
     def __init__(self, api_key: str, verbose: bool = True):
-        self.client = LLMClient(api_key=api_key)
+        # qwen-max: 函数调用JSON合规性远超qwen-plus，避免DashScope服务端拒绝
+        self.client = LLMClient(api_key=api_key, model="qwen-max")
         self.verbose = verbose
         self._contract_text = ""  # 缓存合同原文
         self._risk_findings: list[dict] = []  # 累积所有 analyze_single_clause 结果
@@ -242,54 +243,6 @@ class ContractReviewAgent:
                 resp = self.client.chat(messages, tools=AGENT_TOOLS)
             except Exception as e:
                 err_msg = str(e)
-                is_json_err = "function.arguments" in err_msg and "JSON" in err_msg
-
-                # JSON格式错误：qwen-plus通病。重试1次，仍失败则去掉tools纯文本兜底
-                if is_json_err:
-                    if api_retries == 0:
-                        api_retries = 1
-                        messages.append({
-                            "role": "user",
-                            "content": "工具参数JSON有误被拒绝。请缩短参数值（<100字），字符串内双引号用\\\"转义。重试1次。",
-                        })
-                        if self.verbose:
-                            print(f"  ⚠️ JSON错误，重试1次")
-                        continue
-                    # 重试仍失败 → 纯文本兜底
-                    if self.verbose:
-                        print(f"  🔄 JSON错误持续，切换纯文本模式")
-                    today_str = date.today().strftime("%Y-%m-%d")
-                    messages.append({
-                        "role": "user",
-                        "content": (
-                            f"由于工具调用持续失败，请直接以纯文本输出最终审查报告全文。\n\n"
-                            f"必须严格按以下格式输出：\n"
-                            f"╔══════════════╗\n║ 📋 合同审查报告 ║\n╚══════════════╝\n"
-                            f"📌 合同类型：{contract_type}\n📅 审查日期：{today_str}\n\n"
-                            f"━━━ 一、总体风险概览 ━━━\n"
-                            f"🔴高风险：X条 🟡中风险：X条 🟢低风险：X条\n"
-                            f"综合风险评分：XX/100\n一句话总结：...\n\n"
-                            f"━━━ 二、高风险条款详解 ━━━\n"
-                            f"逐条列出，每条含原文、风险说明（引用具体法条）、修改建议。\n\n"
-                            f"━━━ 三、需关注的中风险条款 ━━━\n"
-                            f"同上格式。\n\n"
-                            f"━━━ 四、修改优先级建议 ━━━\n"
-                            f"P0必须改/P1建议改/P2可接受，数量与上文一致。\n\n"
-                            f"━━━ 五、签约建议 ━━━\n"
-                            f"✅可签/⚠️修改后签/❌不建议签，附一句话理由。\n\n"
-                            f"🛑 同一条款不重复计数，所有风险点不能遗漏，数字必须逐条数过再写。"
-                        ),
-                    })
-                    try:
-                        resp = self.client.chat(messages, tools=None)
-                        final_msg = resp.choices[0].message
-                        print(f"\n{'='*60}")
-                        print(final_msg.content or "")
-                        return final_msg.content or ""
-                    except Exception:
-                        raise e
-
-                # 非JSON错误：正常重试
                 if api_retries < 3:
                     api_retries += 1
                     messages.append({
