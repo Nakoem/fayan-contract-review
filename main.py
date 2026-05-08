@@ -270,7 +270,7 @@ class ContractReviewAgent:
             if not msg.tool_calls:
                 if self.verbose:
                     print(f"└{'─' * 60}┘")
-                if last_report and (not msg.content or len(msg.content) < 200):
+                if last_report:
                     final = last_report
                 else:
                     final = msg.content or ""
