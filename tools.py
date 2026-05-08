@@ -882,20 +882,21 @@ AGENT_TOOLS = [
         "function": {
             "name": "generate_final_report",
             "description": "汇总所有风险分析发现，生成格式化的最终审查报告。"
-            "只有在你认为已经分析了足够的条款后才调用此函数。",
+            "只有在你认为已经分析了足够的条款后才调用此函数。"
+            "risk_findings_json参数可传空字符串\"\"——系统会自动使用你之前的所有分析结果。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "risk_findings_json": {
                         "type": "string",
-                        "description": "所有 risk analysis 结果的 JSON 汇总",
+                        "description": "可传空字符串\"\"，系统会自动汇总你此前所有 analyze_single_clause 的结果",
                     },
                     "contract_type": {
                         "type": "string",
                         "description": "合同类型",
                     },
                 },
-                "required": ["risk_findings_json", "contract_type"],
+                "required": ["contract_type"],
             },
         },
     },

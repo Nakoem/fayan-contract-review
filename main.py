@@ -46,7 +46,8 @@ class ContractReviewAgent:
     def __init__(self, api_key: str, verbose: bool = True):
         self.client = LLMClient(api_key=api_key)
         self.verbose = verbose
-        self._contract_text = ""  # 缓存合同原文，避免工具调用时重复传递
+        self._contract_text = ""  # 缓存合同原文
+        self._risk_findings: list[dict] = []  # 累积所有 analyze_single_clause 结果
 
     # ── JSON 修复 ───────────────────────────────────────────
     @staticmethod
@@ -138,7 +139,7 @@ class ContractReviewAgent:
             elif name == "analyze_single_clause":
                 from tools import analyze_single_clause
 
-                return analyze_single_clause(
+                result = analyze_single_clause(
                     self.client,
                     args["clause_text"],
                     args["category"],
@@ -146,12 +147,25 @@ class ContractReviewAgent:
                     args.get("clause_position", ""),
                     args.get("regulation_context", ""),
                 )
+                # 解析分析结果，累积到会话存储
+                try:
+                    parsed = json.loads(result.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip())
+                    self._risk_findings.append(parsed)
+                except (json.JSONDecodeError, AttributeError):
+                    pass  # 无法解析也不影响流程
+                return result
             elif name == "generate_final_report":
                 from tools import generate_final_report
 
+                risk_json = args.get("risk_findings_json", "")
+                # 模型传空值或占位符 → 用会话累积的分析结果
+                if (not risk_json or len(risk_json) < 100) and self._risk_findings:
+                    risk_json = json.dumps(self._risk_findings, ensure_ascii=False)
+                elif not risk_json:
+                    risk_json = "[]"
                 return generate_final_report(
                     self.client,
-                    args["risk_findings_json"],
+                    risk_json,
                     args.get("contract_type", ""),
                 )
             elif name == "search_case_law":
@@ -207,7 +221,8 @@ class ContractReviewAgent:
         """主 ReAct 循环。返回最终报告。"""
         from tools import AGENT_TOOLS
 
-        self._contract_text = contract_text  # 缓存，供工具回退使用
+        self._contract_text = contract_text
+        self._risk_findings = []  # 重置会话存储
 
         messages = [
             {"role": "system", "content": AGENT_SYSTEM_PROMPT},
@@ -229,12 +244,24 @@ class ContractReviewAgent:
                 err_msg = str(e)
                 if api_retries < 3:
                     api_retries += 1
-                    messages.append({
-                        "role": "user",
-                        "content": f"API调用失败（{err_msg[:200]}），请重试。（{api_retries}/3）",
-                    })
+                    # DashScope 服务端拒绝：模型输出的 function.arguments 不是合法 JSON
+                    if "function.arguments" in err_msg and "JSON" in err_msg:
+                        messages.append({
+                            "role": "user",
+                            "content": (
+                                f"你上一次工具调用的参数JSON格式有误，被服务端拒绝了。"
+                                f"请务必：1) 所有参数值尽量简短（<200字）；"
+                                f"2) 字符串内的双引号用 \\\" 转义；3) 不要用单引号；"
+                                f"4) 不要在JSON参数中嵌套复杂结构。请重试。（{api_retries}/3）"
+                            ),
+                        })
+                    else:
+                        messages.append({
+                            "role": "user",
+                            "content": f"API调用失败（{err_msg[:200]}），请重试。（{api_retries}/3）",
+                        })
                     if self.verbose:
-                        print(f"  ⚠️ API调用失败，重试 {api_retries}/3: {err_msg[:120]}")
+                        print(f"  ⚠️ API失败({api_retries}/3): {err_msg[:120]}")
                     continue
                 raise
 
