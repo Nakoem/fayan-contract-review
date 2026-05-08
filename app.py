@@ -223,7 +223,7 @@ div[data-testid="stButton"] > button:hover {
 # ═══════════════════════════════════════════════════════
 # 初始化
 # ═══════════════════════════════════════════════════════
-for key, default in [("report", ""), ("log", ""), ("summary", {})]:
+for key, default in [("report", ""), ("log", ""), ("summary", {}), ("report_history", [])]:
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -280,6 +280,28 @@ with st.sidebar:
         st.metric("⚡ 审查轮次", s.get("rounds", 0))
 
     st.divider()
+
+    # ── 历史报告 ──
+    if st.session_state.report_history:
+        st.markdown("**📂 历史报告**")
+        for i, h in enumerate(st.session_state.report_history):
+            col_btn, col_info = st.columns([1, 3])
+            with col_btn:
+                safe_type = h["type"].replace("/", "_")
+                st.download_button(
+                    f"⬇ {h['time']}",
+                    h["report"],
+                    file_name=f"审查报告_{safe_type}_{h['time'].replace(':', '').replace(' ', '_')}.txt",
+                    mime="text/plain",
+                    key=f"hist_dl_{i}",
+                    help=f"{h['type']} · {h['summary'].get('high', '-')}高/{h['summary'].get('medium', '-')}中",
+                )
+            with col_info:
+                st.markdown(
+                    f"<small>{h['type']} · 🔴{h['summary'].get('high', '-')} 🟡{h['summary'].get('medium', '-')}</small>",
+                    unsafe_allow_html=True,
+                )
+
     st.caption("© 2026 法眼 · Powered by Qwen-Plus")
 
 # ═══════════════════════════════════════════════════════
@@ -348,6 +370,32 @@ with col_left:
         elif not api_key:
             st.error("请在侧边栏填写 API Key")
         else:
+            # 开始新审查前，把旧报告存入历史
+            if st.session_state.report:
+                from datetime import datetime
+                st.session_state.report_history.insert(0, {
+                    "time": datetime.now().strftime("%m-%d %H:%M"),
+                    "type": st.session_state.get("last_contract_type", "未知"),
+                    "report": st.session_state.report,
+                    "log": st.session_state.log,
+                    "summary": st.session_state.summary,
+                })
+                # 最多保留 20 条
+                if len(st.session_state.report_history) > 20:
+                    st.session_state.report_history = st.session_state.report_history[:20]
+
+                # 同时自动保存到审查报告文件夹
+                report_dir = Path(__file__).parent / "审查报告"
+                report_dir.mkdir(exist_ok=True)
+                safe_type = st.session_state.get("last_contract_type", "未知").replace("/", "_")
+                filename = f"审查报告_{safe_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+                try:
+                    (report_dir / filename).write_text(st.session_state.report, encoding="utf-8")
+                except Exception:
+                    pass  # 文件保存失败不影响审查
+
+            st.session_state["last_contract_type"] = contract_type
+
             buf = io.StringIO()
             progress_bar = st.progress(0, "准备审查...")
             status_text = st.empty()
