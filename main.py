@@ -242,10 +242,10 @@ class ContractReviewAgent:
                 resp = self.client.chat(messages, tools=AGENT_TOOLS)
             except Exception as e:
                 err_msg = str(e)
+                is_json_err = "function.arguments" in err_msg and "JSON" in err_msg
                 if api_retries < 3:
                     api_retries += 1
-                    # DashScope 服务端拒绝：模型输出的 function.arguments 不是合法 JSON
-                    if "function.arguments" in err_msg and "JSON" in err_msg:
+                    if is_json_err:
                         messages.append({
                             "role": "user",
                             "content": (
@@ -263,6 +263,22 @@ class ContractReviewAgent:
                     if self.verbose:
                         print(f"  ⚠️ API失败({api_retries}/3): {err_msg[:120]}")
                     continue
+                # 3次重试后仍失败 → JSON格式问题则去掉tools，纯文本兜底
+                if is_json_err:
+                    if self.verbose:
+                        print(f"  🔄 工具调用持续JSON错误，切换到纯文本模式...")
+                    messages.append({
+                        "role": "user",
+                        "content": "由于工具调用参数格式持续出错，请直接以文本形式输出最终审查报告全文，不要再调用任何工具函数。报告须包含：总体风险概览、高风险条款详解、中风险条款、修改建议、签约建议。",
+                    })
+                    try:
+                        resp = self.client.chat(messages, tools=None)
+                    except Exception:
+                        raise e
+                    final_msg = resp.choices[0].message
+                    print(f"\n{'='*60}")
+                    print(final_msg.content or "")
+                    return final_msg.content or ""
                 raise
 
             api_retries = 0
