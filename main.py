@@ -243,42 +243,44 @@ class ContractReviewAgent:
             except Exception as e:
                 err_msg = str(e)
                 is_json_err = "function.arguments" in err_msg and "JSON" in err_msg
-                if api_retries < 3:
-                    api_retries += 1
-                    if is_json_err:
-                        messages.append({
-                            "role": "user",
-                            "content": (
-                                f"你上一次工具调用的参数JSON格式有误，被服务端拒绝了。"
-                                f"请务必：1) 所有参数值尽量简短（<200字）；"
-                                f"2) 字符串内的双引号用 \\\" 转义；3) 不要用单引号；"
-                                f"4) 不要在JSON参数中嵌套复杂结构。请重试。（{api_retries}/3）"
-                            ),
-                        })
-                    else:
-                        messages.append({
-                            "role": "user",
-                            "content": f"API调用失败（{err_msg[:200]}），请重试。（{api_retries}/3）",
-                        })
-                    if self.verbose:
-                        print(f"  ⚠️ API失败({api_retries}/3): {err_msg[:120]}")
-                    continue
-                # 3次重试后仍失败 → JSON格式问题则去掉tools，纯文本兜底
+
+                # JSON格式错误：qwen-plus通病。重试1次，仍失败则去掉tools纯文本兜底
                 if is_json_err:
+                    if api_retries == 0:
+                        api_retries = 1
+                        messages.append({
+                            "role": "user",
+                            "content": "工具参数JSON有误被拒绝。请缩短参数值（<100字），字符串内双引号用\\\"转义。重试1次。",
+                        })
+                        if self.verbose:
+                            print(f"  ⚠️ JSON错误，重试1次")
+                        continue
+                    # 重试仍失败 → 纯文本兜底
                     if self.verbose:
-                        print(f"  🔄 工具调用持续JSON错误，切换到纯文本模式...")
+                        print(f"  🔄 JSON错误持续，切换纯文本模式")
                     messages.append({
                         "role": "user",
-                        "content": "由于工具调用参数格式持续出错，请直接以文本形式输出最终审查报告全文，不要再调用任何工具函数。报告须包含：总体风险概览、高风险条款详解、中风险条款、修改建议、签约建议。",
+                        "content": "请直接以文本输出审查报告，不要调用任何工具。报告含：风险概览、高风险条款详解、中风险条款、修改建议、签约建议。",
                     })
                     try:
                         resp = self.client.chat(messages, tools=None)
+                        final_msg = resp.choices[0].message
+                        print(f"\n{'='*60}")
+                        print(final_msg.content or "")
+                        return final_msg.content or ""
                     except Exception:
                         raise e
-                    final_msg = resp.choices[0].message
-                    print(f"\n{'='*60}")
-                    print(final_msg.content or "")
-                    return final_msg.content or ""
+
+                # 非JSON错误：正常重试
+                if api_retries < 3:
+                    api_retries += 1
+                    messages.append({
+                        "role": "user",
+                        "content": f"API调用失败（{err_msg[:200]}），请重试。（{api_retries}/3）",
+                    })
+                    if self.verbose:
+                        print(f"  ⚠️ API失败({api_retries}/3): {err_msg[:120]}")
+                    continue
                 raise
 
             api_retries = 0
