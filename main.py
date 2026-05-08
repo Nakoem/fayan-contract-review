@@ -92,12 +92,28 @@ class ContractReviewAgent:
         except json.JSONDecodeError:
             pass
 
-        # 修复4：中文书名号/引号导致的值内未转义双引号（常见于合同文本）
-        # 模式：在字符串值内部出现未转义的双引号
-        # e.g. {"text": "甲方须在收到"通知"后"} → 需要转义内部双引号
-        # 此修复较复杂，跳过；交给模型重试
-
         return None
+
+    @staticmethod
+    def _parse_text_tool_calls(content: str) -> list[tuple[str, dict]]:
+        """从纯文本中提取工具调用。格式：<<TOOL:name>> <<ARGS:{"k":"v"}>>"""
+        results = []
+        pattern = r'<<TOOL:(\S+)>>\s*\n?\s*<<ARGS:(\{.+?\})>>'
+        for m in re.finditer(pattern, content, re.DOTALL):
+            name = m.group(1).strip()
+            try:
+                args = json.loads(m.group(2).strip())
+            except json.JSONDecodeError:
+                repaired = ContractReviewAgent._repair_json(m.group(2).strip())
+                if repaired:
+                    try:
+                        args = json.loads(repaired)
+                    except json.JSONDecodeError:
+                        continue
+                else:
+                    continue
+            results.append((name, args))
+        return results
 
     def _parse_tool_args(self, raw: str) -> dict | None:
         """解析工具参数 JSON，失败时先尝试修复。返回 None 表示无法解析。"""
@@ -237,70 +253,31 @@ class ContractReviewAgent:
 
         api_retries = 0
         last_report = None
+        use_text_mode = False  # JSON错误后切换文本格式调工具，绕过DashScope校验
         for round_num in range(1, MAX_ITERATIONS + 1):
             # ── 调用 LLM ──
             try:
-                resp = self.client.chat(messages, tools=AGENT_TOOLS)
+                if use_text_mode:
+                    resp = self.client.chat(messages, tools=None)
+                else:
+                    resp = self.client.chat(messages, tools=AGENT_TOOLS)
             except Exception as e:
                 err_msg = str(e)
-                # qwen-plus通病：function.arguments非法JSON。直接纯文本兜底，不浪费重试
                 if "function.arguments" in err_msg and "JSON" in err_msg:
+                    # qwen-plus JSON错误 → 切换到文本格式工具调用，永不放弃工具
+                    use_text_mode = True
                     if self.verbose:
-                        print(f"  🔄 工具调用JSON错误，切换纯文本输出")
-                    today_str = date.today().strftime("%Y-%m-%d")
+                        print(f"  🔄 JSON错误，切换文本格式工具调用模式")
                     messages.append({
                         "role": "user",
                         "content": (
-                            f"由于工具调用功能暂时不可用，请直接以纯文本输出最终审查报告全文，不要再调用任何工具。\n\n"
-                            f"必须逐字复制以下格式模板，只替换占位符和条款内容：\n\n"
-                            f"╔══════════════════════════════╗\n"
-                            f"║   📋 合同审查报告           ║\n"
-                            f"╚══════════════════════════════╝\n\n"
-                            f"📌 合同类型：{contract_type}\n"
-                            f"📅 审查日期：{today_str}\n\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"一、总体风险概览\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"  🔴 高风险条款：X 条\n"
-                            f"  🟡 中风险条款：X 条\n"
-                            f"  🟢 低风险条款：X 条\n"
-                            f"  综合风险评分：XX/100（越高风险越大）\n"
-                            f"  一句话总结：（通俗语言）\n\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"二、高风险条款详解\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"N. 【类别名称】\n"
-                            f"   ▸ 原文：...\n"
-                            f"   ▸ 风险说明：...（引用具体法条编号）\n"
-                            f"   ▸ 修改建议：...\n"
-                            f"（每条均按此格式）\n\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"三、需关注的中风险条款\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"（同上格式）\n\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"四、修改优先级建议\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"  P0 必须改：X 条\n"
-                            f"  P1 建议改：X 条\n"
-                            f"  P2 可接受：X 条\n\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"五、签约建议\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"  ✅ 可签 / ⚠️ 修改后签 / ❌ 不建议签\n"
-                            f"  （一句话理由）\n\n"
-                            f"📅 审查日期：{today_str}\n\n"
-                            f"🛑 同一条款不重复计数，所有风险点不能遗漏，数字逐条数过再写。"
+                            "函数调用功能暂时不可用。请用以下文本格式调用工具（可一次调用多个）：\n\n"
+                            "<<TOOL:extract_clauses>>\n<<ARGS:{\"contract_type\": \"服务合同\"}>>\n\n"
+                            "<<TOOL:search_regulation>>\n<<ARGS:{\"keyword\": \"违约金\"}>>\n\n"
+                            "请继续审查流程。"
                         ),
                     })
-                    try:
-                        resp = self.client.chat(messages, tools=None)
-                        final_msg = resp.choices[0].message
-                        print(f"\n{'='*60}")
-                        print(final_msg.content or "")
-                        return final_msg.content or ""
-                    except Exception:
-                        raise e
+                    continue
 
                 if api_retries < 3:
                     api_retries += 1
@@ -326,6 +303,36 @@ class ContractReviewAgent:
                 for line in thought.strip().split("\n"):
                     print(f"│  {line}")
 
+            # ── 文本模式：解析 <<TOOL>> 标签 ──
+            if use_text_mode:
+                text_calls = self._parse_text_tool_calls(msg.content or "")
+                if not text_calls:
+                    # 无工具调用 → 任务完成
+                    if self.verbose:
+                        print(f"└{'─' * 60}┘")
+                    final = last_report if last_report else (msg.content or "")
+                    if self.verbose:
+                        print(f"\n{'='*60}")
+                        print(final)
+                    return final
+                # 执行文本格式的工具调用
+                for func_name, args in text_calls:
+                    args_preview = ", ".join(f"{k}={str(v)[:50]}" for k, v in args.items())
+                    print(f"│")
+                    print(f"│  🔧 [文本] {func_name}({args_preview})")
+                    result = self._execute_tool(func_name, args)
+                    if len(result) > TOOL_RESULT_MAX_CHARS:
+                        result = result[:TOOL_RESULT_MAX_CHARS] + "\n...（结果已截断）"
+                    print(f"│  📋 返回 {len(result)} 字符")
+                    if func_name == "generate_final_report":
+                        last_report = result
+                    messages.append({
+                        "role": "user",
+                        "content": f"[工具 {func_name} 的执行结果]\n{result}",
+                    })
+                print(f"└{'─' * 60}┘")
+                continue
+
             # ── 无 tool_calls → 任务完成 ──
             if not msg.tool_calls:
                 if self.verbose:
@@ -339,7 +346,7 @@ class ContractReviewAgent:
                     print(final)
                 return final
 
-            # ── 执行工具调用 ──
+            # ── 执行工具调用（标准函数调用路径）──
             for tc in msg.tool_calls:
                 func_name = tc.function.name
                 raw_args = tc.function.arguments or "{}"
