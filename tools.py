@@ -814,14 +814,14 @@ AGENT_TOOLS = [
                 "properties": {
                     "contract_text": {
                         "type": "string",
-                        "description": "合同的完整文本",
+                        "description": "合同文本（可省略——合同已在系统提示词中，这里传空字符串即可，不要在JSON参数中粘贴完整合同以避免转义错误）",
                     },
                     "contract_type": {
                         "type": "string",
-                        "description": "合同类型，如'房屋租赁合同'、'劳动合同'",
+                        "description": "合同类型，如'房屋租赁合同'、'劳动合同'、'技术开发合同'",
                     },
                 },
-                "required": ["contract_text", "contract_type"],
+                "required": ["contract_type"],
             },
         },
     },

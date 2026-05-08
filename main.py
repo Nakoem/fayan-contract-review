@@ -45,6 +45,7 @@ class ContractReviewAgent:
     def __init__(self, api_key: str, verbose: bool = True):
         self.client = LLMClient(api_key=api_key)
         self.verbose = verbose
+        self._contract_text = ""  # 缓存合同原文，避免工具调用时重复传递
 
     def _execute_tool(self, name: str, args: dict) -> str:
         """执行工具调用，返回结果文本。错误会被捕获并作为文本返回。"""
@@ -52,9 +53,13 @@ class ContractReviewAgent:
             if name == "extract_clauses":
                 from tools import extract_clauses
 
+                ct = args.get("contract_text", "")
+                # 模型传了空值或占位符 → 用缓存的合同原文
+                if not ct or len(ct) < 50:
+                    ct = self._contract_text
                 return extract_clauses(
                     self.client,
-                    args["contract_text"],
+                    ct,
                     args["contract_type"],
                 )
             elif name == "search_regulation":
@@ -133,6 +138,8 @@ class ContractReviewAgent:
         """主 ReAct 循环。返回最终报告。"""
         from tools import AGENT_TOOLS
 
+        self._contract_text = contract_text  # 缓存，供工具回退使用
+
         messages = [
             {"role": "system", "content": AGENT_SYSTEM_PROMPT},
             {
@@ -146,29 +153,60 @@ class ContractReviewAgent:
         json_retries = 0
         last_report = None  # 缓存 generate_final_report 的输出
         for round_num in range(1, MAX_ITERATIONS + 1):
+            # ── 第1步：调用 LLM ──
             try:
                 resp = self.client.chat(messages, tools=AGENT_TOOLS)
             except Exception as e:
                 err_msg = str(e)
-                if ("JSON" in err_msg or "arguments" in err_msg) and json_retries < 5:
+                # API 层面出错（网络、服务端拒绝、SDK解析失败等）
+                if json_retries < 5:
                     json_retries += 1
-                    if messages and messages[-1].get("role") == "assistant":
-                        messages.pop()
                     messages.append({
                         "role": "user",
                         "content": (
-                            f"你的上一次工具调用格式错误（function.arguments 不是合法的 JSON 字符串）。"
-                            f"请确保：1) 所有字符串值用双引号包裹；2) 不要用单引号；3) 参数值尽可能简短。"
-                            f"请重新调用刚才的工具，参数值必须为合法 JSON。（第{json_retries}次重试，最多5次）"
+                            f"API调用失败：{err_msg[:300]}。"
+                            f"请简化你刚才计划的操作，重新执行。（第{json_retries}/5次重试）"
                         ),
                     })
                     if self.verbose:
-                        print(f"  ⚠️ JSON 格式错误，重试 {json_retries}/5...")
+                        print(f"  ⚠️ API调用失败，重试 {json_retries}/5: {err_msg[:120]}")
                     continue
                 raise
 
-            json_retries = 0  # 重置计数器
             msg = resp.choices[0].message
+
+            # ── 第2步：校验 tool_calls 的 JSON 参数 ──
+            # qwen-plus 经常在 function.arguments 里输出不合法 JSON（单引号、未转义等）
+            # 在此提前校验，避免坏消息污染对话历史
+            if msg.tool_calls:
+                bad_tc = None
+                bad_error = None
+                for tc in msg.tool_calls:
+                    try:
+                        json.loads(tc.function.arguments)
+                    except json.JSONDecodeError as je:
+                        bad_tc = tc
+                        bad_error = je
+                        break
+
+                if bad_tc is not None and json_retries < 5:
+                    json_retries += 1
+                    # 不要把这条坏消息加入历史，直接发纠正指令
+                    messages.append({
+                        "role": "user",
+                        "content": (
+                            f"工具 {bad_tc.function.name} 的参数不是合法JSON：{bad_error}。"
+                            f"原始参数值：{bad_tc.function.arguments[:300]}。"
+                            f"请修正：1) 所有字符串用双引号；2) 内容中的双引号用 \\\" 转义；"
+                            f"3) 换行用 \\n；4) 反斜杠用 \\\\。"
+                            f"请重新调用 {bad_tc.function.name}。（第{json_retries}/5次重试）"
+                        ),
+                    })
+                    if self.verbose:
+                        print(f"  ⚠️ 工具参数JSON非法({bad_tc.function.name})，重试 {json_retries}/5: {bad_error}")
+                    continue
+
+            json_retries = 0  # 成功后重置计数器
             messages.append(msg.model_dump(exclude_none=True))
 
             # 打印模型的"思考"
@@ -201,7 +239,10 @@ class ContractReviewAgent:
                 try:
                     args = json.loads(tc.function.arguments)
                 except json.JSONDecodeError:
+                    # 重试已耗尽仍失败时的最后兜底
                     args = {}
+                    if self.verbose:
+                        print(f"  ⚠️ 重试耗尽，{func_name} 使用空参数继续")
 
                 args_preview = ", ".join(
                     f"{k}={str(v)[:50]}" for k, v in args.items()
