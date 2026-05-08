@@ -17,6 +17,7 @@
 """
 
 import json
+import re
 import sys
 import os
 from datetime import date
@@ -46,6 +47,74 @@ class ContractReviewAgent:
         self.client = LLMClient(api_key=api_key)
         self.verbose = verbose
         self._contract_text = ""  # 缓存合同原文，避免工具调用时重复传递
+
+    # ── JSON 修复 ───────────────────────────────────────────
+    @staticmethod
+    def _repair_json(text: str) -> str | None:
+        """尝试修复 LLM 常见的 JSON 格式错误。修复成功返回字符串，否则 None。"""
+        if not text or not text.strip():
+            return None
+        text = text.strip()
+
+        # 已经合法
+        try:
+            json.loads(text)
+            return text
+        except json.JSONDecodeError:
+            pass
+
+        # 修复1：去掉尾部逗号 (最常见的LLM错误)
+        repaired = re.sub(r",\s*([}\]])", r"\1", text)
+        try:
+            json.loads(repaired)
+            return repaired
+        except json.JSONDecodeError:
+            pass
+
+        # 修复2：提取最外层 {...}（模型有时在JSON前后加说明文字）
+        m = re.search(r"\{.*\}", repaired, re.DOTALL)
+        if m:
+            extracted = m.group(0)
+            try:
+                json.loads(extracted)
+                return extracted
+            except json.JSONDecodeError:
+                pass
+
+        # 修复3：单引号 → 双引号（模型用Python dict风格输出JSON）
+        # 中文合同中单引号作为引号使用较少，此替换相对安全
+        squoted = repaired.replace("'", '"')
+        try:
+            json.loads(squoted)
+            return squoted
+        except json.JSONDecodeError:
+            pass
+
+        # 修复4：中文书名号/引号导致的值内未转义双引号（常见于合同文本）
+        # 模式：在字符串值内部出现未转义的双引号
+        # e.g. {"text": "甲方须在收到"通知"后"} → 需要转义内部双引号
+        # 此修复较复杂，跳过；交给模型重试
+
+        return None
+
+    def _parse_tool_args(self, raw: str) -> dict | None:
+        """解析工具参数 JSON，失败时先尝试修复。返回 None 表示无法解析。"""
+        raw = (raw or "").strip()
+        if not raw:
+            return {}
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+        repaired = self._repair_json(raw)
+        if repaired:
+            try:
+                if self.verbose:
+                    print(f"  🔧 JSON已自动修复")
+                return json.loads(repaired)
+            except json.JSONDecodeError:
+                pass
+        return None
 
     def _execute_tool(self, name: str, args: dict) -> str:
         """执行工具调用，返回结果文本。错误会被捕获并作为文本返回。"""
@@ -150,80 +219,42 @@ class ContractReviewAgent:
             },
         ]
 
-        json_retries = 0
-        last_report = None  # 缓存 generate_final_report 的输出
+        api_retries = 0
+        last_report = None
         for round_num in range(1, MAX_ITERATIONS + 1):
-            # ── 第1步：调用 LLM ──
+            # ── 调用 LLM ──
             try:
                 resp = self.client.chat(messages, tools=AGENT_TOOLS)
             except Exception as e:
                 err_msg = str(e)
-                # API 层面出错（网络、服务端拒绝、SDK解析失败等）
-                if json_retries < 5:
-                    json_retries += 1
+                if api_retries < 3:
+                    api_retries += 1
                     messages.append({
                         "role": "user",
-                        "content": (
-                            f"API调用失败：{err_msg[:300]}。"
-                            f"请简化你刚才计划的操作，重新执行。（第{json_retries}/5次重试）"
-                        ),
+                        "content": f"API调用失败（{err_msg[:200]}），请重试。（{api_retries}/3）",
                     })
                     if self.verbose:
-                        print(f"  ⚠️ API调用失败，重试 {json_retries}/5: {err_msg[:120]}")
+                        print(f"  ⚠️ API调用失败，重试 {api_retries}/3: {err_msg[:120]}")
                     continue
                 raise
 
+            api_retries = 0
             msg = resp.choices[0].message
-
-            # ── 第2步：校验 tool_calls 的 JSON 参数 ──
-            # qwen-plus 经常在 function.arguments 里输出不合法 JSON（单引号、未转义等）
-            # 在此提前校验，避免坏消息污染对话历史
-            if msg.tool_calls:
-                bad_tc = None
-                bad_error = None
-                for tc in msg.tool_calls:
-                    try:
-                        json.loads(tc.function.arguments)
-                    except json.JSONDecodeError as je:
-                        bad_tc = tc
-                        bad_error = je
-                        break
-
-                if bad_tc is not None and json_retries < 5:
-                    json_retries += 1
-                    # 不要把这条坏消息加入历史，直接发纠正指令
-                    messages.append({
-                        "role": "user",
-                        "content": (
-                            f"工具 {bad_tc.function.name} 的参数不是合法JSON：{bad_error}。"
-                            f"原始参数值：{bad_tc.function.arguments[:300]}。"
-                            f"请修正：1) 所有字符串用双引号；2) 内容中的双引号用 \\\" 转义；"
-                            f"3) 换行用 \\n；4) 反斜杠用 \\\\。"
-                            f"请重新调用 {bad_tc.function.name}。（第{json_retries}/5次重试）"
-                        ),
-                    })
-                    if self.verbose:
-                        print(f"  ⚠️ 工具参数JSON非法({bad_tc.function.name})，重试 {json_retries}/5: {bad_error}")
-                    continue
-
-            json_retries = 0  # 成功后重置计数器
             messages.append(msg.model_dump(exclude_none=True))
 
-            # 打印模型的"思考"
+            # ── 打印思考 ──
             thought = msg.content or ""
             if thought and self.verbose:
                 print(f"\n┌─ 第 {round_num} 轮 ──────────────────────────────────────┐")
-                # 截断过长的思考
                 if len(thought) > 500:
                     thought = thought[:500] + "..."
                 for line in thought.strip().split("\n"):
                     print(f"│  {line}")
 
-            # 无 tool_calls = 模型认为任务完成
+            # ── 无 tool_calls → 任务完成 ──
             if not msg.tool_calls:
                 if self.verbose:
                     print(f"└{'─' * 60}┘")
-                # 如果上一轮有 generate_final_report 结果，优先用工具输出
                 if last_report and (not msg.content or len(msg.content) < 200):
                     final = last_report
                 else:
@@ -233,16 +264,26 @@ class ContractReviewAgent:
                     print(final)
                 return final
 
-            # 执行工具调用
+            # ── 执行工具调用 ──
             for tc in msg.tool_calls:
                 func_name = tc.function.name
-                try:
-                    args = json.loads(tc.function.arguments)
-                except json.JSONDecodeError:
-                    # 重试已耗尽仍失败时的最后兜底
-                    args = {}
+                raw_args = tc.function.arguments or "{}"
+
+                args = self._parse_tool_args(raw_args)
+                if args is None:
+                    # JSON 无法解析 → 工具报错协议，模型下轮自动修正
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": (
+                            f"参数JSON格式错误：{raw_args[:300]}\n"
+                            f"请用合法JSON重新调用 {func_name}（所有字符串用双引号包裹，"
+                            f"内容中的双引号用反斜杠转义，不要使用单引号作为键名）。"
+                        ),
+                    })
                     if self.verbose:
-                        print(f"  ⚠️ 重试耗尽，{func_name} 使用空参数继续")
+                        print(f"│  ⚠️ {func_name}: JSON解析失败，已反馈给模型重试")
+                    continue
 
                 args_preview = ", ".join(
                     f"{k}={str(v)[:50]}" for k, v in args.items()
@@ -251,7 +292,6 @@ class ContractReviewAgent:
                 print(f"│  🔧 {func_name}({args_preview})")
 
                 result = self._execute_tool(func_name, args)
-                # 截断过长结果
                 if len(result) > TOOL_RESULT_MAX_CHARS:
                     result = result[:TOOL_RESULT_MAX_CHARS] + "\n...（结果已截断）"
                 print(f"│  📋 返回 {len(result)} 字符")
