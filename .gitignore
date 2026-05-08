@@ -1,0 +1,23 @@
+# 密钥
+.env
+
+# 虚拟环境
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Claude Code 内部文件
+.agents/
+skills-lock.json
+
+# 输出
+审查报告/
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/secrets.toml
