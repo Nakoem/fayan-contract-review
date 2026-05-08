@@ -44,11 +44,10 @@ class ContractReviewAgent:
     """ReAct Agent：自主决定审查步骤，循环 思考→行动→观察。"""
 
     def __init__(self, api_key: str, verbose: bool = True):
-        # qwen-max: 函数调用JSON合规性远超qwen-plus，避免DashScope服务端拒绝
-        self.client = LLMClient(api_key=api_key, model="qwen-max")
+        self.client = LLMClient(api_key=api_key)
         self.verbose = verbose
-        self._contract_text = ""  # 缓存合同原文
-        self._risk_findings: list[dict] = []  # 累积所有 analyze_single_clause 结果
+        self._contract_text = ""
+        self._risk_findings: list[dict] = []
 
     # ── JSON 修复 ───────────────────────────────────────────
     @staticmethod

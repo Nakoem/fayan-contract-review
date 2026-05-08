@@ -234,7 +234,7 @@ with st.sidebar:
     st.markdown('<div class="sidebar-brand">⚖ 法眼 · 合同审查 Agent</div>', unsafe_allow_html=True)
     st.markdown(
         '<span class="sidebar-dot online"></span>'
-        '<span style="font-size:0.75rem;color:#8a8fa0;letter-spacing:0.5px;">REACT AGENT · QWEN-MAX</span>',
+        '<span style="font-size:0.75rem;color:#8a8fa0;letter-spacing:0.5px;">REACT AGENT · QWEN-PLUS</span>',
         unsafe_allow_html=True,
     )
     st.divider()
@@ -301,7 +301,7 @@ with st.sidebar:
                     )
                     st.caption(f"{h['type']} · 🔴{h['summary'].get('high', '-')} 🟡{h['summary'].get('medium', '-')}")
 
-    st.caption("© 2026 法眼 · Powered by Qwen-Max")
+    st.caption("© 2026 法眼 · Powered by Qwen-Plus")
 
 # ═══════════════════════════════════════════════════════
 # 页面标题
