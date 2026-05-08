@@ -16,7 +16,7 @@ class LLMClient:
         self,
         messages: list[dict],
         tools: list[dict] | None = None,
-        max_tokens: int = 2048,
+        max_tokens: int = 4096,
     ):
         """低级 API：发送消息列表，返回原始 ChatCompletion 对象。
         Agent 循环用这个方法，因为它需要检查 tool_calls 并自己处理循环。"""
