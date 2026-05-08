@@ -38,6 +38,7 @@ load_dotenv()
 
 MAX_ITERATIONS = 20
 TOOL_RESULT_MAX_CHARS = 4000
+FINAL_REPORT_MAX_CHARS = 12000  # 最终报告不截断
 
 
 class ContractReviewAgent:
@@ -307,8 +308,9 @@ class ContractReviewAgent:
                 print(f"│  🔧 {func_name}({args_preview})")
 
                 result = self._execute_tool(func_name, args)
-                if len(result) > TOOL_RESULT_MAX_CHARS:
-                    result = result[:TOOL_RESULT_MAX_CHARS] + "\n...（结果已截断）"
+                max_chars = FINAL_REPORT_MAX_CHARS if func_name == "generate_final_report" else TOOL_RESULT_MAX_CHARS
+                if len(result) > max_chars:
+                    result = result[:max_chars] + "\n...（结果已截断）"
                 print(f"│  📋 返回 {len(result)} 字符")
 
                 if func_name == "generate_final_report":
