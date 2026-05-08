@@ -389,8 +389,10 @@ with col_left:
             st.session_state.log = buf.getvalue()
 
             # 从报告中提取统计
-            high = len(re.findall(r'🔴\s*高风险|高风险条款.*?(\d+)\s*条', report))
-            med  = len(re.findall(r'🟡\s*中风险|中风险条款.*?(\d+)\s*条', report))
+            high_m = re.search(r'🔴\s*高风险条款[：:]\s*(\d+)', report)
+            med_m  = re.search(r'🟡\s*中风险条款[：:]\s*(\d+)', report)
+            high = int(high_m.group(1)) if high_m else 0
+            med  = int(med_m.group(1)) if med_m else 0
             rounds = st.session_state.log.count("┌─ 第")
             st.session_state.summary = {"high": high, "medium": med, "rounds": rounds}
 
