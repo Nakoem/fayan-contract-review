@@ -150,16 +150,20 @@ class ContractReviewAgent:
                 resp = self.client.chat(messages, tools=AGENT_TOOLS)
             except Exception as e:
                 err_msg = str(e)
-                if ("JSON" in err_msg or "arguments" in err_msg) and json_retries < 3:
+                if ("JSON" in err_msg or "arguments" in err_msg) and json_retries < 5:
                     json_retries += 1
                     if messages and messages[-1].get("role") == "assistant":
-                        messages.pop()  # 移除导致错误的上一条
+                        messages.pop()
                     messages.append({
                         "role": "user",
-                        "content": f"上一次调用失败（JSON 格式错误），请用更简单的参数值重试（第{json_retries}次重试）。",
+                        "content": (
+                            f"你的上一次工具调用格式错误（function.arguments 不是合法的 JSON 字符串）。"
+                            f"请确保：1) 所有字符串值用双引号包裹；2) 不要用单引号；3) 参数值尽可能简短。"
+                            f"请重新调用刚才的工具，参数值必须为合法 JSON。（第{json_retries}次重试，最多5次）"
+                        ),
                     })
                     if self.verbose:
-                        print(f"  ⚠️ JSON 格式错误，重试 {json_retries}/3...")
+                        print(f"  ⚠️ JSON 格式错误，重试 {json_retries}/5...")
                     continue
                 raise
 

@@ -434,7 +434,14 @@ with col_left:
             status_text.empty()
 
             if result["error"]:
-                st.error(f"审查出错: {result['error']}")
+                err_str = str(result["error"])
+                if "JSON" in err_str or "arguments" in err_str:
+                    st.warning(
+                        "模型返回了格式异常的输出（qwen-plus 偶发），已自动重试5次仍失败。"
+                        "请点击下方按钮重新审查，通常再次运行即可正常。"
+                    )
+                else:
+                    st.error(f"审查出错: {err_str}")
                 st.stop()
 
             report = result["report"]
