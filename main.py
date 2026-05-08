@@ -45,7 +45,7 @@ class ContractReviewAgent:
     """ReAct Agent：自主决定审查步骤，循环 思考→行动→观察。"""
 
     def __init__(self, api_key: str, verbose: bool = True):
-        self.client = LLMClient(api_key=api_key, model="qwen3.6-plus")
+        self.client = LLMClient(api_key=api_key, model="deepseek-v3.2")
         self.verbose = verbose
         self._contract_text = ""
         self._risk_findings: list[dict] = []
