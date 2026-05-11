@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# 配置
+.env.example
+.streamlit/
+
+# 输出
+logs/
+审查报告/
+eval_results/
+
+# 文档
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
+.agents/
+
+# 测试样本（按需保留）
+sample_*.txt
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# 临时文件
+*.tmp
