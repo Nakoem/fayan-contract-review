@@ -23,37 +23,40 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-    --primary: #0a0a0a;
-    --brand-green: #00d4a4;
-    --brand-green-deep: #00b48a;
-    --canvas: #ffffff;
-    --surface: #f7f7f7;
-    --hairline: #e5e5e5;
-    --ink: #0a0a0a;
-    --body: #555555;
+    --primary: #4a154b;
+    --canvas: #f4ede4;
+    --canvas-lavender: #f9f0ff;
+    --surface: #ffffff;
+    --surface-aubergine: #4a154b;
+    --hairline: #e6e6e6;
+    --ink: #1d1d1d;
+    --body: #454545;
     --body-mid: #888888;
+    --link-blue: #1264a3;
+    --on-primary: #ffffff;
+    --on-aubergine-mute: #d9bdde;
 }
 
 html, body, [class*="css"] { font-family: 'Inter', system-ui, -apple-system, 'Noto Sans SC', sans-serif; color: var(--body); }
 h1, h2, h3 { font-family: 'Inter', sans-serif; font-weight: 600; color: var(--ink); }
 
 [data-testid="stAppViewContainer"] { background: var(--canvas); }
-[data-testid="stHeader"] { background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); border-bottom: 1px solid var(--hairline); }
+[data-testid="stHeader"] { background: rgba(244,237,228,0.94); backdrop-filter: blur(10px); border-bottom: 1px solid var(--hairline); }
 
-[data-testid="stSidebar"] { background: var(--surface); border-right: 1px solid var(--hairline); }
-[data-testid="stSidebar"] * { color: var(--body) !important; }
+[data-testid="stSidebar"] { background: var(--surface-aubergine); border-right: 1px solid rgba(255,255,255,0.08); }
+[data-testid="stSidebar"] * { color: var(--on-aubergine-mute) !important; }
 [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
-[data-testid="stSidebar"] label { color: var(--ink) !important; font-family: 'Inter', sans-serif !important; font-weight: 600; }
+[data-testid="stSidebar"] label { color: var(--on-primary) !important; font-family: 'Inter', sans-serif !important; font-weight: 600; }
 [data-testid="stSidebar"] input {
-    background: var(--canvas) !important; border: 1px solid var(--hairline) !important;
-    border-radius: 8px !important; color: var(--ink) !important;
+    background: rgba(255,255,255,0.08) !important; border: 1px solid rgba(255,255,255,0.12) !important;
+    border-radius: 8px !important; color: var(--on-primary) !important;
 }
-[data-testid="stSidebar"] input:hover { border-color: var(--brand-green) !important; }
-[data-testid="stSidebar"] hr { border-color: var(--hairline) !important; }
+[data-testid="stSidebar"] input:hover { border-color: rgba(255,255,255,0.3) !important; }
+[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.1) !important; }
 
 .sidebar-brand { font-family: 'Inter', sans-serif !important; font-size: 1.1rem !important; font-weight: 600 !important; color: var(--ink) !important; }
 .sidebar-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
-.sidebar-dot.online { background: var(--brand-green); animation: pulse-dot 2.5s infinite; }
+.sidebar-dot.online { background: var(--link-blue); animation: pulse-dot 2.5s infinite; }
 @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
 .main-title { font-family: 'Inter', sans-serif !important; font-size: 2.4rem !important; font-weight: 600 !important; color: var(--ink) !important; }
@@ -69,7 +72,7 @@ h1, h2, h3 { font-family: 'Inter', sans-serif; font-weight: 600; color: var(--in
     background: var(--canvas) !important; color: var(--ink) !important;
     font-family: 'Inter', sans-serif !important;
 }
-[data-testid="stChatInput"] textarea:focus { border-color: var(--brand-green) !important; box-shadow: none !important; }
+[data-testid="stChatInput"] textarea:focus { border-color: var(--primary) !important; box-shadow: none !important; }
 
 /* 滚动条 */
 ::-webkit-scrollbar { width: 6px; }

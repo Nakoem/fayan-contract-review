@@ -33,32 +33,34 @@ st.set_page_config(page_title="法眼 · 合同审查", page_icon="⚖️", layo
 st.markdown("""
 <style>
 /* ═══════════════════════════════════════════════
-   Mintlify-Inspired — 清新 · 技术文档
-   白底 + 薄荷绿#00d4a4 + 黑药丸按钮
+   Slack-Inspired — 深茄紫 + 奶油薰衣草
+   #4a154b茄紫底 + #f4ede4奶油 + 药丸按钮
    ═══════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-    --primary: #0a0a0a;
+    --primary: #4a154b;
+    --primary-deep: #481a54;
+    --primary-press: #611f69;
     --on-primary: #ffffff;
-    --brand-green: #00d4a4;
-    --brand-green-deep: #00b48a;
-    --canvas: #ffffff;
-    --surface: #f7f7f7;
-    --surface-soft: #fafafa;
-    --hairline: #e5e5e5;
-    --hairline-soft: #ededed;
-    --ink: #0a0a0a;
-    --ink-soft: #333333;
-    --body: #555555;
+    --on-aubergine-mute: #d9bdde;
+    --canvas: #f4ede4;
+    --canvas-lavender: #f9f0ff;
+    --surface: #ffffff;
+    --surface-aubergine: #4a154b;
+    --hairline: #e6e6e6;
+    --ink: #1d1d1d;
+    --ink-mute: #696969;
+    --link-blue: #1264a3;
+    --body: #454545;
     --body-mid: #888888;
-    --red: #d45656;
-    --red-bg: rgba(212,86,86,0.08);
+    --red: #cc4117;
+    --red-bg: rgba(204,65,23,0.08);
     --amber: #c37d0d;
     --amber-bg: rgba(195,125,13,0.08);
-    --green: #1ba673;
-    --green-bg: rgba(27,166,115,0.08);
+    --green: #007a5a;
+    --green-bg: rgba(0,122,90,0.08);
 }
 
 html, body, [class*="css"] { font-family: 'Inter', system-ui, -apple-system, 'Noto Sans SC', sans-serif; color: var(--body); }
@@ -67,7 +69,7 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Inter', system-ui, -apple-system, 'Noto S
 [data-testid="stAppViewContainer"] { background: var(--canvas); }
 
 [data-testid="stHeader"] {
-    background: rgba(255,255,255,0.94);
+    background: rgba(244,237,228,0.94);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--hairline);
 }
@@ -80,31 +82,31 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Inter', system-ui, -apple-system, 'Noto S
 }
 .main-subtitle { color: var(--body-mid); font-size: 0.9rem; font-weight: 400; }
 
-/* ── 侧边栏 ── */
+/* ── 侧边栏：深茄紫 ── */
 [data-testid="stSidebar"] {
-    background: var(--surface-soft);
-    border-right: 1px solid var(--hairline);
+    background: var(--surface-aubergine);
+    border-right: 1px solid rgba(255,255,255,0.08);
 }
-[data-testid="stSidebar"] * { color: var(--body) !important; }
+[data-testid="stSidebar"] * { color: var(--on-aubergine-mute) !important; }
 [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
-[data-testid="stSidebar"] label { color: var(--ink) !important; font-family: 'Inter', sans-serif !important; font-weight: 600; }
+[data-testid="stSidebar"] label { color: var(--on-primary) !important; font-family: 'Inter', sans-serif !important; font-weight: 600; }
 [data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div,
 [data-testid="stSidebar"] input {
-    background: var(--canvas) !important;
-    border: 1px solid var(--hairline) !important;
-    border-radius: 8px !important; color: var(--ink) !important;
+    background: rgba(255,255,255,0.08) !important;
+    border: 1px solid rgba(255,255,255,0.12) !important;
+    border-radius: 8px !important; color: var(--on-primary) !important;
 }
 [data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div:hover,
-[data-testid="stSidebar"] input:hover { border-color: var(--brand-green) !important; }
-[data-testid="stSidebar"] hr { border-color: var(--hairline) !important; }
+[data-testid="stSidebar"] input:hover { border-color: rgba(255,255,255,0.3) !important; }
+[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.1) !important; }
 
 .sidebar-brand {
     font-family: 'Inter', sans-serif !important;
     font-size: 1.1rem !important; font-weight: 600 !important;
-    color: var(--ink) !important;
+    color: var(--on-primary) !important;
 }
 .sidebar-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
-.sidebar-dot.online { background: var(--brand-green); animation: pulse-dot 2.5s infinite; }
+.sidebar-dot.online { background: var(--link-blue); animation: pulse-dot 2.5s infinite; }
 @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
 /* ── 合同输入区 ── */
@@ -113,7 +115,7 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Inter', system-ui, -apple-system, 'Noto S
     border: 1px solid var(--hairline);
     border-radius: 8px;
 }
-.contract-wrapper:focus-within { border-color: var(--brand-green); }
+.contract-wrapper:focus-within { border-color: var(--primary); }
 .contract-wrapper textarea {
     background: transparent !important;
     font-family: 'JetBrains Mono', 'SF Mono', monospace !important;
@@ -135,9 +137,9 @@ div[data-testid="stButton"] > button:hover {
     transform: none !important; box-shadow: none !important;
 }
 
-/* ── 薄荷绿强调 ── */
-a, a:visited { color: var(--brand-green-deep) !important; }
-[data-testid="stProgress"] > div > div { background: var(--brand-green) !important; }
+/* ── 茄紫强调 ── */
+a, a:visited { color: var(--link-blue) !important; }
+[data-testid="stProgress"] > div > div { background: var(--primary) !important; }
 
 .timeline-round {
     background: var(--surface); border-left: 2px solid var(--brand-green);
@@ -174,7 +176,7 @@ a, a:visited { color: var(--brand-green-deep) !important; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--canvas); }
 ::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--brand-green); }
+::-webkit-scrollbar-thumb:hover { background: var(--primary); }
 
 /* ── 收紧全局留白 ── */
 [data-testid="stAppViewBlockContainer"] {
