@@ -543,6 +543,29 @@ with col_left:
             st.rerun()
 
 with col_right:
+    # ── 功能概览卡片 ──
+    with st.expander("📌 法眼 · 能力概览", expanded=True):
+        st.markdown("""
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;">
+            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
+                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">⚖ 10工具 ReAct Agent</div>
+                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">自主决策审查步骤</div>
+            </div>
+            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
+                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">📚 四重知识库</div>
+                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">法规·判例·政策·税务</div>
+            </div>
+            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
+                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">📋 六种合同类型</div>
+                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">每种配备法定红线标准</div>
+            </div>
+            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
+                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">🚀 多种使用方式</div>
+                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">CLI·Web·API·MCP·Docker</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
     st.markdown("#### 📊 审查结果")
 
     if st.session_state.report:
@@ -624,55 +647,4 @@ with col_right:
             """
             st.markdown(copy_js, unsafe_allow_html=True)
     else:
-        # 空状态：展示功能概览卡片
-        st.markdown("""
-        <div style="
-            background: white; border: 1px solid #e0d8c8; border-radius: 4px;
-            padding: 28px 24px; margin-bottom: 14px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.02);
-        ">
-            <div style="font-size:1.05rem;font-weight:600;color:#1a1f36;margin-bottom:8px;">
-                ⚖ 10 工具 ReAct Agent
-            </div>
-            <div style="font-size:0.85rem;color:#5c5240;line-height:1.7;">
-                AI 自主决策审查步骤：提取条款 → 法规检索 → 逐条分析 → 完整性检查 → 生成报告
-            </div>
-        </div>
-        <div style="
-            background: white; border: 1px solid #e0d8c8; border-radius: 4px;
-            padding: 28px 24px; margin-bottom: 14px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.02);
-        ">
-            <div style="font-size:1.05rem;font-weight:600;color:#1a1f36;margin-bottom:8px;">
-                📚 四重知识库
-            </div>
-            <div style="font-size:0.85rem;color:#5c5240;line-height:1.7;">
-                法规原文 × 法院判例 × 地方政策 × 税务规则 —— RAG 语义检索，66条知识库交叉验证
-            </div>
-        </div>
-        <div style="
-            background: white; border: 1px solid #e0d8c8; border-radius: 4px;
-            padding: 28px 24px; margin-bottom: 14px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.02);
-        ">
-            <div style="font-size:1.05rem;font-weight:600;color:#1a1f36;margin-bottom:8px;">
-                📋 六种合同类型
-            </div>
-            <div style="font-size:0.85rem;color:#5c5240;line-height:1.7;">
-                房屋租赁 · 劳动 · 买卖 · 服务 · 合作 · 借款<br>
-                每种配备法定红线标准，逐条打分公平性 / 明确性 / 风险敞口
-            </div>
-        </div>
-        <div style="
-            background: white; border: 1px solid #e0d8c8; border-radius: 4px;
-            padding: 28px 24px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.02);
-        ">
-            <div style="font-size:1.05rem;font-weight:600;color:#1a1f36;margin-bottom:8px;">
-                🚀 多种使用方式
-            </div>
-            <div style="font-size:0.85rem;color:#5c5240;line-height:1.7;">
-                终端 CLI · Streamlit Web · FastAPI 接口 · MCP 协议 · Docker 一键部署
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.info("👆 粘贴合同后点击「🔍 开始审查」，或上传 .txt / .jpg 合同文件")
