@@ -33,76 +33,80 @@ st.set_page_config(page_title="法眼 · 合同审查", page_icon="⚖️", layo
 st.markdown("""
 <style>
 /* ═══════════════════════════════════════════════
-   Warp-Inspired — 终端即产品
-   暖暗色画布 + Inter 字体 + 紧致几何
+   Claude-Inspired — 暖奶油色 · 人文AI
+   衬线标题 + 珊瑚橙CTA + 奶油底
    ═══════════════════════════════════════════════ */
 
-/* ── 导入字体 ── */
-@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-    --canvas: #2b2622;
-    --canvas-soft: #383330;
-    --hairline: #3f3a36;
-    --ink: #f7f5f0;
-    --body-strong: #dad2c1;
-    --body: #c9c0ad;
-    --mute: #aea69c;
-    --primary: #f7f5f0;
-    --on-primary: #2b2622;
-    --red: #e5484d;
-    --red-bg: rgba(229,72,77,0.12);
-    --amber: #f5a623;
-    --amber-bg: rgba(245,166,35,0.12);
-    --green: #30a46c;
-    --green-bg: rgba(48,164,108,0.12);
+    --primary: #cc785c;
+    --primary-active: #a9583e;
+    --canvas: #faf9f5;
+    --ink: #141413;
+    --body-strong: #252523;
+    --body: #3d3d3a;
+    --muted: #6c6a64;
+    --muted-soft: #8e8b82;
+    --hairline: #e6dfd8;
+    --hairline-soft: #ebe6df;
+    --surface-soft: #f5f0e8;
+    --surface-card: #efe9de;
+    --surface-dark: #181715;
+    --red: #c64545;
+    --red-bg: rgba(198,69,69,0.08);
+    --amber: #d4a017;
+    --amber-bg: rgba(212,160,23,0.08);
+    --green: #5db872;
+    --green-bg: rgba(93,184,114,0.08);
+    --accent-teal: #5db8a6;
 }
 
-html, body, [class*="css"] { font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif; }
-h1, h2, h3, h4, h5, h6 { font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif; font-weight: 500; letter-spacing: -0.3px; }
 
-/* ── 背景：暖暗色画布 ── */
+html, body, [class*="css"] { font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif; color: var(--body); }
+h1, h2, h3, h4, h5, h6 { font-family: 'Georgia', 'Noto Serif SC', 'Times New Roman', serif; font-weight: 400; letter-spacing: -0.3px; color: var(--ink); }
+
+/* 背景：暖奶油色 */
 [data-testid="stAppViewContainer"] {
     background: var(--canvas);
 }
 
-/* ── 顶部栏 ── */
+/* 顶部栏 */
 [data-testid="stHeader"] {
-    background: rgba(43,38,34,0.92);
+    background: rgba(250,249,245,0.92);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--hairline);
 }
 
 /* ── 标题 ── */
 .main-title {
-    font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif !important;
+    font-family: 'Georgia', 'Noto Serif SC', 'Times New Roman', serif !important;
     font-size: 2.4rem !important; font-weight: 400 !important;
-    color: var(--ink) !important; letter-spacing: -1.2px;
+    color: var(--ink) !important; letter-spacing: -1px;
 }
-.main-subtitle { color: var(--body); font-size: 0.9rem; font-weight: 400; }
+.main-subtitle { color: var(--muted); font-size: 0.9rem; font-weight: 400; }
 
-/* ── 侧边栏：暖暗色 + 细线分隔 ── */
+/* ── 侧边栏：奶油底 + 珊瑚橙点缀 ── */
 [data-testid="stSidebar"] {
     background: var(--canvas);
     border-right: 1px solid var(--hairline);
 }
 [data-testid="stSidebar"] * { color: var(--body) !important; }
 [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
-[data-testid="stSidebar"] label { color: var(--ink) !important; font-family: 'Inter', system-ui, sans-serif !important; font-weight: 500; }
+[data-testid="stSidebar"] label { color: var(--ink) !important; font-family: 'Georgia', serif !important; font-weight: 400; }
 [data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div,
 [data-testid="stSidebar"] input {
-    background: var(--canvas-soft) !important;
+    background: var(--canvas) !important;
     border: 1px solid var(--hairline) !important;
-    border-radius: 3px !important; color: var(--ink) !important;
-    transition: border-color 0.2s;
+    border-radius: 8px !important; color: var(--ink) !important;
 }
 [data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div:hover,
-[data-testid="stSidebar"] input:hover { border-color: var(--mute) !important; }
+[data-testid="stSidebar"] input:hover { border-color: var(--primary) !important; }
 [data-testid="stSidebar"] hr { border-color: var(--hairline) !important; }
 
 .sidebar-brand {
-    font-family: 'Inter', system-ui, sans-serif !important;
-    font-size: 1.1rem !important; font-weight: 500 !important;
+    font-family: 'Georgia', 'Noto Serif SC', serif !important;
+    font-size: 1.2rem !important; font-weight: 400 !important;
     color: var(--ink) !important; letter-spacing: -0.3px;
 }
 .sidebar-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
@@ -111,68 +115,65 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Inter', 'Noto Sans SC', system-ui, sans-s
 
 /* ── 合同输入区 ── */
 .contract-wrapper {
-    background: var(--canvas-soft);
+    background: var(--canvas);
     border: 1px solid var(--hairline);
-    border-radius: 4px;
+    border-radius: 8px;
     transition: border-color 0.2s;
 }
-.contract-wrapper:focus-within { border-color: var(--mute); }
+.contract-wrapper:focus-within { border-color: var(--primary); }
 .contract-wrapper textarea {
     background: transparent !important;
-    font-family: 'DM Mono', 'SF Mono', monospace !important;
+    font-family: 'JetBrains Mono', 'SF Mono', monospace !important;
     font-size: 0.85rem !important; line-height: 1.7 !important;
     color: var(--ink) !important; border: none !important; box-shadow: none !important;
 }
-.contract-wrapper textarea::placeholder { color: var(--mute) !important; }
+.contract-wrapper textarea::placeholder { color: var(--muted-soft) !important; }
 
 /* ── 按钮 ── */
 div[data-testid="stButton"] > button {
-    background: var(--primary) !important; color: var(--on-primary) !important;
+    background: var(--primary) !important; color: #fff !important;
     border: 1px solid transparent !important;
-    border-radius: 3px !important; font-weight: 500 !important;
-    font-size: 0.875rem !important; padding: 8px 16px !important;
-    letter-spacing: -0.2px !important;
-    transition: opacity 0.15s !important;
+    border-radius: 8px !important; font-weight: 500 !important;
+    font-size: 0.875rem !important; padding: 10px 22px !important;
+    transition: background 0.2s !important;
 }
 div[data-testid="stButton"] > button:hover {
-    opacity: 0.88 !important;
-    transform: none !important;
-    box-shadow: none !important;
-    border-color: transparent !important;
+    background: var(--primary-active) !important;
+    transform: none !important; box-shadow: none !important;
 }
 
 /* ── 时间线 ── */
 .timeline-round {
-    background: var(--canvas-soft);
+    background: var(--surface-soft);
     border-left: 2px solid var(--primary);
-    border-radius: 0 3px 3px 0; padding: 8px 12px; margin: 4px 0;
-    font-family: 'DM Mono', monospace; font-size: 0.78rem;
+    border-radius: 0 6px 6px 0; padding: 8px 12px; margin: 4px 0;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
     color: var(--body); white-space: pre-wrap;
 }
 
 /* ── 报告卡片 ── */
 .report-card {
-    background: var(--canvas-soft); border-radius: 4px; padding: 28px 32px; margin: 16px 0;
+    background: var(--canvas); border-radius: 8px; padding: 28px 32px; margin: 16px 0;
     border: 1px solid var(--hairline);
 }
 
 /* ── 风险标签 ── */
-.risk-high   { display:inline-block; background:var(--red-bg); color:var(--red); padding:2px 12px; border-radius:3px; font-weight:500; font-size:0.8rem; border:1px solid rgba(229,72,77,0.2); }
-.risk-medium { display:inline-block; background:var(--amber-bg); color:var(--amber); padding:2px 12px; border-radius:3px; font-weight:500; font-size:0.8rem; border:1px solid rgba(245,166,35,0.2); }
-.risk-low    { display:inline-block; background:var(--green-bg); color:var(--green); padding:2px 12px; border-radius:3px; font-weight:500; font-size:0.8rem; border:1px solid rgba(48,164,108,0.2); }
+.risk-high   { display:inline-block; background:var(--red-bg); color:var(--red); padding:2px 12px; border-radius:8px; font-weight:500; font-size:0.8rem; }
+.risk-medium { display:inline-block; background:var(--amber-bg); color:var(--amber); padding:2px 12px; border-radius:8px; font-weight:500; font-size:0.8rem; }
+.risk-low    { display:inline-block; background:var(--green-bg); color:var(--green); padding:2px 12px; border-radius:8px; font-weight:500; font-size:0.8rem; }
 
 /* ── 统计卡片 ── */
 .stat-box {
-    background: var(--canvas-soft); border-radius: 4px; padding: 18px 20px; text-align: center;
+    background: var(--surface-soft); border-radius: 8px; padding: 18px 20px; text-align: center;
     border: 1px solid var(--hairline);
 }
-.stat-num { font-family: 'Inter', system-ui, sans-serif; font-size: 2rem; font-weight: 400; letter-spacing: -0.5px; }
-.stat-label { font-size: 0.75rem; color: var(--mute); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+.stat-num { font-family: 'Georgia', 'Noto Serif SC', serif; font-size: 2rem; font-weight: 400; }
+.stat-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
 
 /* ── 展开器 ── */
 [data-testid="stExpander"] details {
-    border-radius: 4px !important; border: 1px solid var(--hairline) !important;
-    background: var(--canvas-soft) !important;
+    border-radius: 8px !important; border: 1px solid var(--hairline) !important;
+    background: var(--surface-soft) !important;
 }
 [data-testid="stExpander"] summary {
     font-weight: 500 !important; color: var(--ink) !important;
@@ -181,8 +182,8 @@ div[data-testid="stButton"] > button:hover {
 
 /* ── 信息提示 ── */
 [data-testid="stInfo"] {
-    background: var(--canvas-soft) !important;
-    border: 1px solid var(--hairline) !important; border-radius: 4px !important;
+    background: var(--surface-soft) !important;
+    border: 1px solid var(--hairline) !important; border-radius: 8px !important;
 }
 
 /* ── 进度条 ── */
@@ -194,7 +195,7 @@ div[data-testid="stButton"] > button:hover {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--canvas); }
 ::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--mute); }
+::-webkit-scrollbar-thumb:hover { background: var(--primary); }
 
 /* ── 收紧全局留白 ── */
 [data-testid="stAppViewBlockContainer"] {

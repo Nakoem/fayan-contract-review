@@ -20,89 +20,82 @@ st.set_page_config(page_title="法眼 · 法律问答", page_icon="💬", layout
 # ═══════════════════════════════════════════════════════
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-    --canvas: #2b2622;
-    --canvas-soft: #383330;
-    --hairline: #3f3a36;
-    --ink: #f7f5f0;
-    --body-strong: #dad2c1;
-    --body: #c9c0ad;
-    --mute: #aea69c;
-    --primary: #f7f5f0;
-    --on-primary: #2b2622;
+    --primary: #cc785c;
+    --primary-active: #a9583e;
+    --canvas: #faf9f5;
+    --ink: #141413;
+    --body: #3d3d3a;
+    --muted: #6c6a64;
+    --muted-soft: #8e8b82;
+    --hairline: #e6dfd8;
+    --surface-soft: #f5f0e8;
 }
 
 html, body, [class*="css"] { font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif; color: var(--body); }
-h1, h2, h3, h4, h5, h6 { font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif; font-weight: 500; letter-spacing: -0.3px; }
+h1, h2, h3 { font-family: 'Georgia', 'Noto Serif SC', 'Times New Roman', serif; font-weight: 400; color: var(--ink); }
 
-/* 背景：暖暗色画布 */
 [data-testid="stAppViewContainer"] { background: var(--canvas); }
 
-/* 顶部栏 */
 [data-testid="stHeader"] {
-    background: rgba(43,38,34,0.92);
+    background: rgba(250,249,245,0.92);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--hairline);
 }
 
-/* 侧边栏 */
 [data-testid="stSidebar"] {
     background: var(--canvas);
     border-right: 1px solid var(--hairline);
 }
 [data-testid="stSidebar"] * { color: var(--body) !important; }
 [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
-[data-testid="stSidebar"] label { color: var(--ink) !important; font-family: 'Inter', system-ui, sans-serif !important; font-weight: 500; }
+[data-testid="stSidebar"] label { color: var(--ink) !important; font-family: 'Georgia', serif !important; font-weight: 400; }
 [data-testid="stSidebar"] input {
-    background: var(--canvas-soft) !important;
+    background: var(--canvas) !important;
     border: 1px solid var(--hairline) !important;
-    border-radius: 3px !important; color: var(--ink) !important;
+    border-radius: 8px !important; color: var(--ink) !important;
 }
-[data-testid="stSidebar"] input:hover { border-color: var(--mute) !important; }
+[data-testid="stSidebar"] input:hover { border-color: var(--primary) !important; }
 [data-testid="stSidebar"] hr { border-color: var(--hairline) !important; }
 
 .sidebar-brand {
-    font-family: 'Inter', system-ui, sans-serif !important;
-    font-size: 1.1rem !important; font-weight: 500 !important;
-    color: var(--ink) !important; letter-spacing: -0.3px;
+    font-family: 'Georgia', serif !important;
+    font-size: 1.2rem !important; font-weight: 400 !important;
+    color: var(--ink) !important;
 }
 .sidebar-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
 .sidebar-dot.online { background: var(--primary); animation: pulse-dot 2.5s infinite; }
 @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
-/* 标题 */
 .main-title {
-    font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif !important;
+    font-family: 'Georgia', 'Noto Serif SC', serif !important;
     font-size: 2.4rem !important; font-weight: 400 !important;
-    color: var(--ink) !important; letter-spacing: -1.2px;
+    color: var(--ink) !important; letter-spacing: -1px;
 }
-.main-subtitle { color: var(--body); font-size: 0.9rem; font-weight: 400; }
+.main-subtitle { color: var(--muted); font-size: 0.9rem; }
 
-/* 聊天消息 */
 [data-testid="stChatMessage"] { background: transparent !important; }
 [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
     font-size: 0.95rem; line-height: 1.8; color: var(--body);
 }
 
-/* 合同状态栏 */
 .contract-bar {
-    background: var(--canvas-soft); border: 1px solid var(--hairline);
-    border-radius: 4px; padding: 8px 14px; margin-bottom: 12px;
+    background: var(--surface-soft); border: 1px solid var(--hairline);
+    border-radius: 8px; padding: 8px 14px; margin-bottom: 12px;
     font-size: 0.82rem; color: var(--body);
 }
 
-/* 聊天输入框 */
 [data-testid="stChatInput"] textarea {
     border: 1px solid var(--hairline) !important;
-    border-radius: 4px !important;
-    background: var(--canvas-soft) !important;
+    border-radius: 8px !important;
+    background: var(--canvas) !important;
     color: var(--ink) !important;
     font-family: 'Inter', 'Noto Sans SC', sans-serif !important;
 }
 [data-testid="stChatInput"] textarea:focus {
-    border-color: var(--mute) !important;
+    border-color: var(--primary) !important;
     box-shadow: none !important;
 }
 
