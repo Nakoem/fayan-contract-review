@@ -32,6 +32,7 @@ if sys.platform == "win32":
 from dotenv import load_dotenv
 
 from llm_client import LLMClient
+from logger import logger, init_logger
 from prompts import AGENT_SYSTEM_PROMPT, AGENT_USER_PROMPT
 
 load_dotenv()
@@ -128,7 +129,7 @@ class ContractReviewAgent:
         if repaired:
             try:
                 if self.verbose:
-                    print(f"  🔧 JSON已自动修复")
+                    logger.debug("  🔧 JSON已自动修复")
                 return json.loads(repaired)
             except json.JSONDecodeError:
                 pass
@@ -242,7 +243,7 @@ class ContractReviewAgent:
         self._risk_findings = []  # 重置会话存储
 
         messages = [
-            {"role": "system", "content": AGENT_SYSTEM_PROMPT},
+            {"role": "system", "content": str(AGENT_SYSTEM_PROMPT)},
             {
                 "role": "user",
                 "content": AGENT_USER_PROMPT.format(
@@ -267,7 +268,7 @@ class ContractReviewAgent:
                     # qwen-plus JSON错误 → 切换到文本格式工具调用，永不放弃工具
                     use_text_mode = True
                     if self.verbose:
-                        print(f"  🔄 JSON错误，切换文本格式工具调用模式")
+                        logger.warning("  🔄 JSON错误，切换文本格式工具调用模式")
                     messages.append({
                         "role": "user",
                         "content": (
@@ -286,7 +287,7 @@ class ContractReviewAgent:
                         "content": f"API调用失败（{err_msg[:200]}），请重试。（{api_retries}/3）",
                     })
                     if self.verbose:
-                        print(f"  ⚠️ API失败({api_retries}/3): {err_msg[:120]}")
+                        logger.warning("  ⚠️ API失败({}/3): {}", api_retries, err_msg[:120])
                     continue
                 raise
 
@@ -297,11 +298,12 @@ class ContractReviewAgent:
             # ── 打印思考 ──
             thought = msg.content or ""
             if thought and self.verbose:
-                print(f"\n┌─ 第 {round_num} 轮 ──────────────────────────────────────┐")
+                logger.info("")
+                logger.info("┌─ 第 {} 轮 {}", round_num, "─" * 30)
                 if len(thought) > 500:
                     thought = thought[:500] + "..."
                 for line in thought.strip().split("\n"):
-                    print(f"│  {line}")
+                    logger.info("│  {}", line)
 
             # ── 文本模式：解析 <<TOOL>> 标签 ──
             if use_text_mode:
@@ -309,41 +311,41 @@ class ContractReviewAgent:
                 if not text_calls:
                     # 无工具调用 → 任务完成
                     if self.verbose:
-                        print(f"└{'─' * 60}┘")
+                        logger.info("└" + "─" * 60 + "┘")
                     final = last_report if last_report else (msg.content or "")
                     if self.verbose:
-                        print(f"\n{'='*60}")
-                        print(final)
+                        logger.info("=" * 60)
+                        logger.info("{}", final)
                     return final
                 # 执行文本格式的工具调用
                 for func_name, args in text_calls:
                     args_preview = ", ".join(f"{k}={str(v)[:50]}" for k, v in args.items())
-                    print(f"│")
-                    print(f"│  🔧 [文本] {func_name}({args_preview})")
+                    logger.info("│")
+                    logger.info("│  🔧 [文本] {}({})", func_name, args_preview)
                     result = self._execute_tool(func_name, args)
                     if len(result) > TOOL_RESULT_MAX_CHARS:
                         result = result[:TOOL_RESULT_MAX_CHARS] + "\n...（结果已截断）"
-                    print(f"│  📋 返回 {len(result)} 字符")
+                    logger.info("│  📋 返回 {} 字符", len(result))
                     if func_name == "generate_final_report":
                         last_report = result
                     messages.append({
                         "role": "user",
                         "content": f"[工具 {func_name} 的执行结果]\n{result}",
                     })
-                print(f"└{'─' * 60}┘")
+                logger.info("└" + "─" * 60 + "┘")
                 continue
 
             # ── 无 tool_calls → 任务完成 ──
             if not msg.tool_calls:
                 if self.verbose:
-                    print(f"└{'─' * 60}┘")
+                    logger.info("└" + "─" * 60 + "┘")
                 if last_report:
                     final = last_report
                 else:
                     final = msg.content or ""
                 if self.verbose:
-                    print(f"\n{'='*60}")
-                    print(final)
+                    logger.info("=" * 60)
+                    logger.info("{}", final)
                 return final
 
             # ── 执行工具调用（标准函数调用路径）──
@@ -364,20 +366,20 @@ class ContractReviewAgent:
                         ),
                     })
                     if self.verbose:
-                        print(f"│  ⚠️ {func_name}: JSON解析失败，已反馈给模型重试")
+                        logger.warning("│  ⚠️ {}: JSON解析失败，已反馈给模型重试", func_name)
                     continue
 
                 args_preview = ", ".join(
                     f"{k}={str(v)[:50]}" for k, v in args.items()
                 )
-                print(f"│")
-                print(f"│  🔧 {func_name}({args_preview})")
+                logger.info("│")
+                logger.info("│  🔧 {}({})", func_name, args_preview)
 
                 result = self._execute_tool(func_name, args)
                 max_chars = FINAL_REPORT_MAX_CHARS if func_name == "generate_final_report" else TOOL_RESULT_MAX_CHARS
                 if len(result) > max_chars:
                     result = result[:max_chars] + "\n...（结果已截断）"
-                print(f"│  📋 返回 {len(result)} 字符")
+                logger.info("│  📋 返回 {} 字符", len(result))
 
                 if func_name == "generate_final_report":
                     last_report = result
@@ -388,7 +390,7 @@ class ContractReviewAgent:
                     "content": result,
                 })
 
-            print(f"└{'─' * 60}┘")
+            logger.info("└" + "─" * 60 + "┘")
 
         # 兜底：达到最大轮次，强制要求输出
         messages.append({
@@ -408,8 +410,8 @@ class ContractReviewAgent:
             final_resp = self.client.chat(messages, tools=None)
             final_msg = final_resp.choices[0].message
 
-        print(f"\n{'='*60}")
-        print(final_msg.content or "")
+        logger.info("=" * 60)
+        logger.info("{}", final_msg.content or "")
         return final_msg.content or ""
 
 
@@ -449,9 +451,11 @@ def review_contract(contract_text: str, contract_type: str, api_key: str) -> str
 
 
 def main():
+    init_logger(mode="cli")
+
     if len(sys.argv) < 3:
-        print("用法: python main.py <合同文件> <合同类型> [--output 输出文件]")
-        print('示例: python main.py contract.txt "房屋租赁合同" --output report.txt')
+        logger.info("用法: python main.py <合同文件> <合同类型> [--output 输出文件]")
+        logger.info('示例: python main.py contract.txt "房屋租赁合同" --output report.txt')
         sys.exit(1)
 
     filepath = Path(sys.argv[1])
@@ -464,25 +468,27 @@ def main():
             output_path = sys.argv[idx + 1]
 
     if not filepath.exists():
-        print(f"文件不存在: {filepath}")
+        logger.error("文件不存在: {}", filepath)
         sys.exit(1)
 
     contract_text = filepath.read_text(encoding="utf-8")
     api_key = os.getenv("DASHSCOPE_API_KEY")
     if not api_key:
-        print("请设置环境变量 DASHSCOPE_API_KEY，或在 .env 文件中写入")
+        logger.error("请设置环境变量 DASHSCOPE_API_KEY，或在 .env 文件中写入")
         sys.exit(1)
 
-    print(f"\n[Agent 模式启动]")
-    print(f"审查合同类型: {contract_type}")
-    print(f"合同来源: {filepath}")
-    print(f"{'='*60}")
+    logger.info("")
+    logger.info("[Agent 模式启动]")
+    logger.info("审查合同类型: {}", contract_type)
+    logger.info("合同来源: {}", filepath)
+    logger.info("=" * 60)
 
     report = review_contract(contract_text, contract_type, api_key)
 
     if output_path:
         Path(output_path).write_text(report, encoding="utf-8")
-        print(f"\n报告已保存至: {output_path}")
+        logger.info("")
+        logger.info("报告已保存至: {}", output_path)
 
 
 if __name__ == "__main__":

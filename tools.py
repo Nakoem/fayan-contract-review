@@ -1164,7 +1164,7 @@ def analyze_single_clause(
         clause_text=clause_text[:2000],
         regulation_context=regulation_context[:3000] or "无",
     )
-    return client.call(ANALYZE_SINGLE_CLAUSE_SYSTEM, user, max_tokens=1024)
+    return client.call(str(ANALYZE_SINGLE_CLAUSE_SYSTEM), user, max_tokens=1024)
 
 
 def generate_final_report(

@@ -20,8 +20,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from dotenv import load_dotenv
 from main import ContractReviewAgent
+from logger import init_logger, attach_web_buffer, detach_web_buffer
 
 load_dotenv()
+init_logger(mode="web")
 
 st.set_page_config(page_title="法眼 · 合同审查", page_icon="⚖️", layout="wide")
 
@@ -461,12 +463,14 @@ with col_left:
 
             def _run():
                 try:
+                    attach_web_buffer(buf)
                     with redirect_stdout(buf):
                         agent = ContractReviewAgent(api_key=api_key, verbose=True)
                         result["report"] = agent.run(contract_text, contract_type)
                 except Exception as e:
                     result["error"] = e
                 finally:
+                    detach_web_buffer()
                     result["done"] = True
 
             t = threading.Thread(target=_run, daemon=True)

@@ -1,5 +1,6 @@
 import json
 from openai import OpenAI
+from logger import logger
 
 
 class LLMClient:
@@ -66,7 +67,7 @@ class LLMClient:
 
             for tc in choice.message.tool_calls:
                 args = json.loads(tc.function.arguments)
-                print(f"  >> 模型自动调用 search_regulation('{args['keyword']}')")
+                logger.debug("  >> 模型自动调用 search_regulation('{}')", args['keyword'])
                 result = search_regulation(**args)
                 messages.append({
                     "role": "tool",
@@ -74,7 +75,7 @@ class LLMClient:
                     "content": result,
                 })
 
-            print(f"  >> AI 已收到法规结果，继续分析...")
+            logger.debug("  >> AI 已收到法规结果，继续分析...")
             final_resp = self.client.chat.completions.create(
                 model=self.model,
                 max_tokens=max_tokens,

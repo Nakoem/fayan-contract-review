@@ -1,0 +1,11 @@
+current: "v1.0.0"
+versions:
+  - id: "v1.0.0"
+    label: "初始基线版本"
+    date: "2026-05-09"
+    description: "6种合同类型、10工具ReAct Agent、四重知识库"
+    file: "v1.0.0/prompts.yaml"
+    changes:
+      - "初始基线：房屋租赁/劳动/买卖/服务/合作/借款 6种合同类型"
+      - "14个提示词：Agent系统/用户、逐条分析系统/用户、报告生成、完整性检查、视角切换"
+      - "ANALYZE_SINGLE_CLAUSE_SYSTEM含6种合同类型完整法定红线标准"
