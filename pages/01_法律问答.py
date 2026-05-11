@@ -54,7 +54,7 @@ h1, h2, h3 { font-family: 'Inter', sans-serif; font-weight: 600; color: var(--in
 [data-testid="stSidebar"] input:hover { border-color: rgba(255,255,255,0.3) !important; }
 [data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.1) !important; }
 
-.sidebar-brand { font-family: 'Inter', sans-serif !important; font-size: 1.1rem !important; font-weight: 600 !important; color: var(--ink) !important; }
+.sidebar-brand { font-family: 'Inter', sans-serif !important; font-size: 1.1rem !important; font-weight: 600 !important; color: var(--on-primary) !important; }
 .sidebar-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
 .sidebar-dot.online { background: var(--link-blue); animation: pulse-dot 2.5s infinite; }
 @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
