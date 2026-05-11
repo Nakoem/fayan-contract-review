@@ -11,7 +11,7 @@
 | `main.py` | Agent ReAct 主循环（20 轮迭代） |
 | `llm_client.py` | LLM 客户端（qwen-plus，OpenAI 兼容 API） |
 | `prompts.py` | 系统提示词 + 工具提示词 + 完整性检查清单 |
-| `tools.py` | 10 个工具 + 5 合同类型法规库 |
+| `tools.py` | 10 个工具 + 6 合同类型法规库 |
 
 ## 技术栈
 - 模型：阿里云百炼 qwen-plus
@@ -20,7 +20,7 @@
 - OCR：qwen-vl-plus 多模态模型
 
 ## 支持的合同类型
-房屋租赁合同、劳动合同、买卖合同、服务合同、合作协议
+房屋租赁合同、劳动合同、买卖合同、服务合同、合作协议、借款合同
 
 ## UI 风格
 Legal Editorial：深蓝(#1a1f36) + 香槟金(#c9a96e)，Cormorant Garamond + DM Sans 字体

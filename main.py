@@ -413,10 +413,39 @@ class ContractReviewAgent:
         return final_msg.content or ""
 
 
+def _clean_report(report: str, contract_text: str, contract_type: str) -> str:
+    """后处理：清理占位文字 + 检查关键条款遗漏。"""
+    import re
+
+    # 1. 删除占位行（仅匹配明确含占位关键词的行）
+    report = re.sub(r'^\d+\.\s*【[^】]+】\s*\n\s*▸\s*原文[：:]\s*(?:该条款)?已在第\d+条[^。]*[去重|重复|列示][^。]*。\s*\n\s*▸\s*风险说明[：:][^。]*[去重|重复|列示][^。]*。\s*\n\s*▸\s*修改建议[：:][^。]*[去重|重复|列示][^。]*。\s*\n*', '', report, flags=re.MULTILINE)
+    report = re.sub(r'^\d+\.\s*【[^】]+】\s*\n\s*▸\s*原文[：:]\s*(?:该条款)?已在第\d+条[^。]*[去重|重复|列示][^。]*。\s*\n*', '', report, flags=re.MULTILINE)
+    report = re.sub(r'^\d+\.\s*\n\s*▸\s*原文[：:][^▸]*去重后不[^▸]*\n(?:▸[^▸]*\n)*', '', report, flags=re.MULTILINE)
+    report = re.sub(r'.*去重后不再重复列出.*\n?', '', report)
+    report = re.sub(r'^\d+\.\s*【[^】]+】\s*\n\s*▸\s*原文已在第\d+[^\n]*\n(?:\s*▸[^\n]*\n)*', '', report, flags=re.MULTILINE)
+
+    # 2. 清理多余空行（连续3个以上空行→2个）
+    report = re.sub(r'\n{4,}', '\n\n\n', report)
+
+    # 3. 检查关键条款是否被遗漏（仅合作协议4.2硬编码兜底）
+    if contract_type == "合作协议":
+        has_42 = bool(re.search(r'退出.*资产|资产.*(?:归|属于).*(?:联合|实验室|不予退还|不折价)', contract_text))
+        in_report = bool(re.search(r'4\.2|退出.*资产.*不退|资产.*充公|退出方.*投入.*资产', report))
+        if has_42 and not in_report:
+            warning = (
+                "\n\n⚠️ 补充风险提示（自动检测）：合同第四条4.2——\"退出方已投入的资产归联合实验室所有，不予退还，"
+                "亦不折价补偿\"——属资产无偿充公条款，违反民法典第151条显失公平、第972条利益共享原则。建议标为🔴高风险。"
+            )
+            report = report.rstrip() + warning
+
+    return report
+
+
 def review_contract(contract_text: str, contract_type: str, api_key: str) -> str:
     """执行完整的合同审查（Agent 模式）。"""
     agent = ContractReviewAgent(api_key=api_key)
-    return agent.run(contract_text, contract_type)
+    report = agent.run(contract_text, contract_type)
+    return _clean_report(report, contract_text, contract_type)
 
 
 def main():

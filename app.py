@@ -250,11 +250,19 @@ with st.sidebar:
         )
 
     st.markdown("**合同类型**")
+    # 记住上次选择的合同类型
+    if "last_contract_type" not in st.session_state:
+        st.session_state.last_contract_type = "房屋租赁合同"
+    contract_types = [
+        "房屋租赁合同", "劳动合同", "买卖合同", "服务合同", "合作协议", "借款合同",
+        "自定义",
+    ]
+    default_idx = 0
+    if st.session_state.last_contract_type in contract_types:
+        default_idx = contract_types.index(st.session_state.last_contract_type)
     contract_type = st.selectbox(
-        "合同类型", [
-            "房屋租赁合同", "劳动合同", "买卖合同", "服务合同", "合作协议",
-            "自定义",
-        ],
+        "合同类型", contract_types,
+        index=default_idx,
         label_visibility="collapsed",
     )
     if contract_type == "自定义":
@@ -300,6 +308,26 @@ with st.sidebar:
                         use_container_width=True,
                     )
                     st.caption(f"{h['type']} · 🔴{h['summary'].get('high', '-')} 🟡{h['summary'].get('medium', '-')}")
+
+    if st.session_state.report_history:
+        if "show_clear_confirm" not in st.session_state:
+            st.session_state.show_clear_confirm = False
+        if not st.session_state.show_clear_confirm:
+            if st.button("🗑 清空历史", use_container_width=True):
+                st.session_state.show_clear_confirm = True
+                st.rerun()
+        else:
+            st.warning(f"确定清空 {len(st.session_state.report_history)} 条历史报告？")
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("✅ 确认清空", use_container_width=True):
+                    st.session_state.report_history = []
+                    st.session_state.show_clear_confirm = False
+                    st.rerun()
+            with c2:
+                if st.button("❌ 取消", use_container_width=True):
+                    st.session_state.show_clear_confirm = False
+                    st.rerun()
 
     st.caption("© 2026 法眼 · Powered by Qwen-Plus")
 
@@ -355,11 +383,40 @@ with col_left:
     contract_text = st.text_area(
         "合同原文",
         value=contract_text,
-        placeholder="在此粘贴合同全文，或从左侧上传 .txt 文件...",
+        placeholder="在此粘贴合同全文，或从左侧上传 .txt 文件...\n\n💡 粘贴后按 Enter 即可开始审查",
         height=520,
         label_visibility="collapsed",
     )
     st.markdown('</div>', unsafe_allow_html=True)
+
+    # Enter 快捷键触发审查
+    st.markdown("""
+    <script>
+    (function() {
+        const checkAndBind = function() {
+            const textareas = document.querySelectorAll('.contract-wrapper textarea');
+            if (textareas.length === 0) { setTimeout(checkAndBind, 300); return; }
+            textareas.forEach(function(ta) {
+                if (ta.dataset.enterBound) return;
+                ta.dataset.enterBound = '1';
+                ta.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        const btns = document.querySelectorAll('button');
+                        for (const btn of btns) {
+                            if (btn.innerText.includes('开始审查')) {
+                                btn.click();
+                                break;
+                            }
+                        }
+                    }
+                });
+            });
+        };
+        checkAndBind();
+    })();
+    </script>
+    """, unsafe_allow_html=True)
 
     # 开始按钮
     st.markdown("<br>", unsafe_allow_html=True)
@@ -394,6 +451,7 @@ with col_left:
                     pass  # 文件保存失败不影响审查
 
             st.session_state["last_contract_type"] = contract_type
+            st.session_state.last_contract_type = contract_type  # 记住选择
 
             buf = io.StringIO()
             progress_bar = st.progress(0, "准备审查...")
@@ -414,6 +472,8 @@ with col_left:
             t = threading.Thread(target=_run, daemon=True)
             t.start()
 
+            # 在右栏实时展示审查过程
+            live_display = st.empty()
             while not result["done"]:
                 log_snapshot = buf.getvalue()
                 rounds = log_snapshot.count("┌─ 第")
@@ -425,12 +485,33 @@ with col_left:
                 else:
                     pct, label = 0.02, "启动 Agent... 2%"
                 progress_bar.progress(pct, label)
-                time.sleep(0.3)
+
+                # 实时展示工具调用
+                tool_lines = []
+                for line in log_snapshot.split("\n"):
+                    line = line.strip()
+                    if "🔧" in line or "📋" in line:
+                        tool_lines.append(line)
+                    elif "第" in line and "轮" in line:
+                        tool_lines.append(line)
+                if tool_lines:
+                    html = '<div style="font-family:JetBrains Mono,monospace;font-size:0.78rem;color:#5c5240;max-height:360px;overflow-y:auto;padding:8px;background:rgba(250,248,245,0.7);border-left:3px solid #c9a96e;border-radius:0 4px 4px 0;">'
+                    for tl in tool_lines[-12:]:  # 最近12行
+                        css_class = "timeline-round"
+                        if "轮" in tl:
+                            html += f'<div style="border-left-color:#f59e0b;font-weight:600;padding:4px 0 4px 10px;margin:2px 0;">{tl}</div>'
+                        else:
+                            html += f'<div style="padding:2px 0 2px 10px;margin:1px 0;">{tl}</div>'
+                    html += '</div>'
+                    live_display.markdown(html, unsafe_allow_html=True)
+
+                time.sleep(0.5)
 
             progress_bar.progress(1.0, "审查完成 ✅")
             time.sleep(0.3)
             progress_bar.empty()
             status_text.empty()
+            live_display.empty()
 
             if result["error"]:
                 err_str = str(result["error"])
@@ -501,12 +582,36 @@ with col_right:
         st.markdown(st.session_state.report)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        st.download_button(
-            "📥 下载报告 (.txt)",
-            st.session_state.report,
-            file_name=f"审查报告_{contract_type}_{date.today().isoformat()}.txt",
-            mime="text/plain",
-            use_container_width=True,
-        )
+        col_dl, col_cp = st.columns([3, 1])
+        with col_dl:
+            st.download_button(
+                "📥 下载报告 (.txt)",
+                st.session_state.report,
+                file_name=f"审查报告_{contract_type}_{date.today().isoformat()}.txt",
+                mime="text/plain",
+                use_container_width=True,
+            )
+        with col_cp:
+            # 一键复制：用 text_area + JavaScript 实现
+            copy_js = """
+            <script>
+            function copyReport() {
+                const text = document.querySelector('.report-card').innerText;
+                navigator.clipboard.writeText(text).then(() => {
+                    const btn = document.getElementById('copy-btn');
+                    btn.innerHTML = '✅ 已复制';
+                    setTimeout(() => { btn.innerHTML = '📋 复制报告'; }, 2000);
+                });
+            }
+            </script>
+            <button id="copy-btn" onclick="copyReport()" style="
+                width:100%; padding:11px 16px; border-radius:4px; border:1px solid rgba(201,169,110,0.3);
+                background:#1a1f36; color:#e0cc9a; font-weight:500; font-size:0.9rem;
+                cursor:pointer; letter-spacing:0.5px; transition:all 0.3s;
+            " onmouseover="this.style.background='#2a3050';this.style.color='white';this.style.borderColor='#c9a96e'"
+               onmouseout="this.style.background='#1a1f36';this.style.color='#e0cc9a';this.style.borderColor='rgba(201,169,110,0.3)'">
+            📋 复制报告</button>
+            """
+            st.markdown(copy_js, unsafe_allow_html=True)
     else:
         st.info("点击左侧「🔍 开始审查」按钮启动 Agent")
