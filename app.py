@@ -33,42 +33,41 @@ st.set_page_config(page_title="法眼 · 合同审查", page_icon="⚖️", layo
 st.markdown("""
 <style>
 /* ═══════════════════════════════════════════════
-   Zapier-Inspired — 温暖自信 · 工作流自动化
-   暖奶油底 + 浓缩咖啡字 + 橙色CTA #ff4f00
+   Mintlify-Inspired — 清新 · 技术文档
+   白底 + 薄荷绿#00d4a4 + 黑药丸按钮
    ═══════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-    --primary: #ff4f00;
-    --primary-hover: #e04700;
-    --on-primary: #fffefb;
-    --canvas: #fffefb;
-    --canvas-soft: #f8f4f0;
-    --ink: #201515;
-    --ink-soft: #2f2a26;
-    --ink-mid: #36342e;
-    --body: #605d52;
-    --body-mid: #939084;
-    --mute: #c5c0b1;
-    --hairline: #e8e4dc;
-    --red: #c64545;
-    --red-bg: rgba(198,69,69,0.08);
-    --amber: #d4a017;
-    --amber-bg: rgba(212,160,23,0.08);
-    --green: #5db872;
-    --green-bg: rgba(93,184,114,0.08);
+    --primary: #0a0a0a;
+    --on-primary: #ffffff;
+    --brand-green: #00d4a4;
+    --brand-green-deep: #00b48a;
+    --canvas: #ffffff;
+    --surface: #f7f7f7;
+    --surface-soft: #fafafa;
+    --hairline: #e5e5e5;
+    --hairline-soft: #ededed;
+    --ink: #0a0a0a;
+    --ink-soft: #333333;
+    --body: #555555;
+    --body-mid: #888888;
+    --red: #d45656;
+    --red-bg: rgba(212,86,86,0.08);
+    --amber: #c37d0d;
+    --amber-bg: rgba(195,125,13,0.08);
+    --green: #1ba673;
+    --green-bg: rgba(27,166,115,0.08);
 }
 
 html, body, [class*="css"] { font-family: 'Inter', system-ui, -apple-system, 'Noto Sans SC', sans-serif; color: var(--body); }
-h1, h2, h3, h4, h5, h6 { font-family: 'Inter', system-ui, -apple-system, 'Noto Sans SC', sans-serif; font-weight: 500; color: var(--ink); }
+h1, h2, h3, h4, h5, h6 { font-family: 'Inter', system-ui, -apple-system, 'Noto Sans SC', sans-serif; font-weight: 600; color: var(--ink); }
 
-/* 背景：暖奶油白 */
 [data-testid="stAppViewContainer"] { background: var(--canvas); }
 
-/* 顶部栏 */
 [data-testid="stHeader"] {
-    background: rgba(255,254,251,0.94);
+    background: rgba(255,255,255,0.94);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--hairline);
 }
@@ -76,19 +75,19 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Inter', system-ui, -apple-system, 'Noto S
 /* ── 标题 ── */
 .main-title {
     font-family: 'Inter', system-ui, sans-serif !important;
-    font-size: 2.4rem !important; font-weight: 500 !important;
+    font-size: 2.4rem !important; font-weight: 600 !important;
     color: var(--ink) !important; letter-spacing: -0.5px;
 }
 .main-subtitle { color: var(--body-mid); font-size: 0.9rem; font-weight: 400; }
 
-/* ── 侧边栏：暖奶油 + 橙色点缀 ── */
+/* ── 侧边栏 ── */
 [data-testid="stSidebar"] {
-    background: var(--canvas-soft);
+    background: var(--surface-soft);
     border-right: 1px solid var(--hairline);
 }
 [data-testid="stSidebar"] * { color: var(--body) !important; }
 [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
-[data-testid="stSidebar"] label { color: var(--ink) !important; font-family: 'Inter', sans-serif !important; font-weight: 500; }
+[data-testid="stSidebar"] label { color: var(--ink) !important; font-family: 'Inter', sans-serif !important; font-weight: 600; }
 [data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div,
 [data-testid="stSidebar"] input {
     background: var(--canvas) !important;
@@ -96,16 +95,16 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Inter', system-ui, -apple-system, 'Noto S
     border-radius: 8px !important; color: var(--ink) !important;
 }
 [data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div:hover,
-[data-testid="stSidebar"] input:hover { border-color: var(--primary) !important; }
+[data-testid="stSidebar"] input:hover { border-color: var(--brand-green) !important; }
 [data-testid="stSidebar"] hr { border-color: var(--hairline) !important; }
 
 .sidebar-brand {
     font-family: 'Inter', sans-serif !important;
-    font-size: 1.1rem !important; font-weight: 500 !important;
+    font-size: 1.1rem !important; font-weight: 600 !important;
     color: var(--ink) !important;
 }
 .sidebar-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
-.sidebar-dot.online { background: var(--primary); animation: pulse-dot 2.5s infinite; }
+.sidebar-dot.online { background: var(--brand-green); animation: pulse-dot 2.5s infinite; }
 @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
 /* ── 合同输入区 ── */
@@ -113,9 +112,8 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Inter', system-ui, -apple-system, 'Noto S
     background: var(--canvas);
     border: 1px solid var(--hairline);
     border-radius: 8px;
-    transition: border-color 0.15s;
 }
-.contract-wrapper:focus-within { border-color: var(--primary); }
+.contract-wrapper:focus-within { border-color: var(--brand-green); }
 .contract-wrapper textarea {
     background: transparent !important;
     font-family: 'JetBrains Mono', 'SF Mono', monospace !important;
@@ -124,73 +122,59 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Inter', system-ui, -apple-system, 'Noto S
 }
 .contract-wrapper textarea::placeholder { color: var(--body-mid) !important; }
 
-/* ── 按钮 ── */
+/* ── 按钮（黑药丸）── */
 div[data-testid="stButton"] > button {
     background: var(--primary) !important; color: var(--on-primary) !important;
     border: 1px solid transparent !important;
-    border-radius: 8px !important; font-weight: 600 !important;
-    font-size: 0.875rem !important; padding: 10px 20px !important;
+    border-radius: 9999px !important; font-weight: 600 !important;
+    font-size: 0.875rem !important; padding: 10px 24px !important;
     transition: opacity 0.15s !important;
 }
 div[data-testid="stButton"] > button:hover {
-    opacity: 0.9 !important;
+    opacity: 0.85 !important;
     transform: none !important; box-shadow: none !important;
 }
 
-/* ── 时间线 ── */
+/* ── 薄荷绿强调 ── */
+a, a:visited { color: var(--brand-green-deep) !important; }
+[data-testid="stProgress"] > div > div { background: var(--brand-green) !important; }
+
 .timeline-round {
-    background: var(--canvas-soft);
-    border-left: 2px solid var(--primary);
+    background: var(--surface); border-left: 2px solid var(--brand-green);
     border-radius: 0 6px 6px 0; padding: 8px 12px; margin: 4px 0;
-    font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
-    color: var(--body); white-space: pre-wrap;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--body);
 }
 
-/* ── 报告卡片 ── */
 .report-card {
-    background: var(--canvas); border-radius: 8px; padding: 28px 32px; margin: 16px 0;
+    background: var(--canvas); border-radius: 12px; padding: 28px 32px; margin: 16px 0;
     border: 1px solid var(--hairline);
 }
 
-/* ── 风险标签 ── */
-.risk-high   { display:inline-block; background:var(--red-bg); color:var(--red); padding:2px 10px; border-radius:6px; font-weight:500; font-size:0.8rem; }
-.risk-medium { display:inline-block; background:var(--amber-bg); color:var(--amber); padding:2px 10px; border-radius:6px; font-weight:500; font-size:0.8rem; }
-.risk-low    { display:inline-block; background:var(--green-bg); color:var(--green); padding:2px 10px; border-radius:6px; font-weight:500; font-size:0.8rem; }
+.risk-high, .risk-medium, .risk-low {
+    display:inline-block; padding:2px 10px; border-radius:9999px; font-weight:500; font-size:0.8rem;
+}
+.risk-high   { background:var(--red-bg); color:var(--red); }
+.risk-medium { background:var(--amber-bg); color:var(--amber); }
+.risk-low    { background:var(--green-bg); color:var(--green); }
 
-/* ── 统计卡片 ── */
 .stat-box {
-    background: var(--canvas-soft); border-radius: 8px; padding: 18px 20px; text-align: center;
-    border: 1px solid var(--hairline);
+    background: var(--surface); border-radius: 8px; padding: 18px 20px;
+    text-align: center; border: 1px solid var(--hairline);
 }
 .stat-num { font-family: 'Inter', sans-serif; font-size: 2rem; font-weight: 600; color: var(--ink); }
-.stat-label { font-size: 0.75rem; color: var(--body-mid); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+.stat-label { font-size: 0.75rem; color: var(--body-mid); text-transform: uppercase; letter-spacing: 1px; }
 
-/* ── 展开器 ── */
 [data-testid="stExpander"] details {
     border-radius: 8px !important; border: 1px solid var(--hairline) !important;
-    background: var(--canvas-soft) !important;
+    background: var(--surface) !important;
 }
-[data-testid="stExpander"] summary {
-    font-weight: 500 !important; color: var(--ink) !important;
-    padding: 10px 14px !important;
-}
+[data-testid="stExpander"] summary { font-weight: 600 !important; color: var(--ink) !important; padding: 10px 14px !important; }
+[data-testid="stInfo"] { background: var(--surface) !important; border: 1px solid var(--hairline) !important; border-radius: 8px !important; }
 
-/* ── 信息提示 ── */
-[data-testid="stInfo"] {
-    background: var(--canvas-soft) !important;
-    border: 1px solid var(--hairline) !important; border-radius: 8px !important;
-}
-
-/* ── 进度条 ── */
-[data-testid="stProgress"] > div > div {
-    background: var(--primary) !important;
-}
-
-/* ── 滚动条 ── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--canvas); }
-::-webkit-scrollbar-thumb { background: var(--mute); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--brand-green); }
 
 /* ── 收紧全局留白 ── */
 [data-testid="stAppViewBlockContainer"] {
