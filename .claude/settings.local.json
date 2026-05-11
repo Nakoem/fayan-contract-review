@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python *)",
+      "WebSearch",
+      "Bash(git add *)",
+      "Bash(git rm *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(gh repo *)",
+      "mcp__filesystem__list_allowed_directories",
+      "mcp__filesystem__list_directory",
+      "mcp__filesystem__search_files",
+      "Bash(pip install *)",
+      "Bash(curl -s http://localhost:8000/api/v1/health)",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/review -H 'Content-Type: application/json' -d '{\"contract_text\": \"房屋租赁合同\\\\n\\\\n甲方：张三\\\\n乙方：李四\\\\n\\\\n第一条 租赁期限\\\\n租期自2026年1月1日至2028年12月31日，共2年。\\\\n\\\\n第二条 租金\\\\n月租金3000元，每月5日前支付。\\\\n\\\\n第三条 违约金\\\\n逾期支付租金按日5%支付违约金。\\\\n\\\\n第四条 争议解决\\\\n发生争议向房屋所在地法院起诉。\", \"contract_type\": \"房屋租赁合同\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/review -H 'Content-Type: application/json' -d '{\"contract_text\": \"房屋租赁合同。甲方张三出租给乙方李四。月租金3000元。违约金每日5%。争议向房屋所在地法院起诉。\", \"contract_type\": \"房屋租赁合同\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/review -H \"Content-Type: application/json\" -d @/tmp/test_review.json)",
+      "Bash(pkill -f \"python api.py\")",
+      "Bash(pkill -f uvicorn)",
+      "Bash(pip list *)",
+      "Bash(ls .venv/bin/python)",
+      "Bash(.venv/bin/python -c \"import mcp; print\\('mcp version:', mcp.__version__\\)\")",
+      "Bash(ls .venv/Scripts/python.exe)",
+      "Bash(.venv/Scripts/python.exe -c \"import mcp; print\\('mcp version:', mcp.__version__\\)\")",
+      "Bash(.venv/Scripts/python.exe -m pip list)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "filesystem",
+    "fayan"
+  ]
+}

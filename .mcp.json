@@ -1,0 +1,9 @@
+{
+  "fayan": {
+    "command": "python",
+    "args": ["mcp_server.py"],
+    "env": {
+      "DASHSCOPE_API_KEY": "${DASHSCOPE_API_KEY}"
+    }
+  }
+}
