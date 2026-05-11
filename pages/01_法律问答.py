@@ -20,100 +20,90 @@ st.set_page_config(page_title="法眼 · 法律问答", page_icon="💬", layout
 # ═══════════════════════════════════════════════════════
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap');
 
 :root {
-    --navy: #1a1f36; --navy-light: #2a3050; --gold: #c9a96e; --gold-light: #e0cc9a;
-    --cream: #faf8f5; --paper: #f5f0e8; --ink: #2c2416; --ink-light: #5c5240; --border: #e0d8c8;
+    --canvas: #2b2622;
+    --canvas-soft: #383330;
+    --hairline: #3f3a36;
+    --ink: #f7f5f0;
+    --body-strong: #dad2c1;
+    --body: #c9c0ad;
+    --mute: #aea69c;
+    --primary: #f7f5f0;
+    --on-primary: #2b2622;
 }
 
-html, body, [class*="css"] { font-family: 'DM Sans', 'Noto Sans SC', sans-serif; }
-h1, h2, h3, h4, h5, h6 { font-family: 'Cormorant Garamond', 'Noto Serif SC', serif; }
+html, body, [class*="css"] { font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif; color: var(--body); }
+h1, h2, h3, h4, h5, h6 { font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif; font-weight: 500; letter-spacing: -0.3px; }
 
-/* 背景：纸纹质感 */
-[data-testid="stAppViewContainer"] {
-    background:
-        radial-gradient(ellipse 60% 60% at 50% 30%, rgba(201,169,110,0.06) 0%, transparent 70%),
-        linear-gradient(180deg, var(--cream) 0%, #f0ece4 100%);
-}
-[data-testid="stAppViewContainer"]::before {
-    content: "";
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background-image:
-        repeating-linear-gradient(0deg, transparent, transparent 28px, rgba(180,160,120,0.12) 28px, rgba(180,160,120,0.12) 29px);
-    pointer-events: none; z-index: -1;
-    mask-image: radial-gradient(ellipse 70% 80% at 50% 0%, black 30%, transparent 80%);
-    -webkit-mask-image: radial-gradient(ellipse 70% 80% at 50% 0%, black 30%, transparent 80%);
-}
+/* 背景：暖暗色画布 */
+[data-testid="stAppViewContainer"] { background: var(--canvas); }
 
 /* 顶部栏 */
 [data-testid="stHeader"] {
-    background: rgba(250,248,245,0.85);
-    backdrop-filter: blur(16px);
-    border-bottom: 1px solid var(--border);
+    background: rgba(43,38,34,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--hairline);
 }
 
-/* 侧边栏：深蓝底 + 金色点缀 */
+/* 侧边栏 */
 [data-testid="stSidebar"] {
-    background: linear-gradient(175deg, #151a2e 0%, #1a1f36 40%, #1f2545 100%);
-    border-right: 1px solid rgba(201,169,110,0.15);
+    background: var(--canvas);
+    border-right: 1px solid var(--hairline);
 }
-[data-testid="stSidebar"] * { color: #b8c0d0 !important; }
+[data-testid="stSidebar"] * { color: var(--body) !important; }
 [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
-[data-testid="stSidebar"] label { color: #d8dce6 !important; font-family: 'Cormorant Garamond', serif !important; }
-[data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div,
+[data-testid="stSidebar"] label { color: var(--ink) !important; font-family: 'Inter', system-ui, sans-serif !important; font-weight: 500; }
 [data-testid="stSidebar"] input {
-    background: rgba(255,255,255,0.05) !important;
-    border: 1px solid rgba(201,169,110,0.2) !important;
-    border-radius: 6px !important; color: #d8dce6 !important;
-    transition: border-color 0.3s;
+    background: var(--canvas-soft) !important;
+    border: 1px solid var(--hairline) !important;
+    border-radius: 3px !important; color: var(--ink) !important;
 }
-[data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div:hover,
-[data-testid="stSidebar"] input:hover { border-color: rgba(201,169,110,0.5) !important; }
-[data-testid="stSidebar"] hr { border-color: rgba(201,169,110,0.15) !important; }
+[data-testid="stSidebar"] input:hover { border-color: var(--mute) !important; }
+[data-testid="stSidebar"] hr { border-color: var(--hairline) !important; }
 
 .sidebar-brand {
-    font-family: 'Cormorant Garamond', serif !important;
-    font-size: 1.5rem !important; font-weight: 700 !important;
-    color: var(--gold) !important; letter-spacing: 1px;
+    font-family: 'Inter', system-ui, sans-serif !important;
+    font-size: 1.1rem !important; font-weight: 500 !important;
+    color: var(--ink) !important; letter-spacing: -0.3px;
 }
-.sidebar-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }
-.sidebar-dot.online { background: #c9a96e; box-shadow: 0 0 6px rgba(201,169,110,0.6); animation: pulse-dot 2.5s infinite; }
-@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.sidebar-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
+.sidebar-dot.online { background: var(--primary); animation: pulse-dot 2.5s infinite; }
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
 /* 标题 */
 .main-title {
-    font-family: 'Cormorant Garamond', 'Noto Serif SC', serif !important;
-    font-size: 2.4rem !important; font-weight: 700 !important;
-    color: var(--navy) !important; letter-spacing: -0.3px;
+    font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif !important;
+    font-size: 2.4rem !important; font-weight: 400 !important;
+    color: var(--ink) !important; letter-spacing: -1.2px;
 }
-.main-subtitle { color: var(--ink-light); font-size: 0.9rem; letter-spacing: 0.3px; }
+.main-subtitle { color: var(--body); font-size: 0.9rem; font-weight: 400; }
 
-/* 聊天消息气泡 */
-[data-testid="stChatMessage"] {
-    background: transparent !important;
-}
+/* 聊天消息 */
+[data-testid="stChatMessage"] { background: transparent !important; }
 [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
-    font-size: 0.95rem; line-height: 1.8;
+    font-size: 0.95rem; line-height: 1.8; color: var(--body);
 }
 
 /* 合同状态栏 */
 .contract-bar {
-    background: rgba(201,169,110,0.08); border: 1px solid rgba(201,169,110,0.2);
-    border-radius: 6px; padding: 8px 14px; margin-bottom: 12px;
-    font-size: 0.82rem; color: #8a7a50;
+    background: var(--canvas-soft); border: 1px solid var(--hairline);
+    border-radius: 4px; padding: 8px 14px; margin-bottom: 12px;
+    font-size: 0.82rem; color: var(--body);
 }
 
 /* 聊天输入框 */
 [data-testid="stChatInput"] textarea {
-    border: 1px solid var(--border) !important;
-    border-radius: 8px !important;
-    background: white !important;
-    font-family: 'DM Sans', 'Noto Sans SC', sans-serif !important;
+    border: 1px solid var(--hairline) !important;
+    border-radius: 4px !important;
+    background: var(--canvas-soft) !important;
+    color: var(--ink) !important;
+    font-family: 'Inter', 'Noto Sans SC', sans-serif !important;
 }
 [data-testid="stChatInput"] textarea:focus {
-    border-color: var(--gold) !important;
-    box-shadow: 0 0 0 2px rgba(201,169,110,0.1) !important;
+    border-color: var(--mute) !important;
+    box-shadow: none !important;
 }
 
 /* 滚动条 */
