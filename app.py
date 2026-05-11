@@ -33,66 +33,65 @@ st.set_page_config(page_title="法眼 · 合同审查", page_icon="⚖️", layo
 st.markdown("""
 <style>
 /* ═══════════════════════════════════════════════
-   Linear-Inspired — 软件工艺文档
-   近纯黑底 #010102 + 薰衣草蓝 #5e6ad2
+   Zapier-Inspired — 温暖自信 · 工作流自动化
+   暖奶油底 + 浓缩咖啡字 + 橙色CTA #ff4f00
    ═══════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-    --primary: #5e6ad2;
-    --primary-hover: #828fff;
-    --on-primary: #ffffff;
-    --canvas: #010102;
-    --surface-1: #0f1011;
-    --surface-2: #141516;
-    --surface-3: #18191a;
-    --hairline: #23252a;
-    --hairline-strong: #34343a;
-    --ink: #f7f8f8;
-    --ink-muted: #d0d6e0;
-    --ink-subtle: #8a8f98;
-    --ink-tertiary: #62666d;
-    --red: #e5484d;
-    --red-bg: rgba(229,72,77,0.10);
-    --amber: #f5a623;
-    --amber-bg: rgba(245,166,35,0.10);
-    --green: #30a46c;
-    --green-bg: rgba(48,164,108,0.10);
+    --primary: #ff4f00;
+    --primary-hover: #e04700;
+    --on-primary: #fffefb;
+    --canvas: #fffefb;
+    --canvas-soft: #f8f4f0;
+    --ink: #201515;
+    --ink-soft: #2f2a26;
+    --ink-mid: #36342e;
+    --body: #605d52;
+    --body-mid: #939084;
+    --mute: #c5c0b1;
+    --hairline: #e8e4dc;
+    --red: #c64545;
+    --red-bg: rgba(198,69,69,0.08);
+    --amber: #d4a017;
+    --amber-bg: rgba(212,160,23,0.08);
+    --green: #5db872;
+    --green-bg: rgba(93,184,114,0.08);
 }
 
-html, body, [class*="css"] { font-family: 'Inter', -apple-system, 'SF Pro Display', 'Noto Sans SC', sans-serif; color: var(--ink-muted); }
-h1, h2, h3, h4, h5, h6 { font-family: 'Inter', -apple-system, 'SF Pro Display', 'Noto Sans SC', sans-serif; font-weight: 600; letter-spacing: -0.4px; color: var(--ink); }
+html, body, [class*="css"] { font-family: 'Inter', system-ui, -apple-system, 'Noto Sans SC', sans-serif; color: var(--body); }
+h1, h2, h3, h4, h5, h6 { font-family: 'Inter', system-ui, -apple-system, 'Noto Sans SC', sans-serif; font-weight: 500; color: var(--ink); }
 
-/* 背景：近纯黑 */
+/* 背景：暖奶油白 */
 [data-testid="stAppViewContainer"] { background: var(--canvas); }
 
 /* 顶部栏 */
 [data-testid="stHeader"] {
-    background: rgba(1,1,2,0.94);
-    backdrop-filter: blur(12px);
+    background: rgba(255,254,251,0.94);
+    backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--hairline);
 }
 
 /* ── 标题 ── */
 .main-title {
-    font-family: 'Inter', -apple-system, 'SF Pro Display', sans-serif !important;
-    font-size: 2.4rem !important; font-weight: 700 !important;
-    color: var(--ink) !important; letter-spacing: -1px;
+    font-family: 'Inter', system-ui, sans-serif !important;
+    font-size: 2.4rem !important; font-weight: 500 !important;
+    color: var(--ink) !important; letter-spacing: -0.5px;
 }
-.main-subtitle { color: var(--ink-subtle); font-size: 0.9rem; font-weight: 400; }
+.main-subtitle { color: var(--body-mid); font-size: 0.9rem; font-weight: 400; }
 
-/* ── 侧边栏：近纯黑 + 薰衣草蓝点缀 ── */
+/* ── 侧边栏：暖奶油 + 橙色点缀 ── */
 [data-testid="stSidebar"] {
-    background: var(--canvas);
+    background: var(--canvas-soft);
     border-right: 1px solid var(--hairline);
 }
-[data-testid="stSidebar"] * { color: var(--ink-muted) !important; }
+[data-testid="stSidebar"] * { color: var(--body) !important; }
 [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
-[data-testid="stSidebar"] label { color: var(--ink) !important; font-family: 'Inter', sans-serif !important; font-weight: 600; }
+[data-testid="stSidebar"] label { color: var(--ink) !important; font-family: 'Inter', sans-serif !important; font-weight: 500; }
 [data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div,
 [data-testid="stSidebar"] input {
-    background: var(--surface-1) !important;
+    background: var(--canvas) !important;
     border: 1px solid var(--hairline) !important;
     border-radius: 8px !important; color: var(--ink) !important;
 }
@@ -102,8 +101,8 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Inter', -apple-system, 'SF Pro Display', 
 
 .sidebar-brand {
     font-family: 'Inter', sans-serif !important;
-    font-size: 1.1rem !important; font-weight: 600 !important;
-    color: var(--ink) !important; letter-spacing: -0.4px;
+    font-size: 1.1rem !important; font-weight: 500 !important;
+    color: var(--ink) !important;
 }
 .sidebar-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
 .sidebar-dot.online { background: var(--primary); animation: pulse-dot 2.5s infinite; }
@@ -111,7 +110,7 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Inter', -apple-system, 'SF Pro Display', 
 
 /* ── 合同输入区 ── */
 .contract-wrapper {
-    background: var(--surface-1);
+    background: var(--canvas);
     border: 1px solid var(--hairline);
     border-radius: 8px;
     transition: border-color 0.15s;
@@ -123,33 +122,33 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Inter', -apple-system, 'SF Pro Display', 
     font-size: 0.85rem !important; line-height: 1.7 !important;
     color: var(--ink) !important; border: none !important; box-shadow: none !important;
 }
-.contract-wrapper textarea::placeholder { color: var(--ink-tertiary) !important; }
+.contract-wrapper textarea::placeholder { color: var(--body-mid) !important; }
 
 /* ── 按钮 ── */
 div[data-testid="stButton"] > button {
     background: var(--primary) !important; color: var(--on-primary) !important;
     border: 1px solid transparent !important;
-    border-radius: 8px !important; font-weight: 500 !important;
-    font-size: 0.875rem !important; padding: 8px 14px !important;
-    transition: background 0.15s !important;
+    border-radius: 8px !important; font-weight: 600 !important;
+    font-size: 0.875rem !important; padding: 10px 20px !important;
+    transition: opacity 0.15s !important;
 }
 div[data-testid="stButton"] > button:hover {
-    background: var(--primary-hover) !important;
+    opacity: 0.9 !important;
     transform: none !important; box-shadow: none !important;
 }
 
 /* ── 时间线 ── */
 .timeline-round {
-    background: var(--surface-1);
+    background: var(--canvas-soft);
     border-left: 2px solid var(--primary);
     border-radius: 0 6px 6px 0; padding: 8px 12px; margin: 4px 0;
     font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
-    color: var(--ink-muted); white-space: pre-wrap;
+    color: var(--body); white-space: pre-wrap;
 }
 
 /* ── 报告卡片 ── */
 .report-card {
-    background: var(--surface-1); border-radius: 8px; padding: 28px 32px; margin: 16px 0;
+    background: var(--canvas); border-radius: 8px; padding: 28px 32px; margin: 16px 0;
     border: 1px solid var(--hairline);
 }
 
@@ -160,25 +159,25 @@ div[data-testid="stButton"] > button:hover {
 
 /* ── 统计卡片 ── */
 .stat-box {
-    background: var(--surface-1); border-radius: 8px; padding: 18px 20px; text-align: center;
+    background: var(--canvas-soft); border-radius: 8px; padding: 18px 20px; text-align: center;
     border: 1px solid var(--hairline);
 }
-.stat-num { font-family: 'Inter', sans-serif; font-size: 2rem; font-weight: 700; }
-.stat-label { font-size: 0.75rem; color: var(--ink-tertiary); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+.stat-num { font-family: 'Inter', sans-serif; font-size: 2rem; font-weight: 600; color: var(--ink); }
+.stat-label { font-size: 0.75rem; color: var(--body-mid); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
 
 /* ── 展开器 ── */
 [data-testid="stExpander"] details {
     border-radius: 8px !important; border: 1px solid var(--hairline) !important;
-    background: var(--surface-1) !important;
+    background: var(--canvas-soft) !important;
 }
 [data-testid="stExpander"] summary {
-    font-weight: 600 !important; color: var(--ink) !important;
+    font-weight: 500 !important; color: var(--ink) !important;
     padding: 10px 14px !important;
 }
 
 /* ── 信息提示 ── */
 [data-testid="stInfo"] {
-    background: var(--surface-1) !important;
+    background: var(--canvas-soft) !important;
     border: 1px solid var(--hairline) !important; border-radius: 8px !important;
 }
 
@@ -190,7 +189,7 @@ div[data-testid="stButton"] > button:hover {
 /* ── 滚动条 ── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--canvas); }
-::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--mute); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
 
 /* ── 收紧全局留白 ── */
