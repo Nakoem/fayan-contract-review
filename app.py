@@ -213,6 +213,12 @@ div[data-testid="stButton"] > button:hover {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--gold-light); }
 
+/* ── 收紧全局留白 ── */
+[data-testid="stAppViewBlockContainer"] {
+    padding: 2rem 3rem 0 3rem;
+    max-width: 100%;
+}
+
 /* ── 移动端 ── */
 @media (max-width: 768px) {
     .main-title { font-size: 1.6rem !important; }
@@ -375,7 +381,7 @@ else:
 # ═══════════════════════════════════════════════════════
 # 两栏布局
 # ═══════════════════════════════════════════════════════
-col_left, col_right = st.columns([1, 1])
+col_left, col_right = st.columns([3, 2])
 
 with col_left:
     st.markdown("#### 📄 合同原文")
@@ -386,7 +392,7 @@ with col_left:
         "合同原文",
         value=contract_text,
         placeholder="在此粘贴合同全文，或从左侧上传 .txt 文件...\n\n💡 粘贴后按 Enter 即可开始审查",
-        height=520,
+        height=600,
         label_visibility="collapsed",
     )
     st.markdown('</div>', unsafe_allow_html=True)
@@ -618,4 +624,55 @@ with col_right:
             """
             st.markdown(copy_js, unsafe_allow_html=True)
     else:
-        st.info("点击左侧「🔍 开始审查」按钮启动 Agent")
+        # 空状态：展示功能概览卡片
+        st.markdown("""
+        <div style="
+            background: white; border: 1px solid #e0d8c8; border-radius: 4px;
+            padding: 28px 24px; margin-bottom: 14px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+        ">
+            <div style="font-size:1.05rem;font-weight:600;color:#1a1f36;margin-bottom:8px;">
+                ⚖ 10 工具 ReAct Agent
+            </div>
+            <div style="font-size:0.85rem;color:#5c5240;line-height:1.7;">
+                AI 自主决策审查步骤：提取条款 → 法规检索 → 逐条分析 → 完整性检查 → 生成报告
+            </div>
+        </div>
+        <div style="
+            background: white; border: 1px solid #e0d8c8; border-radius: 4px;
+            padding: 28px 24px; margin-bottom: 14px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+        ">
+            <div style="font-size:1.05rem;font-weight:600;color:#1a1f36;margin-bottom:8px;">
+                📚 四重知识库
+            </div>
+            <div style="font-size:0.85rem;color:#5c5240;line-height:1.7;">
+                法规原文 × 法院判例 × 地方政策 × 税务规则 —— RAG 语义检索，66条知识库交叉验证
+            </div>
+        </div>
+        <div style="
+            background: white; border: 1px solid #e0d8c8; border-radius: 4px;
+            padding: 28px 24px; margin-bottom: 14px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+        ">
+            <div style="font-size:1.05rem;font-weight:600;color:#1a1f36;margin-bottom:8px;">
+                📋 六种合同类型
+            </div>
+            <div style="font-size:0.85rem;color:#5c5240;line-height:1.7;">
+                房屋租赁 · 劳动 · 买卖 · 服务 · 合作 · 借款<br>
+                每种配备法定红线标准，逐条打分公平性 / 明确性 / 风险敞口
+            </div>
+        </div>
+        <div style="
+            background: white; border: 1px solid #e0d8c8; border-radius: 4px;
+            padding: 28px 24px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+        ">
+            <div style="font-size:1.05rem;font-weight:600;color:#1a1f36;margin-bottom:8px;">
+                🚀 多种使用方式
+            </div>
+            <div style="font-size:0.85rem;color:#5c5240;line-height:1.7;">
+                终端 CLI · Streamlit Web · FastAPI 接口 · MCP 协议 · Docker 一键部署
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
