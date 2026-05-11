@@ -40,15 +40,15 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-    --primary: #4a154b;
-    --primary-deep: #481a54;
-    --primary-press: #611f69;
+    --primary: #5c1d5e;
+    --primary-deep: #4a154b;
+    --primary-press: #7a2d7c;
     --on-primary: #ffffff;
     --on-aubergine-mute: #d9bdde;
     --canvas: #f4ede4;
     --canvas-lavender: #f9f0ff;
     --surface: #ffffff;
-    --surface-aubergine: #4a154b;
+    --surface-aubergine: #5c1d5e;
     --hairline: #e6e6e6;
     --ink: #1d1d1d;
     --ink-mute: #696969;
