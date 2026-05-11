@@ -4,10 +4,30 @@
 """
 
 import json
+import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from llm_client import LLMClient
+
+# ═══ RAG 检索器（惰性导入，避免循环引用）═══
+_rag_initialized = False
+_search_funcs = {}
+
+
+def _init_rag():
+    global _rag_initialized, _search_funcs
+    if _rag_initialized:
+        return
+    try:
+        from rag.retriever import search, format_results
+        from rag.indexer import build_all_indexes
+
+        build_all_indexes()
+        _search_funcs = {"search": search, "format_results": format_results}
+    except Exception:
+        pass  # RAG 不可用时回退到关键词匹配
+    _rag_initialized = True
 
 # 内置法规库（演示用，实际可替换为数据库或联网搜索）
 _REGULATION_DB = {
@@ -1030,19 +1050,20 @@ _TAX_RULE_DB = {
 
 
 def search_regulation(keyword: str) -> str:
-    """根据关键词搜索相关法规条文，返回所有匹配结果。
-
-    此函数由 AI 模型在审查合同时自动决定调用。例如当发现合同中
-    存在押金、违约金等条款时，AI 会调用 search_regulation("押金退还")
-    来获取相关法律规定。
-
-    Args:
-        keyword: 法规搜索关键词，如"押金退还"、"违约金"、"合同解除"
-
-    Returns:
-        所有匹配的法规条文（可能跨合同类型），或提示未找到的说明
-    """
+    """根据关键词搜索相关法规条文，优先 RAG 语义检索，回退关键词匹配。"""
     keyword = keyword.strip()
+
+    # 尝试 RAG 语义检索
+    _init_rag()
+    if _search_funcs:
+        try:
+            results = _search_funcs["search"](keyword, "regulation", top_k=3)
+            if results:
+                return _search_funcs["format_results"](results)
+        except Exception:
+            pass  # RAG 失败，回退
+
+    # 关键词匹配兜底
     results = []
     for key, content in _REGULATION_DB.items():
         if keyword in key or key in keyword:
@@ -1058,8 +1079,18 @@ def search_regulation(keyword: str) -> str:
 
 
 def search_case_law(keyword: str) -> str:
-    """搜索相关法院判例，返回所有匹配结果。"""
+    """搜索相关法院判例，优先 RAG 语义检索，回退关键词匹配。"""
     keyword = keyword.strip()
+
+    _init_rag()
+    if _search_funcs:
+        try:
+            results = _search_funcs["search"](keyword, "case_law", top_k=3)
+            if results:
+                return _search_funcs["format_results"](results)
+        except Exception:
+            pass
+
     results = []
     for key, content in _CASE_LAW_DB.items():
         if keyword in key or key in keyword:
@@ -1075,8 +1106,19 @@ def search_case_law(keyword: str) -> str:
 
 
 def check_local_policy(city: str, keyword: str = "") -> str:
-    """查询特定城市的房屋租赁地方政策，返回所有匹配结果。"""
+    """查询特定城市的房屋租赁地方政策，优先 RAG 语义检索，回退关键词匹配。"""
     city = city.strip()
+
+    _init_rag()
+    if _search_funcs:
+        try:
+            query = f"{city} {keyword}".strip()
+            results = _search_funcs["search"](query, "local_policy", top_k=3)
+            if results:
+                return _search_funcs["format_results"](results)
+        except Exception:
+            pass
+
     results = []
     for key, content in _LOCAL_POLICY_DB.items():
         if city in key or key in city:
@@ -1092,8 +1134,18 @@ def check_local_policy(city: str, keyword: str = "") -> str:
 
 
 def lookup_tax_rule(topic: str) -> str:
-    """查询税务规则，返回所有匹配结果。"""
+    """查询税务规则，优先 RAG 语义检索，回退关键词匹配。"""
     topic = topic.strip()
+
+    _init_rag()
+    if _search_funcs:
+        try:
+            results = _search_funcs["search"](topic, "tax_rule", top_k=3)
+            if results:
+                return _search_funcs["format_results"](results)
+        except Exception:
+            pass
+
     results = []
     for key, content in _TAX_RULE_DB.items():
         if topic in key or key in topic:
@@ -1207,10 +1259,9 @@ def switch_perspective(
     return client.call(system, user, max_tokens=1024)
 
 
-def web_search(keyword: str) -> str:
-    """联网搜索合同相关资讯，返回所有匹配结果。内置知识+模拟最新资讯。"""
-    _WEB_KB = {
-        "民法典": """
+# 联网知识库（模块级别，供 RAG 索引使用）
+_WEB_KB = {
+    "民法典": """
 2021年1月1日起施行的《中华人民共和国民法典》合同编要点：
 - 第三编合同（第463-988条），涵盖买卖合同、租赁合同等19种典型合同
 - 第703-734条专章规定租赁合同
@@ -1218,7 +1269,7 @@ def web_search(keyword: str) -> str:
 - 第706条：未办理登记备案不影响合同效力
 - 2025年最高人民法院发布民法典合同编司法解释（二）
 """,
-        "租赁新规": """
+    "租赁新规": """
 2025年住房租赁行业新动态：
 1. 住建部要求2025年底前全国主要城市完成住房租赁监管平台对接
 2. 北京、上海、深圳试点"押金保险"替代传统押金
@@ -1226,8 +1277,22 @@ def web_search(keyword: str) -> str:
 4. 多地推行"租购同权"：租房满一定年限可享受同等公共服务
 5. 保障性租赁住房REITs持续扩容，2025年新增发行超500亿元
 """,
-    }
+}
+
+
+def web_search(keyword: str) -> str:
+    """联网搜索合同相关资讯，优先 RAG 语义检索，回退关键词匹配。"""
     keyword = keyword.strip()
+
+    _init_rag()
+    if _search_funcs:
+        try:
+            results = _search_funcs["search"](keyword, "web_kb", top_k=3)
+            if results:
+                return _search_funcs["format_results"](results)
+        except Exception:
+            pass
+
     results = []
     for key, content in _WEB_KB.items():
         if keyword in key or key in keyword:

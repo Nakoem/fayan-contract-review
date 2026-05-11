@@ -20,6 +20,10 @@ eval_results/
 logs/
 *.log
 
+# RAG 索引 + 嵌入模型缓存
+rag_index/
+.embedding_cache/
+
 # 系统
 .DS_Store
 Thumbs.db
