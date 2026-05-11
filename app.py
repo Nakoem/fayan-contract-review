@@ -543,29 +543,6 @@ with col_left:
             st.rerun()
 
 with col_right:
-    # ── 功能概览卡片 ──
-    with st.expander("📌 法眼 · 能力概览", expanded=True):
-        st.markdown("""
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;">
-            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
-                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">⚖ 10工具 ReAct Agent</div>
-                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">自主决策审查步骤</div>
-            </div>
-            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
-                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">📚 四重知识库</div>
-                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">法规·判例·政策·税务</div>
-            </div>
-            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
-                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">📋 六种合同类型</div>
-                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">每种配备法定红线标准</div>
-            </div>
-            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
-                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">🚀 多种使用方式</div>
-                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">CLI·Web·API·MCP·Docker</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
     st.markdown("#### 📊 审查结果")
 
     if st.session_state.report:
@@ -648,3 +625,27 @@ with col_right:
             st.markdown(copy_js, unsafe_allow_html=True)
     else:
         st.info("👆 粘贴合同后点击「🔍 开始审查」，或上传 .txt / .jpg 合同文件")
+
+    # ── 功能概览卡片（右下角，始终可见）──
+    st.markdown("<br>", unsafe_allow_html=True)
+    with st.expander("📌 法眼 · 能力概览", expanded=True):
+        st.markdown("""
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;">
+            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
+                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">⚖ 10工具 ReAct Agent</div>
+                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">自主决策审查步骤</div>
+            </div>
+            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
+                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">📚 四重知识库</div>
+                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">法规·判例·政策·税务</div>
+            </div>
+            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
+                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">📋 六种合同类型</div>
+                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">每种配备法定红线标准</div>
+            </div>
+            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
+                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">🚀 多种使用方式</div>
+                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">CLI·Web·API·MCP·Docker</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
