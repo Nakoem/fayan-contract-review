@@ -20,27 +20,27 @@ st.set_page_config(page_title="法眼 · 法律问答", page_icon="💬", layout
 # ═══════════════════════════════════════════════════════
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-    --primary: #cc785c;
-    --primary-active: #a9583e;
-    --canvas: #faf9f5;
-    --ink: #141413;
-    --body: #3d3d3a;
-    --muted: #6c6a64;
-    --muted-soft: #8e8b82;
-    --hairline: #e6dfd8;
-    --surface-soft: #f5f0e8;
+    --primary: #5e6ad2;
+    --primary-hover: #828fff;
+    --canvas: #010102;
+    --surface-1: #0f1011;
+    --hairline: #23252a;
+    --ink: #f7f8f8;
+    --ink-muted: #d0d6e0;
+    --ink-subtle: #8a8f98;
+    --ink-tertiary: #62666d;
 }
 
-html, body, [class*="css"] { font-family: 'Inter', 'Noto Sans SC', system-ui, sans-serif; color: var(--body); }
-h1, h2, h3 { font-family: 'Georgia', 'Noto Serif SC', 'Times New Roman', serif; font-weight: 400; color: var(--ink); }
+html, body, [class*="css"] { font-family: 'Inter', -apple-system, 'SF Pro Display', 'Noto Sans SC', sans-serif; color: var(--ink-muted); }
+h1, h2, h3 { font-family: 'Inter', sans-serif; font-weight: 600; color: var(--ink); }
 
 [data-testid="stAppViewContainer"] { background: var(--canvas); }
 
 [data-testid="stHeader"] {
-    background: rgba(250,249,245,0.92);
+    background: rgba(1,1,2,0.94);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--hairline);
 }
@@ -49,11 +49,11 @@ h1, h2, h3 { font-family: 'Georgia', 'Noto Serif SC', 'Times New Roman', serif; 
     background: var(--canvas);
     border-right: 1px solid var(--hairline);
 }
-[data-testid="stSidebar"] * { color: var(--body) !important; }
+[data-testid="stSidebar"] * { color: var(--ink-muted) !important; }
 [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
-[data-testid="stSidebar"] label { color: var(--ink) !important; font-family: 'Georgia', serif !important; font-weight: 400; }
+[data-testid="stSidebar"] label { color: var(--ink) !important; font-family: 'Inter', sans-serif !important; font-weight: 600; }
 [data-testid="stSidebar"] input {
-    background: var(--canvas) !important;
+    background: var(--surface-1) !important;
     border: 1px solid var(--hairline) !important;
     border-radius: 8px !important; color: var(--ink) !important;
 }
@@ -61,8 +61,8 @@ h1, h2, h3 { font-family: 'Georgia', 'Noto Serif SC', 'Times New Roman', serif; 
 [data-testid="stSidebar"] hr { border-color: var(--hairline) !important; }
 
 .sidebar-brand {
-    font-family: 'Georgia', serif !important;
-    font-size: 1.2rem !important; font-weight: 400 !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 1.1rem !important; font-weight: 600 !important;
     color: var(--ink) !important;
 }
 .sidebar-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
@@ -70,29 +70,29 @@ h1, h2, h3 { font-family: 'Georgia', 'Noto Serif SC', 'Times New Roman', serif; 
 @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
 .main-title {
-    font-family: 'Georgia', 'Noto Serif SC', serif !important;
-    font-size: 2.4rem !important; font-weight: 400 !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 2.4rem !important; font-weight: 700 !important;
     color: var(--ink) !important; letter-spacing: -1px;
 }
-.main-subtitle { color: var(--muted); font-size: 0.9rem; }
+.main-subtitle { color: var(--ink-subtle); font-size: 0.9rem; }
 
 [data-testid="stChatMessage"] { background: transparent !important; }
 [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
-    font-size: 0.95rem; line-height: 1.8; color: var(--body);
+    font-size: 0.95rem; line-height: 1.8; color: var(--ink-muted);
 }
 
 .contract-bar {
-    background: var(--surface-soft); border: 1px solid var(--hairline);
+    background: var(--surface-1); border: 1px solid var(--hairline);
     border-radius: 8px; padding: 8px 14px; margin-bottom: 12px;
-    font-size: 0.82rem; color: var(--body);
+    font-size: 0.82rem; color: var(--ink-muted);
 }
 
 [data-testid="stChatInput"] textarea {
     border: 1px solid var(--hairline) !important;
     border-radius: 8px !important;
-    background: var(--canvas) !important;
+    background: var(--surface-1) !important;
     color: var(--ink) !important;
-    font-family: 'Inter', 'Noto Sans SC', sans-serif !important;
+    font-family: 'Inter', sans-serif !important;
 }
 [data-testid="stChatInput"] textarea:focus {
     border-color: var(--primary) !important;
