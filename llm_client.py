@@ -24,13 +24,14 @@ class LLMClient:
         kwargs = {"model": self.model, "messages": messages, "max_tokens": max_tokens}
         if tools:
             kwargs["tools"] = tools
-            kwargs["temperature"] = 0.1  # 降低随机性，减少JSON格式出错
+            kwargs["temperature"] = 0.0  # 消除随机性，确保审查结果一致
         return self.client.chat.completions.create(**kwargs)
 
     def call(self, system_prompt: str, user_prompt: str, max_tokens: int = 4096) -> str:
         resp = self.client.chat.completions.create(
             model=self.model,
             max_tokens=max_tokens,
+            temperature=0.0,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
