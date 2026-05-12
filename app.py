@@ -349,7 +349,12 @@ else:
 col_left, col_right = st.columns([3, 2])
 
 with col_left:
-    st.markdown("#### 📄 合同原文")
+    # 标题 + 按钮同一行
+    col_t, col_b = st.columns([3, 1])
+    with col_t:
+        st.markdown("#### 📄 合同原文")
+    with col_b:
+        start_review = st.button("🔍 开始审查", type="primary", use_container_width=True)
 
     # 纸张质感容器
     st.markdown('<div class="contract-wrapper">', unsafe_allow_html=True)
@@ -391,9 +396,7 @@ with col_left:
     </script>
     """, unsafe_allow_html=True)
 
-    # 开始按钮
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🔍 开始审查", type="primary", use_container_width=True):
+    if start_review:
         if not contract_text.strip():
             st.error("请粘贴或上传合同文本")
         elif not api_key:
@@ -552,10 +555,11 @@ with col_right:
 
         st.divider()
 
-        # 报告卡片
-        st.markdown('<div class="report-card">', unsafe_allow_html=True)
-        st.markdown(st.session_state.report)
-        st.markdown('</div>', unsafe_allow_html=True)
+        # 报告卡片（默认折叠）
+        with st.expander("📋 审查报告全文（点击展开）", expanded=False):
+            st.markdown('<div class="report-card">', unsafe_allow_html=True)
+            st.markdown(st.session_state.report)
+            st.markdown('</div>', unsafe_allow_html=True)
 
         col_dl, col_cp = st.columns([3, 1])
         with col_dl:
