@@ -258,7 +258,7 @@ with st.sidebar:
 
     # Self-Reflection 开关
     if "enable_reflection" not in st.session_state:
-        st.session_state.enable_reflection = True
+        st.session_state.enable_reflection = False
     st.session_state.enable_reflection = st.checkbox(
         "Self-Reflection 反思审查",
         value=st.session_state.enable_reflection,
