@@ -13,6 +13,21 @@ _rag_initialized = False
 _search_funcs = {}
 
 
+def _load_knowledge_json(filename: str, fallback: dict) -> dict:
+    """从 knowledge/*.json 加载知识库，JSON 缺失时回退到硬编码数据。"""
+    import json
+    from pathlib import Path
+
+    json_path = Path(__file__).parent / "knowledge" / filename
+    if json_path.exists():
+        try:
+            with open(json_path, encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return fallback
+
+
 def _init_rag():
     global _rag_initialized, _search_funcs
     if _rag_initialized:
