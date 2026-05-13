@@ -573,7 +573,7 @@ with col_right:
             st.markdown(st.session_state.report)
             st.markdown("</div>", unsafe_allow_html=True)
 
-        col_dl, _col_cp = st.columns([3, 1])
+        col_dl, col_cp = st.columns([3, 1])
         with col_dl:
             st.download_button(
                 "📥 下载报告 (.txt)",
@@ -581,6 +581,27 @@ with col_right:
                 file_name=f"审查报告_{contract_type}_{date.today().isoformat()}.txt",
                 mime="text/plain",
                 use_container_width=True,
+            )
+        with col_cp:
+            st.markdown(
+                """<script>
+                function copyReport() {
+                    const text = document.querySelector('.report-card').innerText;
+                    navigator.clipboard.writeText(text).then(() => {
+                        const btn = document.getElementById('copy-btn');
+                        btn.innerHTML = '✅ 已复制';
+                        setTimeout(() => { btn.innerHTML = '📋 复制报告'; }, 2000);
+                    });
+                }
+                </script>
+                <button id="copy-btn" onclick="copyReport()" style="
+                    width:100%; padding:11px 16px; border-radius:4px;
+                    border:1px solid rgba(201,169,110,0.3);
+                    background:#1a1f36; color:#e0cc9a;
+                    font-weight:500; font-size:0.9rem;
+                    cursor:pointer; letter-spacing:0.5px;
+                ">📋 复制报告</button>""",
+                unsafe_allow_html=True,
             )
 
     else:
