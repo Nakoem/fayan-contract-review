@@ -258,10 +258,10 @@ with st.sidebar:
     # Self-Reflection 开关
     if "enable_reflection" not in st.session_state:
         st.session_state.enable_reflection = True
-    st.session_state.enable_reflection = st.toggle(
+    st.session_state.enable_reflection = st.checkbox(
         "Self-Reflection 反思审查",
         value=st.session_state.enable_reflection,
-        help="开启后在出报告前做全局质量审核（稍慢但更准确）；关闭后跳过反思直接出报告（更快）",
+        help="开启后出报告前全局质量审核（稍慢更准）；关闭后跳过直接出报告（更快）",
     )
 
     st.divider()
