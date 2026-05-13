@@ -934,11 +934,24 @@ _TAX_RULE_DB = {
 }
 
 
+def _fulltext_fallback(keyword: str, db: dict, top_k: int = 3) -> list[tuple[str, str]]:
+    """全文扫描回退：对知识库 key+value 做关键词覆盖度评分。"""
+    query_chars = set(keyword)
+    scored = []
+    for key, content in db.items():
+        full_text = f"{key} {content}"
+        hits = sum(1 for c in query_chars if c in full_text)
+        if hits > 0:
+            scored.append((hits / len(query_chars), key, content))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [(key, content) for _, key, content in scored[:top_k]]
+
+
 def search_regulation(keyword: str) -> str:
-    """根据关键词搜索相关法规条文，优先 RAG 语义检索，回退关键词匹配。"""
+    """根据关键词搜索相关法规条文，优先 RAG 语义检索，回退全文匹配。"""
     keyword = keyword.strip()
 
-    # 尝试 RAG 语义检索
+    # 尝试 RAG 语义检索（含向量+关键词混合）
     _init_rag()
     if _search_funcs:
         try:
@@ -946,25 +959,20 @@ def search_regulation(keyword: str) -> str:
             if results:
                 return _search_funcs["format_results"](results)
         except Exception:
-            pass  # RAG 失败，回退
+            pass
 
-    # 关键词匹配兜底
-    results = []
-    for key, content in _REGULATION_DB.items():
-        if keyword in key or key in keyword:
-            results.append((key, content))
-    if not results:
-        return f"未找到与「{keyword}」直接匹配的法规条文。可尝试关键词：{', '.join(_REGULATION_DB.keys())}"
-    if len(results) == 1:
-        return results[0][1]
-    parts = []
-    for key, content in results:
-        parts.append(f"【匹配：{key}】\n{content}")
+    # 全文匹配兜底
+    matches = _fulltext_fallback(keyword, _REGULATION_DB)
+    if not matches:
+        return f"未找到与「{keyword}」匹配的法规条文。可尝试关键词：{', '.join(list(_REGULATION_DB.keys())[:10])}..."
+    if len(matches) == 1:
+        return matches[0][1]
+    parts = [f"【匹配：{key}】\n{content}" for key, content in matches]
     return "\n\n────────────────────────\n\n".join(parts)
 
 
 def search_case_law(keyword: str) -> str:
-    """搜索相关法院判例，优先 RAG 语义检索，回退关键词匹配。"""
+    """搜索相关法院判例，优先 RAG 语义检索，回退全文匹配。"""
     keyword = keyword.strip()
 
     _init_rag()
@@ -976,22 +984,19 @@ def search_case_law(keyword: str) -> str:
         except Exception:
             pass
 
-    results = []
-    for key, content in _CASE_LAW_DB.items():
-        if keyword in key or key in keyword:
-            results.append((key, content))
-    if not results:
-        return f"未找到「{keyword}」相关的判例。可尝试：{', '.join(_CASE_LAW_DB.keys())}"
-    if len(results) == 1:
-        return results[0][1]
-    parts = []
-    for key, content in results:
-        parts.append(f"【匹配：{key}】\n{content}")
+    matches = _fulltext_fallback(keyword, _CASE_LAW_DB)
+    if not matches:
+        return (
+            f"未找到「{keyword}」相关的判例。可尝试：{', '.join(list(_CASE_LAW_DB.keys())[:10])}..."
+        )
+    if len(matches) == 1:
+        return matches[0][1]
+    parts = [f"【匹配：{key}】\n{content}" for key, content in matches]
     return "\n\n────────────────────────\n\n".join(parts)
 
 
 def check_local_policy(city: str, keyword: str = "") -> str:
-    """查询特定城市的房屋租赁地方政策，优先 RAG 语义检索，回退关键词匹配。"""
+    """查询特定城市的房屋租赁地方政策，优先 RAG 语义检索，回退全文匹配。"""
     city = city.strip()
 
     _init_rag()
@@ -1004,22 +1009,19 @@ def check_local_policy(city: str, keyword: str = "") -> str:
         except Exception:
             pass
 
-    results = []
-    for key, content in _LOCAL_POLICY_DB.items():
-        if city in key or key in city:
-            results.append((key, content))
-    if not results:
-        return f"暂无「{city}」的地方政策数据。已覆盖城市：{', '.join(_LOCAL_POLICY_DB.keys())}"
-    if len(results) == 1:
-        return results[0][1]
-    parts = []
-    for key, content in results:
-        parts.append(f"【匹配：{key}】\n{content}")
+    matches = _fulltext_fallback(city, _LOCAL_POLICY_DB)
+    if not matches:
+        return (
+            f"暂无「{city}」的地方政策数据。已覆盖城市：{', '.join(list(_LOCAL_POLICY_DB.keys()))}"
+        )
+    if len(matches) == 1:
+        return matches[0][1]
+    parts = [f"【匹配：{key}】\n{content}" for key, content in matches]
     return "\n\n────────────────────────\n\n".join(parts)
 
 
 def lookup_tax_rule(topic: str) -> str:
-    """查询税务规则，优先 RAG 语义检索，回退关键词匹配。"""
+    """查询税务规则，优先 RAG 语义检索，回退全文匹配。"""
     topic = topic.strip()
 
     _init_rag()
@@ -1031,17 +1033,12 @@ def lookup_tax_rule(topic: str) -> str:
         except Exception:
             pass
 
-    results = []
-    for key, content in _TAX_RULE_DB.items():
-        if topic in key or key in topic:
-            results.append((key, content))
-    if not results:
-        return f"未找到「{topic}」相关的税务规则。可尝试：{', '.join(_TAX_RULE_DB.keys())}"
-    if len(results) == 1:
-        return results[0][1]
-    parts = []
-    for key, content in results:
-        parts.append(f"【匹配：{key}】\n{content}")
+    matches = _fulltext_fallback(topic, _TAX_RULE_DB)
+    if not matches:
+        return f"未找到「{topic}」相关的税务规则。可尝试：{', '.join(list(_TAX_RULE_DB.keys())[:10])}..."
+    if len(matches) == 1:
+        return matches[0][1]
+    parts = [f"【匹配：{key}】\n{content}" for key, content in matches]
     return "\n\n────────────────────────\n\n".join(parts)
 
 
@@ -1162,7 +1159,7 @@ _WEB_KB = {
 
 
 def web_search(keyword: str) -> str:
-    """联网搜索合同相关资讯，优先 RAG 语义检索，回退关键词匹配。"""
+    """联网搜索合同相关资讯，优先 RAG 语义检索，回退全文匹配。"""
     keyword = keyword.strip()
 
     _init_rag()
@@ -1174,18 +1171,33 @@ def web_search(keyword: str) -> str:
         except Exception:
             pass
 
-    results = []
-    for key, content in _WEB_KB.items():
-        if keyword in key or key in keyword:
-            results.append((key, content))
-    if not results:
+    matches = _fulltext_fallback(keyword, _WEB_KB)
+    if not matches:
         return f"关于「{keyword}」的搜索结果：\n建议在合同审查中关注该关键词对应的最新法规动态。可尝试搜索：民法典、租赁新规。\n（提示：可接入真实搜索 API 获取实时结果）"
-    if len(results) == 1:
-        return results[0][1]
-    parts = []
-    for key, content in results:
-        parts.append(f"【匹配：{key}】\n{content}")
+    if len(matches) == 1:
+        return matches[0][1]
+    parts = [f"【匹配：{key}】\n{content}" for key, content in matches]
     return "\n\n────────────────────────\n\n".join(parts)
+
+
+def self_reflection(
+    client: "LLMClient",
+    clauses_json: str,
+    findings_json: str,
+    completeness_result: str = "",
+    contract_type: str = "",
+) -> str:
+    """对审查分析结果做全局质量审核，发现错误、矛盾和遗漏。调用 LLM。"""
+    from prompts import SELF_REFLECTION_SYSTEM, SELF_REFLECTION_USER
+
+    system = str(SELF_REFLECTION_SYSTEM)
+    user = SELF_REFLECTION_USER.format(
+        contract_type=contract_type,
+        clauses_json=(clauses_json or "无")[:2000],
+        findings_json=(findings_json or "无")[:3000],
+        completeness_result=(completeness_result or "未执行")[:1000],
+    )
+    return client.call(system, user, max_tokens=2048)
 
 
 # Agent 可用的完整工具列表
@@ -1404,6 +1416,36 @@ AGENT_TOOLS = [
                     }
                 },
                 "required": ["keyword"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "self_reflection",
+            "description": "全局质量审核——在生成报告前对所有分析结果做自我审查。"
+            "必须调用。每个参数传前200字摘要即可，不要传完整JSON。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "clauses_json": {
+                        "type": "string",
+                        "description": "extract_clauses返回的条款摘要（传前200字即可）",
+                    },
+                    "findings_json": {
+                        "type": "string",
+                        "description": "分析结果摘要（传前300字即可）",
+                    },
+                    "completeness_result": {
+                        "type": "string",
+                        "description": "check_completeness结果摘要",
+                    },
+                    "contract_type": {
+                        "type": "string",
+                        "description": "合同类型",
+                    },
+                },
+                "required": ["findings_json"],
             },
         },
     },

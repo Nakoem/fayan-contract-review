@@ -255,9 +255,13 @@ AGENT_SYSTEM_PROMPT = _LazyPrompt(
 
 4. check_completeness 完整性检查（必须调用，不可跳过）
 
-5. 可选：switch_perspective / check_local_policy / lookup_tax_rule / web_search
+5. self_reflection 质量审核（必须调用，不可跳过）——对前面的分析结果做全局质量检查
+   - 如果 passed=false → 根据 issues 修正后再次调用 self_reflection，直到 passed=true
+   - 最多反思3轮，第3轮后即使 passed=false 也必须出报告
 
-6. generate_final_report 出报告（risk_findings_json传空字符串即可）
+6. 可选：switch_perspective / check_local_policy / lookup_tax_rule / web_search
+
+7. generate_final_report 出报告（risk_findings_json传空字符串即可）
 
 规则：
 - 不遗漏任何条款。工具参数尽量简短（<100字）。
@@ -280,6 +284,61 @@ AGENT_USER_PROMPT = _LazyPrompt(
 {contract_text}
 
 请开始审查这份合同。""",
+)
+
+SELF_REFLECTION_SYSTEM = _LazyPrompt(
+    "SELF_REFLECTION_SYSTEM",
+    """你是资深合同审查质量审核员。你的职责是审查"法眼"AI的分析结果，找出错误、矛盾和遗漏。
+
+请逐一检查：
+
+1. **一致性检查**: 所有 analyze_single_clause 返回的风险评级是否合理？评分是否自洽？
+   - 同一条款（相同原文）是否被给了不同评级？
+   - 综合风险评分与高/中风险条数比例是否一致？
+
+2. **覆盖性检查**: extract_clauses 提取的所有条款是否都被 analyze_single_clause 分析过？
+   - 有无被跳过的条款？
+   - check_completeness 发现的缺失项是否在分析结果中有标记？
+
+3. **评分合规性**: 风险等级判定是否严格遵守了三维度规则？
+   - 任一维度 ≥ 4 → 高风险 | 任一维度 = 3 且无 ≥ 4 → 中风险 | 三维度均 ≤ 2 → 低风险
+   - 有无偏离规则的判定？
+
+4. **法规依据**: 关键风险判断是否引用了 search_regulation 查询到的法规条文？（无引用则不可信）
+
+输出 JSON：
+{
+  "passed": true/false,
+  "score": 0-10（分析质量评分）,
+  "issues": [
+    {
+      "severity": "error/warning",
+      "type": "inconsistency/missing_coverage/scoring_violation/unreferenced",
+      "description": "问题描述",
+      "suggestion": "修正建议"
+    }
+  ]
+}
+
+passed=true 表示分析质量合格可出报告。passed=false 表示必须回退修正问题再重试。""",
+)
+
+SELF_REFLECTION_USER = _LazyPrompt(
+    "SELF_REFLECTION_USER",
+    """合同类型：{contract_type}
+
+以下是审查过程中所有的分析结果和完整性检查发现，请做质量审核：
+
+=== 提取的条款 ===
+{clauses_json}
+
+=== 风险分析结果 ===
+{findings_json}
+
+=== 完整性检查 ===
+{completeness_result}
+
+请仔细审核以上分析结果的质量。""",
 )
 
 ANALYZE_SINGLE_CLAUSE_SYSTEM = _LazyPrompt(

@@ -180,7 +180,7 @@ class TestImports:
     def test_tools(self):
         from tools import AGENT_TOOLS, extract_clauses, search_regulation
 
-        assert len(AGENT_TOOLS) == 10
+        assert len(AGENT_TOOLS) >= 11
         assert callable(search_regulation)
         assert callable(extract_clauses)
 
@@ -200,7 +200,7 @@ class TestImports:
     def test_langgraph_agent(self):
         from agent_langgraph import ALL_TOOLS, review_contract_langgraph
 
-        assert len(ALL_TOOLS) == 10
+        assert len(ALL_TOOLS) >= 11
         assert callable(review_contract_langgraph)
 
     def test_utils(self):

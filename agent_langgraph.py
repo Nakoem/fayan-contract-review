@@ -154,6 +154,25 @@ def switch_perspective(findings_json: str, perspective: str) -> str:
     return _fn(_get_client(), findings_json, perspective)
 
 
+@tool
+def self_reflection(
+    clauses_json: str = "",
+    findings_json: str = "",
+    completeness_result: str = "",
+    contract_type: str = "",
+) -> str:
+    """全局质量审核——对审查分析结果做一致性、覆盖性和评分合规检查。"""
+    from tools import self_reflection as _fn
+
+    return _fn(
+        _get_client(),
+        clauses_json,
+        findings_json,
+        completeness_result,
+        contract_type,
+    )
+
+
 ALL_TOOLS = [
     extract_clauses,
     search_regulation,
@@ -163,6 +182,7 @@ ALL_TOOLS = [
     check_local_policy,
     lookup_tax_rule,
     check_completeness,
+    self_reflection,
     switch_perspective,
     web_search,
 ]

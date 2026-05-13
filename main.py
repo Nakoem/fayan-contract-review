@@ -167,6 +167,16 @@ class ContractReviewAgent:
                 from tools import web_search
 
                 return web_search(args["keyword"])
+            elif name == "self_reflection":
+                from tools import self_reflection
+
+                return self_reflection(
+                    self.client,
+                    args.get("clauses_json", ""),
+                    args.get("findings_json", ""),
+                    args.get("completeness_result", ""),
+                    args.get("contract_type", ""),
+                )
             else:
                 return f"未知工具: {name}"
         except Exception as e:
@@ -201,7 +211,8 @@ class ContractReviewAgent:
 
         api_retries = 0
         last_report = None
-        use_text_mode = False  # JSON错误后切换文本格式调工具，绕过DashScope校验
+        use_text_mode = False
+        json_error_count = 0  # JSON错误计数器，防止死循环
         for round_num in range(1, MAX_ITERATIONS + 1):
             # ── 调用 LLM ──
             try:
@@ -212,8 +223,24 @@ class ContractReviewAgent:
             except Exception as e:
                 err_msg = str(e)
                 if "function.arguments" in err_msg and "JSON" in err_msg:
-                    # qwen-plus JSON错误 → 切换到文本格式工具调用，永不放弃工具
+                    json_error_count += 1
                     use_text_mode = True
+                    if json_error_count >= 3:
+                        # 连续JSON错误 → 强制纯文本输出报告
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": (
+                                    "JSON格式持续错误。请不要调用任何工具，直接以纯文本输出最终审查报告"
+                                    "（从「合同审查报告」标题开始，包含风险概览+详解+修改建议+综合评分）。"
+                                ),
+                            }
+                        )
+                        try:
+                            fallback_resp = self.client.chat(messages, tools=None)
+                            return fallback_resp.choices[0].message.content or ""
+                        except Exception:
+                            return last_report or ""
                     if self.verbose:
                         logger.warning("  🔄 JSON错误，切换文本格式工具调用模式")
                     messages.append(
@@ -398,6 +425,7 @@ class ContractReviewAgent:
         api_retries = 0
         last_report = None
         use_text_mode = False
+        json_error_count = 0
 
         for round_num in range(1, MAX_ITERATIONS + 1):
             yield {"type": "round_start", "round": round_num}
@@ -420,7 +448,31 @@ class ContractReviewAgent:
             except Exception as e:
                 err_msg = str(e)
                 if "function.arguments" in err_msg and "JSON" in err_msg:
+                    json_error_count += 1
                     use_text_mode = True
+                    if json_error_count >= 3:
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": (
+                                    "JSON格式持续错误。请不要调用任何工具，直接以纯文本输出最终审查报告"
+                                    "（从「合同审查报告」标题开始，包含风险概览+详解+修改建议+综合评分）。"
+                                ),
+                            }
+                        )
+                        try:
+                            for evt in self.client.stream_chat(messages, tools=None):
+                                if evt["type"] == "delta":
+                                    yield {"type": "thinking_delta", "content": evt["content"]}
+                                elif evt["type"] == "finish":
+                                    yield {
+                                        "type": "done",
+                                        "report": evt.get("content", "") or last_report or "",
+                                    }
+                                    return
+                        except Exception:
+                            yield {"type": "done", "report": last_report or ""}
+                            return
                     if self.verbose:
                         logger.warning("  🔄 JSON错误，切换文本格式工具调用模式")
                     messages.append(
