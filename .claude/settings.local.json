@@ -80,7 +80,15 @@
       "Bash(git remote *)",
       "Bash(pre-commit install *)",
       "WebFetch(domain:fayan-contract-review-7uanzeu8zhttxzxmxdly9w.streamlit.app)",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(where python *)",
+      "Bash(where streamlit *)",
+      "Bash(C:\\\\Users\\\\Lenovo\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\python.exe -m pip install loguru)",
+      "Bash(\"C:/Users/Lenovo/AppData/Local/Programs/Python/Python311/python.exe\" -m pip install loguru)",
+      "Bash(\"C:/Users/Lenovo/AppData/Local/Programs/Python/Python311/python.exe\" -m pip install -r requirements.txt)",
+      "Bash(git ls-remote *)",
+      "WebFetch(domain:fayan-contract-review-777.streamlit.app)",
+      "Bash(git check-ignore *)"
     ]
   },
   "enableAllProjectMcpServers": true,
