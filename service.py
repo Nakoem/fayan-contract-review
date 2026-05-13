@@ -218,8 +218,9 @@ class StreamingReviewRunner:
                 report = event["report"]
     """
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, enable_reflection: bool = True):
         self.api_key = api_key
+        self.enable_reflection = enable_reflection
         self._queue: queue.Queue = queue.Queue()
         self._report = ""
         self._log = ""
@@ -254,7 +255,11 @@ class StreamingReviewRunner:
             try:
                 from main import ContractReviewAgent
 
-                agent = ContractReviewAgent(api_key=self.api_key, verbose=False)
+                agent = ContractReviewAgent(
+                    api_key=self.api_key,
+                    verbose=False,
+                    enable_reflection=self.enable_reflection,
+                )
                 for event in agent.run_stream(contract_text, contract_type):
                     if event["type"] == "done":
                         self._report = event["report"]

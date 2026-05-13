@@ -255,6 +255,15 @@ with st.sidebar:
         label_visibility="collapsed",
     )
 
+    # Self-Reflection 开关
+    if "enable_reflection" not in st.session_state:
+        st.session_state.enable_reflection = True
+    st.session_state.enable_reflection = st.toggle(
+        "Self-Reflection 反思审查",
+        value=st.session_state.enable_reflection,
+        help="开启后在出报告前做全局质量审核（稍慢但更准确）；关闭后跳过反思直接出报告（更快）",
+    )
+
     st.divider()
 
     # 审查统计
@@ -438,7 +447,10 @@ with col_left:
                 parts.append("</div>")
                 return "".join(parts)
 
-            runner = StreamingReviewRunner(api_key=api_key)
+            runner = StreamingReviewRunner(
+                api_key=api_key,
+                enable_reflection=st.session_state.enable_reflection,
+            )
             runner.start(contract_text, contract_type)
 
             thinking_text = ""

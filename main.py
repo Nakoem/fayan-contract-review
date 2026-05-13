@@ -41,12 +41,20 @@ TOOL_RESULT_MAX_CHARS = 4000
 FINAL_REPORT_MAX_CHARS = 12000  # 最终报告不截断
 
 
+def _filter_tools(tools: list[dict], enable_reflection: bool) -> list[dict]:
+    """根据开关过滤工具列表。关闭反思时移除 self_reflection。"""
+    if enable_reflection:
+        return tools
+    return [t for t in tools if t.get("function", {}).get("name") != "self_reflection"]
+
+
 class ContractReviewAgent:
     """ReAct Agent：自主决定审查步骤，循环 思考→行动→观察。"""
 
-    def __init__(self, api_key: str, verbose: bool = True):
+    def __init__(self, api_key: str, verbose: bool = True, enable_reflection: bool = True):
         self.client = LLMClient(api_key=api_key)
         self.verbose = verbose
+        self.enable_reflection = enable_reflection
         self._contract_text = ""
         self._risk_findings: list[dict] = []
 
@@ -195,6 +203,8 @@ class ContractReviewAgent:
         """主 ReAct 循环。返回最终报告。"""
         from tools import AGENT_TOOLS
 
+        tools_list = _filter_tools(AGENT_TOOLS, self.enable_reflection)
+
         self._contract_text = contract_text
         self._risk_findings = []  # 重置会话存储
 
@@ -219,7 +229,7 @@ class ContractReviewAgent:
                 if use_text_mode:
                     resp = self.client.chat(messages, tools=None)
                 else:
-                    resp = self.client.chat(messages, tools=AGENT_TOOLS)
+                    resp = self.client.chat(messages, tools=tools_list)
             except Exception as e:
                 err_msg = str(e)
                 if "function.arguments" in err_msg and "JSON" in err_msg:
@@ -385,7 +395,7 @@ class ContractReviewAgent:
                 "content": "已达到最大轮次。请立即调用 generate_final_report 生成最终审查报告，然后输出报告全文。",
             }
         )
-        final_resp = self.client.chat(messages, tools=AGENT_TOOLS)
+        final_resp = self.client.chat(messages, tools=tools_list)
         final_msg = final_resp.choices[0].message
 
         # 如果模型还要调工具，忽略，直接要求纯文本回答
@@ -407,6 +417,8 @@ class ContractReviewAgent:
     def run_stream(self, contract_text: str, contract_type: str):
         """流式版 ReAct 循环。yield 结构化事件供 UI 实时展示。"""
         from tools import AGENT_TOOLS
+
+        tools_list = _filter_tools(AGENT_TOOLS, self.enable_reflection)
 
         self._contract_text = contract_text
         self._risk_findings = []
@@ -432,7 +444,7 @@ class ContractReviewAgent:
 
             # ── 流式调用 LLM ──
             try:
-                tools = None if use_text_mode else AGENT_TOOLS
+                tools = None if use_text_mode else tools_list
                 stream_events = []
                 for event in self.client.stream_chat(messages, tools=tools):
                     if event["type"] == "delta":
@@ -600,7 +612,7 @@ class ContractReviewAgent:
                 "content": "已达到最大轮次。请立即调用 generate_final_report 生成最终审查报告。",
             }
         )
-        for event in self.client.stream_chat(messages, tools=AGENT_TOOLS):
+        for event in self.client.stream_chat(messages, tools=tools_list):
             if event["type"] == "delta":
                 yield {"type": "thinking_delta", "content": event["content"]}
             elif event["type"] == "finish":

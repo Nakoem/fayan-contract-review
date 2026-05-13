@@ -78,7 +78,9 @@
       "Bash(export CLAUDE_PLUGIN_ROOT=\"$HOME/.claude/plugins/cache/superpowers-marketplace/superpowers/5.1.0\")",
       "Bash(bash __TRACKED_VAR__/hooks/session-start)",
       "Bash(git remote *)",
-      "Bash(pre-commit install *)"
+      "Bash(pre-commit install *)",
+      "WebFetch(domain:fayan-contract-review-7uanzeu8zhttxzxmxdly9w.streamlit.app)",
+      "Bash(curl *)"
     ]
   },
   "enableAllProjectMcpServers": true,
