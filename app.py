@@ -6,6 +6,7 @@
 import os
 import sys
 import time
+from datetime import date
 from pathlib import Path
 
 import streamlit as st
@@ -510,3 +511,102 @@ with col_left:
             st.session_state.log = runner.log
             st.session_state.summary = extract_summary(runner.report, runner.log)
             st.rerun()
+
+# ═══════════════════════════════════════════════════════
+# 右栏：审查结果
+# ═══════════════════════════════════════════════════════
+with col_right:
+    st.markdown("#### 📊 审查结果")
+
+    if st.session_state.report:
+        # 统计卡片
+        s = st.session_state.summary
+        if s:
+            sc1, sc2, sc3 = st.columns(3)
+            with sc1:
+                st.markdown(
+                    f"""<div class="stat-box">
+                    <div class="stat-num" style="color:#dc2626;">{s.get("high", "-")}</div>
+                    <div class="stat-label">高风险条款</div>
+                </div>""",
+                    unsafe_allow_html=True,
+                )
+            with sc2:
+                st.markdown(
+                    f"""<div class="stat-box">
+                    <div class="stat-num" style="color:#d97706;">{s.get("medium", "-")}</div>
+                    <div class="stat-label">中风险条款</div>
+                </div>""",
+                    unsafe_allow_html=True,
+                )
+            with sc3:
+                st.markdown(
+                    f"""<div class="stat-box">
+                    <div class="stat-num" style="color:#3b82f6;">{s.get("rounds", "-")}</div>
+                    <div class="stat-label">审查轮次</div>
+                </div>""",
+                    unsafe_allow_html=True,
+                )
+
+        # 审查过程（时间线折叠）
+        with st.expander("🔎 审查过程（点击展开）", expanded=False):
+            log = st.session_state.log
+            for line in log.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                if "🔧" in line or "📋" in line:
+                    st.markdown(f'<div class="timeline-round">{line}</div>', unsafe_allow_html=True)
+                elif "第" in line and "轮" in line:
+                    st.markdown(
+                        f'<div class="timeline-round" style="border-left-color:#f59e0b;font-weight:600;">{line}</div>',
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.text(line)
+
+        st.divider()
+
+        # 报告卡片（默认折叠）
+        with st.expander("📋 审查报告全文（点击展开）", expanded=False):
+            st.markdown('<div class="report-card">', unsafe_allow_html=True)
+            st.markdown(st.session_state.report)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        col_dl, _col_cp = st.columns([3, 1])
+        with col_dl:
+            st.download_button(
+                "📥 下载报告 (.txt)",
+                st.session_state.report,
+                file_name=f"审查报告_{contract_type}_{date.today().isoformat()}.txt",
+                mime="text/plain",
+                use_container_width=True,
+            )
+
+    else:
+        st.info("👆 粘贴合同后点击「🔍 开始审查」，或上传合同文件")
+
+    # 功能概览卡片（右下角，始终可见）
+    st.markdown("<br>", unsafe_allow_html=True)
+    with st.expander("📌 法眼 · 能力概览", expanded=True):
+        st.markdown(
+            """<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;">
+            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
+                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">⚖ 11工具 ReAct Agent</div>
+                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">自主决策审查步骤 + 反思</div>
+            </div>
+            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
+                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">📚 五重知识库</div>
+                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">法规·判例·政策·税务·动态</div>
+            </div>
+            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
+                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">📋 六种合同类型</div>
+                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">每种配备法定红线标准</div>
+            </div>
+            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
+                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">🚀 多种使用方式</div>
+                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">CLI·Web·API·MCP·Docker</div>
+            </div>
+        </div>""",
+            unsafe_allow_html=True,
+        )
