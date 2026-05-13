@@ -260,20 +260,27 @@ class StreamingReviewRunner:
                     verbose=False,
                     enable_reflection=self.enable_reflection,
                 )
-                for event in agent.run_stream(contract_text, contract_type):
-                    if event["type"] == "done":
-                        self._report = event["report"]
-                    elif event["type"] == "thinking_delta":
-                        self._log += event["content"]
-                    elif event["type"] == "tool_start":
-                        self._log += f"\n🔧 {event['name']}()"
-                    elif event["type"] == "tool_result":
-                        self._log += f"\n📋 {event['name']} → {event['result_len']} 字符"
-                    elif event["type"] == "round_start":
-                        self._log += f"\n\n第 {event['round']} 轮"
-                    self._queue.put(event)
+                gen = agent.run_stream(contract_text, contract_type)
+                for event in gen:
+                    try:
+                        if event.get("type") == "done":
+                            self._report = event.get("report", "")
+                        elif event.get("type") == "thinking_delta":
+                            self._log += event.get("content", "")
+                        elif event.get("type") == "tool_start":
+                            self._log += f"\n🔧 {event['name']}()"
+                        elif event.get("type") == "tool_result":
+                            self._log += f"\n📋 {event['name']} → {event['result_len']} 字符"
+                        elif event.get("type") == "round_start":
+                            self._log += f"\n\n第 {event['round']} 轮"
+                        self._queue.put(event)
+                    except Exception:
+                        # 单个事件处理失败不影响整体
+                        pass
             except Exception as e:
-                self._error = str(e)
+                import traceback
+
+                self._error = traceback.format_exc()
                 self._queue.put({"type": "error", "message": str(e)})
             finally:
                 self._done = True
