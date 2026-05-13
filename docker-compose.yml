@@ -1,14 +1,26 @@
-version: "3.9"
+# 法眼 · 合同审查 Agent
+# 启动全部服务: docker compose up -d
+# 仅启动 Web:   docker compose up -d web
 
 services:
+  web:
+    build: .
+    container_name: fayan-web
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - ./审查报告:/app/审查报告
+      - ./logs:/app/logs
+
   api:
     build: .
     container_name: fayan-api
+    command: uvicorn api:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
-    environment:
-      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
-      - PORT=8000
-    volumes:
-      - ./logs:/app/logs
+    env_file:
+      - .env
     restart: unless-stopped

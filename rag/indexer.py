@@ -5,7 +5,7 @@
 import re
 
 from rag.embedder import encode
-from rag.vector_store import index_documents, collection_exists
+from rag.vector_store import collection_exists, index_documents
 
 
 def _split_by_paragraphs(text: str) -> list[str]:
@@ -49,12 +49,17 @@ def _build_simple_chunks(db: dict, source_type: str) -> tuple[list[str], list[st
 def build_all_indexes(force: bool = False) -> dict[str, int]:
     """构建所有知识库的向量索引。返回 {collection: chunk_count}。"""
     from tools import (
-        _REGULATION_DB, _CASE_LAW_DB, _LOCAL_POLICY_DB,
-        _TAX_RULE_DB, _WEB_KB,
+        _CASE_LAW_DB,
+        _LOCAL_POLICY_DB,
+        _REGULATION_DB,
+        _TAX_RULE_DB,
+        _WEB_KB,
     )
 
     # 检查是否已有索引
-    if not force and all(collection_exists(c) for c in ["regulation", "case_law", "local_policy", "tax_rule"]):
+    if not force and all(
+        collection_exists(c) for c in ["regulation", "case_law", "local_policy", "tax_rule"]
+    ):
         return {}
 
     print("正在构建向量索引，首次运行需下载 embedding 模型...")

@@ -8,13 +8,11 @@
 import io
 import os
 import re
-import threading
 import tempfile
-import time
+import threading
 from contextlib import redirect_stdout
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from dotenv import load_dotenv
 
@@ -25,8 +23,12 @@ load_dotenv()
 # ═══════════════════════════════════════════════════════════
 
 CONTRACT_TYPES = [
-    "房屋租赁合同", "劳动合同", "买卖合同",
-    "服务合同", "合作协议", "借款合同",
+    "房屋租赁合同",
+    "劳动合同",
+    "买卖合同",
+    "服务合同",
+    "合作协议",
+    "借款合同",
     "自定义",
 ]
 
@@ -34,6 +36,7 @@ CONTRACT_TYPES = [
 # ═══════════════════════════════════════════════════════════
 # 文件读取
 # ═══════════════════════════════════════════════════════════
+
 
 def read_uploaded_contract(uploaded_file, api_key: str) -> tuple[str, str | None]:
     """读取上传的合同文件，返回 (文本, 错误消息)。
@@ -48,6 +51,7 @@ def read_uploaded_contract(uploaded_file, api_key: str) -> tuple[str, str | None
             tmp_path = tmp.name
         try:
             from ocr_utils import ocr_image
+
             contract_text = ocr_image(tmp_path, api_key)
         except Exception as e:
             return "", f"OCR 失败：{e}"
@@ -64,6 +68,7 @@ def read_uploaded_contract(uploaded_file, api_key: str) -> tuple[str, str | None
 # ═══════════════════════════════════════════════════════════
 # Agent 执行器
 # ═══════════════════════════════════════════════════════════
+
 
 class ReviewRunner:
     """在后台线程中运行 Agent 审查，提供进度轮询接口。
@@ -154,10 +159,11 @@ class ReviewRunner:
 # 报告统计
 # ═══════════════════════════════════════════════════════════
 
+
 def extract_summary(report: str, log: str) -> dict[str, int]:
     """从审查报告和日志中提取摘要统计。"""
-    high_m = re.search(r'🔴\s*高风险条款[：:]\s*(\d+)', report)
-    med_m = re.search(r'🟡\s*中风险条款[：:]\s*(\d+)', report)
+    high_m = re.search(r"🔴\s*高风险条款[：:]\s*(\d+)", report)
+    med_m = re.search(r"🟡\s*中风险条款[：:]\s*(\d+)", report)
     return {
         "high": int(high_m.group(1)) if high_m else 0,
         "medium": int(med_m.group(1)) if med_m else 0,
@@ -168,6 +174,7 @@ def extract_summary(report: str, log: str) -> dict[str, int]:
 # ═══════════════════════════════════════════════════════════
 # 历史报告管理
 # ═══════════════════════════════════════════════════════════
+
 
 def save_to_history(
     report_history: list[dict],

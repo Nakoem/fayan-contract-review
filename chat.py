@@ -19,7 +19,8 @@ st.set_page_config(page_title="法眼 · 法律助手", page_icon="⚖️", layo
 # ═══════════════════════════════════
 # 样式（复用主界面风格）
 # ═══════════════════════════════════
-st.markdown("""
+st.markdown(
+    """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,600&display=swap');
 
@@ -69,7 +70,9 @@ h1, h2, h3 { font-family: 'Cormorant Garamond', 'Noto Serif SC', serif; }
     border: 1px solid var(--border) !important; border-radius: 8px !important;
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ═══════════════════════════════════
 # 标题
@@ -85,7 +88,8 @@ with st.sidebar:
     st.caption("上传合同后，可针对该合同提问")
 
     uploaded_file = st.file_uploader(
-        "上传合同 (.txt)", type=["txt"],
+        "上传合同 (.txt)",
+        type=["txt"],
         label_visibility="collapsed",
     )
 
@@ -113,7 +117,7 @@ with st.sidebar:
 # ═══════════════════════════════════
 if contract_text:
     st.markdown(
-        f'<div class="contract-bar">📎 已加载合同 · 你可以针对这份合同提问，如"第四条合法吗？"、"这份合同的违约金合理吗？"</div>',
+        '<div class="contract-bar">📎 已加载合同 · 你可以针对这份合同提问，如"第四条合法吗？"、"这份合同的违约金合理吗？"</div>',
         unsafe_allow_html=True,
     )
     st.caption(f"合同预览（前200字）：{contract_text[:200]}...")
@@ -123,12 +127,15 @@ if contract_text:
 # ═══════════════════════════════════
 if "chat_messages" not in st.session_state:
     st.session_state.chat_messages = [
-        {"role": "assistant", "content": "你好！我是法眼法律助手。\n\n"
-         "你可以直接问我法律问题，比如：\n"
-         "- 租房押金一般多久退？\n"
-         "- 劳动合同试用期最长几个月？\n"
-         "- 民间借贷利率超过多少不合法？\n\n"
-         "也可以先上传一份合同，然后针对合同条款提问。"}
+        {
+            "role": "assistant",
+            "content": "你好！我是法眼法律助手。\n\n"
+            "你可以直接问我法律问题，比如：\n"
+            "- 租房押金一般多久退？\n"
+            "- 劳动合同试用期最长几个月？\n"
+            "- 民间借贷利率超过多少不合法？\n\n"
+            "也可以先上传一份合同，然后针对合同条款提问。",
+        }
     ]
     st.session_state.chat_history = []
 

@@ -9,9 +9,9 @@
         print(v)
 """
 
-import yaml
 from pathlib import Path
-from typing import Optional
+
+import yaml
 
 
 class PromptManager:
@@ -31,7 +31,7 @@ class PromptManager:
         if not versions_path.exists():
             self._loaded = True
             return
-        with open(versions_path, "r", encoding="utf-8") as f:
+        with open(versions_path, encoding="utf-8") as f:
             meta = yaml.safe_load(f) or {}
         self._current_version = meta.get("current", "")
         self._versions = {v["id"]: v for v in meta.get("versions", [])}
@@ -45,7 +45,7 @@ class PromptManager:
         yaml_path = self._prompts_dir / file_rel
         if not yaml_path.exists():
             return
-        with open(yaml_path, "r", encoding="utf-8") as f:
+        with open(yaml_path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         self._cache.clear()
         for key, val in data.items():
@@ -58,9 +58,7 @@ class PromptManager:
         self._ensure_loaded()
         if name in self._cache:
             return self._cache[name]
-        raise KeyError(
-            f"提示词 '{name}' 不存在。可用：{list(self._cache.keys())}"
-        )
+        raise KeyError(f"提示词 '{name}' 不存在。可用：{list(self._cache.keys())}")
 
     def use_version(self, version_id: str) -> None:
         if version_id not in self._versions:

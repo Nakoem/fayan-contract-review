@@ -11,22 +11,26 @@
 
 import json
 import os
-import re
 import sys
 from typing import Annotated, TypedDict
 
 from dotenv import load_dotenv
-from langchain_core.tools import tool
 from langchain_core.messages import (
-    BaseMessage, HumanMessage, SystemMessage, AIMessage, ToolMessage,
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
 )
-from langgraph.graph import StateGraph, START, END
+from langchain_core.tools import tool
+from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from llm_client import LLMClient
 from prompts import AGENT_SYSTEM_PROMPT, AGENT_USER_PROMPT
-from utils import repair_json, parse_text_tool_calls, parse_tool_args, clean_report
+from tools import AGENT_TOOLS
+from utils import clean_report, parse_text_tool_calls, parse_tool_args
 
 load_dotenv()
 
@@ -46,10 +50,12 @@ def _get_client() -> LLMClient:
 # 工具定义（@tool 装饰器，供 ToolNode 使用）
 # ═══════════════════════════════════════════════════════════
 
+
 @tool
 def search_regulation(keyword: str) -> str:
     """查询中国法律法规原文和司法实践。在对任何条款下结论之前，必须先调用此函数获取法规依据。"""
     from tools import search_regulation as _fn
+
     return _fn(keyword)
 
 
@@ -57,6 +63,7 @@ def search_regulation(keyword: str) -> str:
 def search_case_law(keyword: str) -> str:
     """搜索相关法院判例，了解类似纠纷法院怎么判。"""
     from tools import search_case_law as _fn
+
     return _fn(keyword)
 
 
@@ -64,6 +71,7 @@ def search_case_law(keyword: str) -> str:
 def check_local_policy(city: str, keyword: str = "") -> str:
     """查询特定城市的房屋租赁地方政策。"""
     from tools import check_local_policy as _fn
+
     return _fn(city, keyword)
 
 
@@ -71,6 +79,7 @@ def check_local_policy(city: str, keyword: str = "") -> str:
 def lookup_tax_rule(topic: str) -> str:
     """查询与合同相关的税务规则。"""
     from tools import lookup_tax_rule as _fn
+
     return _fn(topic)
 
 
@@ -78,6 +87,7 @@ def lookup_tax_rule(topic: str) -> str:
 def web_search(keyword: str) -> str:
     """联网搜索最新法规动态和行业资讯。"""
     from tools import web_search as _fn
+
     return _fn(keyword)
 
 
@@ -86,6 +96,7 @@ def extract_clauses(contract_type: str, contract_text: str = "") -> str:
     """从合同全文提取关键条款，按类别整理为结构化 JSON。审查合同的第一步。
     contract_text 传空字符串即可——合同已在上下文中。"""
     from tools import extract_clauses as _fn
+
     return _fn(_get_client(), contract_text or "", contract_type)
 
 
@@ -99,10 +110,14 @@ def analyze_single_clause(
 ) -> str:
     """对单条合同条款做深度风险分析。建议先查法规再调用此函数。"""
     from tools import analyze_single_clause as _fn
-    result = _fn(_get_client(), clause_text, category, contract_type,
-                 clause_position, regulation_context)
+
+    result = _fn(
+        _get_client(), clause_text, category, contract_type, clause_position, regulation_context
+    )
     try:
-        cleaned = result.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        cleaned = (
+            result.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        )
         parsed = json.loads(cleaned)
         _risk_findings.append(parsed)
     except (json.JSONDecodeError, AttributeError):
@@ -115,6 +130,7 @@ def generate_final_report(contract_type: str, risk_findings_json: str = "") -> s
     """汇总所有风险分析发现，生成格式化的最终审查报告。
     risk_findings_json 可传空字符串——系统自动使用累积结果。"""
     from tools import generate_final_report as _fn
+
     if (not risk_findings_json or len(risk_findings_json) < 100) and _risk_findings:
         risk_findings_json = json.dumps(_risk_findings, ensure_ascii=False)
     elif not risk_findings_json:
@@ -126,6 +142,7 @@ def generate_final_report(contract_type: str, risk_findings_json: str = "") -> s
 def check_completeness(clauses_json: str, contract_type: str) -> str:
     """检查合同条款是否完整，找出缺失的必要条款。必须调用，不可跳过。"""
     from tools import check_completeness as _fn
+
     return _fn(_get_client(), clauses_json, contract_type)
 
 
@@ -133,21 +150,27 @@ def check_completeness(clauses_json: str, contract_type: str) -> str:
 def switch_perspective(findings_json: str, perspective: str) -> str:
     """从另一方视角重新审视风险分析结果，发现单视角盲区。"""
     from tools import switch_perspective as _fn
+
     return _fn(_get_client(), findings_json, perspective)
 
 
 ALL_TOOLS = [
-    extract_clauses, search_regulation, analyze_single_clause,
-    generate_final_report, search_case_law, check_local_policy,
-    lookup_tax_rule, check_completeness, switch_perspective, web_search,
+    extract_clauses,
+    search_regulation,
+    analyze_single_clause,
+    generate_final_report,
+    search_case_law,
+    check_local_policy,
+    lookup_tax_rule,
+    check_completeness,
+    switch_perspective,
+    web_search,
 ]
-
-# Agent 工具 schema（OpenAI Function Calling 格式，复用 tools.py 定义）
-from tools import AGENT_TOOLS
 
 # ═══════════════════════════════════════════════════════════
 # 消息格式转换
 # ═══════════════════════════════════════════════════════════
+
 
 def _langchain_to_openai(messages: list) -> list[dict]:
     """LangChain 消息 → OpenAI 兼容格式（供 LLMClient.chat() 使用）。"""
@@ -162,21 +185,25 @@ def _langchain_to_openai(messages: list) -> list[dict]:
             if getattr(msg, "tool_calls", None):
                 d["tool_calls"] = []
                 for tc in msg.tool_calls:
-                    d["tool_calls"].append({
-                        "id": tc["id"],
-                        "type": "function",
-                        "function": {
-                            "name": tc["name"],
-                            "arguments": json.dumps(tc["args"], ensure_ascii=False),
-                        },
-                    })
+                    d["tool_calls"].append(
+                        {
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tc["name"],
+                                "arguments": json.dumps(tc["args"], ensure_ascii=False),
+                            },
+                        }
+                    )
             result.append(d)
         elif isinstance(msg, ToolMessage):
-            result.append({
-                "role": "tool",
-                "tool_call_id": msg.tool_call_id,
-                "content": msg.content,
-            })
+            result.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": msg.tool_call_id,
+                    "content": msg.content,
+                }
+            )
     return result
 
 
@@ -191,17 +218,20 @@ def _openai_to_ai_message(msg) -> AIMessage:
     lc_tool_calls = []
     for tc in tool_calls:
         args = parse_tool_args(tc.function.arguments)
-        lc_tool_calls.append({
-            "name": tc.function.name,
-            "args": args,
-            "id": tc.id,
-        })
+        lc_tool_calls.append(
+            {
+                "name": tc.function.name,
+                "args": args,
+                "id": tc.id,
+            }
+        )
     return AIMessage(content=content, tool_calls=lc_tool_calls)
 
 
 # ═══════════════════════════════════════════════════════════
 # Agent 节点：LLMClient 驱动的思考节点（带 qwen 修复）
 # ═══════════════════════════════════════════════════════════
+
 
 class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
@@ -247,11 +277,13 @@ def agent_node(state: AgentState) -> dict:
         if text_calls:
             lc_tool_calls = []
             for i, (name, args) in enumerate(text_calls):
-                lc_tool_calls.append({
-                    "name": name,
-                    "args": args,
-                    "id": f"text_{i}",
-                })
+                lc_tool_calls.append(
+                    {
+                        "name": name,
+                        "args": args,
+                        "id": f"text_{i}",
+                    }
+                )
             ai_msg = AIMessage(content=content, tool_calls=lc_tool_calls)
         else:
             ai_msg = AIMessage(content=content)
@@ -272,6 +304,7 @@ def agent_node(state: AgentState) -> dict:
 # ═══════════════════════════════════════════════════════════
 # 搭建图
 # ═══════════════════════════════════════════════════════════
+
 
 def _build_graph():
     """构建 Agent 图：agent ↔ tools，直到 agent 不再调工具。"""
@@ -303,6 +336,7 @@ def _get_graph():
 # 公开接口
 # ═══════════════════════════════════════════════════════════
 
+
 def review_contract_langgraph(contract_text: str, contract_type: str) -> str:
     """执行完整的合同审查（LangGraph 版）。
 
@@ -318,7 +352,8 @@ def review_contract_langgraph(contract_text: str, contract_type: str) -> str:
 
     system_prompt = str(AGENT_SYSTEM_PROMPT)
     user_prompt = AGENT_USER_PROMPT.format(
-        contract_type=contract_type, contract_text=contract_text,
+        contract_type=contract_type,
+        contract_text=contract_text,
     )
 
     initial_state: AgentState = {
@@ -360,13 +395,16 @@ def review_contract_langgraph(contract_text: str, contract_type: str) -> str:
 # ── 命令行入口 ──
 if __name__ == "__main__":
     from pathlib import Path
-    from logger import logger, init_logger
+
+    from logger import init_logger, logger
 
     init_logger(mode="cli")
 
     if len(sys.argv) < 3:
         logger.info("用法: python agent_langgraph.py <合同文件> <合同类型> [--output 输出文件]")
-        logger.info('示例: python agent_langgraph.py sample_lease.txt "房屋租赁合同" --output report.txt')
+        logger.info(
+            '示例: python agent_langgraph.py sample_lease.txt "房屋租赁合同" --output report.txt'
+        )
         sys.exit(1)
 
     filepath = Path(sys.argv[1])

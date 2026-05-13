@@ -76,7 +76,9 @@
       "Read(//c/Program Files/Git/bin/**)",
       "Read(//c/Program Files \\(x86\\)/Git/bin/**)",
       "Bash(export CLAUDE_PLUGIN_ROOT=\"$HOME/.claude/plugins/cache/superpowers-marketplace/superpowers/5.1.0\")",
-      "Bash(bash __TRACKED_VAR__/hooks/session-start)"
+      "Bash(bash __TRACKED_VAR__/hooks/session-start)",
+      "Bash(git remote *)",
+      "Bash(pre-commit install *)"
     ]
   },
   "enableAllProjectMcpServers": true,

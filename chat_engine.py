@@ -2,7 +2,7 @@
 法律问答对话引擎。RAG检索 + LLM回复 + 对话记忆 + 流式输出。
 """
 
-from rag.retriever import search, format_results
+from rag.retriever import format_results, search
 
 SYSTEM_PROMPT = """你是法眼法律助手，基于中国法律法规知识库为用户提供法律咨询。
 

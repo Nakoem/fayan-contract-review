@@ -67,16 +67,16 @@ def extract_metrics(report: str) -> dict:
 
 
 def main():
-    from main import review_contract
     from agent_langgraph import review_contract_langgraph
+    from main import review_contract
 
     results = []
 
     for filename, contract_type in TEST_CASES:
         text = Path(filename).read_text(encoding="utf-8")
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"📄 {filename} ({contract_type}) — {len(text)} 字符")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # 原版
         print("  原版 (main.py)...")
@@ -84,7 +84,9 @@ def main():
         r1 = review_contract(text, contract_type, API_KEY)
         t1 = time.time()
         m1 = extract_metrics(r1)
-        print(f"    耗时 {t1-t0:.0f}s | {m1['len']}字 | 🔴{m1['high']} 🟡{m1['mid']} 🟢{m1['low']} | 评分{m1['score']}")
+        print(
+            f"    耗时 {t1 - t0:.0f}s | {m1['len']}字 | 🔴{m1['high']} 🟡{m1['mid']} 🟢{m1['low']} | 评分{m1['score']}"
+        )
 
         # LangGraph版
         print("  LangGraph版 (agent_langgraph.py)...")
@@ -92,7 +94,9 @@ def main():
         r2 = review_contract_langgraph(text, contract_type)
         t3 = time.time()
         m2 = extract_metrics(r2)
-        print(f"    耗时 {t3-t2:.0f}s | {m2['len']}字 | 🔴{m2['high']} 🟡{m2['mid']} 🟢{m2['low']} | 评分{m2['score']}")
+        print(
+            f"    耗时 {t3 - t2:.0f}s | {m2['len']}字 | 🔴{m2['high']} 🟡{m2['mid']} 🟢{m2['low']} | 评分{m2['score']}"
+        )
 
         # 偏差
         score_dev = abs((m1["score"] or 0) - (m2["score"] or 0))
@@ -102,23 +106,27 @@ def main():
         status = "✅" if score_dev <= 5 and high_dev <= 2 and len_dev <= 30 else "⚠️"
         print(f"  {status} 评分偏差={score_dev} | 高风险偏差={high_dev} | 长度偏差={len_dev:.1f}%")
 
-        results.append({
-            "file": filename,
-            "type": contract_type,
-            "score_dev": score_dev,
-            "high_dev": high_dev,
-            "len_dev": len_dev,
-            "status": status,
-            "m1": m1,
-            "m2": m2,
-        })
+        results.append(
+            {
+                "file": filename,
+                "type": contract_type,
+                "score_dev": score_dev,
+                "high_dev": high_dev,
+                "len_dev": len_dev,
+                "status": status,
+                "m1": m1,
+                "m2": m2,
+            }
+        )
 
     # ── 汇总 ──
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("📊 汇总")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     for r in results:
-        print(f"  {r['status']} {r['file']:25s} 评分偏差={r['score_dev']}  高风险偏差={r['high_dev']}  长度偏差={r['len_dev']:.1f}%")
+        print(
+            f"  {r['status']} {r['file']:25s} 评分偏差={r['score_dev']}  高风险偏差={r['high_dev']}  长度偏差={r['len_dev']:.1f}%"
+        )
 
     all_pass = all(r["status"] == "✅" for r in results)
     print(f"\n{'✅ 全部通过' if all_pass else '⚠️ 部分偏差超出阈值，需人工复核'}")

@@ -12,6 +12,7 @@ def _get_client() -> LLMClient:
     global _client
     if _client is None:
         import os
+
         from dotenv import load_dotenv
 
         load_dotenv()

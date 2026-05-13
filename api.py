@@ -6,17 +6,15 @@
 """
 
 import os
-import uuid
 import threading
-from datetime import datetime
-from pathlib import Path
+import uuid
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from logger import init_logger, attach_web_buffer, detach_web_buffer
+from logger import init_logger
 
 load_dotenv()
 
@@ -38,8 +36,12 @@ app.add_middleware(
 
 # ── 合同类型 ──
 CONTRACT_TYPES = [
-    "房屋租赁合同", "劳动合同", "买卖合同",
-    "服务合同", "合作协议", "借款合同",
+    "房屋租赁合同",
+    "劳动合同",
+    "买卖合同",
+    "服务合同",
+    "合作协议",
+    "借款合同",
 ]
 
 # ── 异步任务存储（内存） ──
@@ -49,6 +51,7 @@ _async_tasks: dict[str, dict] = {}
 # ══════════════════════════════════════════════════════
 # 请求 / 响应模型
 # ══════════════════════════════════════════════════════
+
 
 class ReviewRequest(BaseModel):
     contract_text: str = Field(..., description="合同全文", min_length=10)
@@ -81,6 +84,7 @@ class HealthResponse(BaseModel):
 # API 路由
 # ══════════════════════════════════════════════════════
 
+
 @app.get("/api/v1/health", response_model=HealthResponse)
 def health():
     """健康检查。"""
@@ -110,8 +114,9 @@ def review(request: ReviewRequest):
     if not api_key:
         raise HTTPException(500, "服务端未配置 DASHSCOPE_API_KEY")
 
-    from main import review_contract
     import time
+
+    from main import review_contract
 
     t0 = time.perf_counter()
     try:
@@ -131,9 +136,7 @@ def review(request: ReviewRequest):
 def review_async(request: ReviewRequest):
     """异步审查合同，返回task_id，通过 GET /review/{task_id} 轮询结果。"""
     if request.contract_type not in CONTRACT_TYPES and request.contract_type != "自定义":
-        raise HTTPException(
-            400, f"不支持的合同类型: {request.contract_type}"
-        )
+        raise HTTPException(400, f"不支持的合同类型: {request.contract_type}")
 
     api_key = os.getenv("DASHSCOPE_API_KEY")
     if not api_key:
@@ -150,6 +153,7 @@ def review_async(request: ReviewRequest):
 
     def _run():
         import time
+
         from main import review_contract
 
         _async_tasks[task_id]["status"] = "running"
@@ -195,5 +199,6 @@ def get_review_result(task_id: str):
 
 if __name__ == "__main__":
     import uvicorn
+
     port = int(os.getenv("PORT", "8000"))
     uvicorn.run("api:app", host="0.0.0.0", port=port, reload=True)

@@ -18,7 +18,8 @@ st.set_page_config(page_title="法眼 · 法律问答", page_icon="💬", layout
 # ═══════════════════════════════════════════════════════
 # 自定义 CSS（与 app.py 统一 Legal Editorial 风格）
 # ═══════════════════════════════════════════════════════
-st.markdown("""
+st.markdown(
+    """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -85,13 +86,18 @@ h1, h2, h3 { font-family: 'Inter', sans-serif; font-weight: 600; color: var(--in
     .main-title { font-size: 1.6rem !important; }
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ═══════════════════════════════════════════════════════
 # 标题
 # ═══════════════════════════════════════════════════════
 st.markdown('<div class="main-title">💬 法律问答</div>', unsafe_allow_html=True)
-st.markdown('<div class="main-subtitle">基于法规库 + 判例库 + 地方政策 + 税务规则四重知识库的 AI 法律助手</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="main-subtitle">基于法规库 + 判例库 + 地方政策 + 税务规则四重知识库的 AI 法律助手</div>',
+    unsafe_allow_html=True,
+)
 
 # ═══════════════════════════════════════════════════════
 # 侧边栏
@@ -109,7 +115,8 @@ with st.sidebar:
     st.caption("上传后可针对合同条款定向提问")
 
     uploaded_file = st.file_uploader(
-        "上传 .txt 合同文件", type=["txt"],
+        "上传 .txt 合同文件",
+        type=["txt"],
         label_visibility="collapsed",
     )
 
@@ -137,7 +144,7 @@ with st.sidebar:
 # ═══════════════════════════════════════════════════════
 if contract_text:
     st.markdown(
-        f'<div class="contract-bar">📎 已加载合同 · 你可以针对这份合同提问，如"第四条合法吗？"、"违约金合理吗？"</div>',
+        '<div class="contract-bar">📎 已加载合同 · 你可以针对这份合同提问，如"第四条合法吗？"、"违约金合理吗？"</div>',
         unsafe_allow_html=True,
     )
 
@@ -146,12 +153,15 @@ if contract_text:
 # ═══════════════════════════════════════════════════════
 if "chat_messages" not in st.session_state:
     st.session_state.chat_messages = [
-        {"role": "assistant", "content": "你好！我是法眼法律助手。\n\n"
-         "你可以直接问我法律问题，比如：\n"
-         "- 租房押金一般多久退？\n"
-         "- 劳动合同试用期最长几个月？\n"
-         "- 民间借贷利率超过多少不合法？\n\n"
-         "也可以先在侧边栏上传一份合同，然后针对合同条款提问。"}
+        {
+            "role": "assistant",
+            "content": "你好！我是法眼法律助手。\n\n"
+            "你可以直接问我法律问题，比如：\n"
+            "- 租房押金一般多久退？\n"
+            "- 劳动合同试用期最长几个月？\n"
+            "- 民间借贷利率超过多少不合法？\n\n"
+            "也可以先在侧边栏上传一份合同，然后针对合同条款提问。",
+        }
     ]
     st.session_state.chat_history = []
 

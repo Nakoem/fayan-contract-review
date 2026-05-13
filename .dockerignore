@@ -1,41 +1,36 @@
+# Git
+.git/
+.gitignore
+
 # Python
 __pycache__/
 *.pyc
 .venv/
+*.egg-info/
 
-# Git
-.git/
-.gitignore
-.gitattributes
-
-# 配置
-.env.example
-.streamlit/
+# 环境（不含真实Key的example保留）
+.env
 
 # 输出
-logs/
 审查报告/
-eval_results/
+logs/
+*.log
 
-# 文档
-*.md
-!README.md
+# 测试/开发
+tests/
+.pytest_cache/
+screenshots/
+.playwright-cli/
+.claude/
 
 # IDE
 .vscode/
 .idea/
 
-# Claude Code
-.claude/
-.agents/
+# 系统
+.DS_Store
+Thumbs.db
 
-# 测试样本（按需保留）
-sample_*.txt
-
-# Docker
-Dockerfile
-docker-compose.yml
-.dockerignore
-
-# 临时文件
-*.tmp
+# 面试素材（不入镜像）
+简历-*
+知乎发布版-*

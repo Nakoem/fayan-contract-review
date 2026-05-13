@@ -10,9 +10,10 @@
     logger.error("审查失败: {}", e)
 """
 
-import sys
 import io
+import sys
 from pathlib import Path
+
 from loguru import logger
 
 _web_handler_id: int | None = None

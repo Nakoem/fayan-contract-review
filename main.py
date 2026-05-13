@@ -17,10 +17,8 @@
 """
 
 import json
-import re
-import sys
 import os
-from datetime import date
+import sys
 from pathlib import Path
 
 if sys.platform == "win32":
@@ -32,9 +30,9 @@ if sys.platform == "win32":
 from dotenv import load_dotenv
 
 from llm_client import LLMClient
-from logger import logger, init_logger
+from logger import init_logger, logger
 from prompts import AGENT_SYSTEM_PROMPT, AGENT_USER_PROMPT
-from utils import repair_json, parse_text_tool_calls, parse_tool_args, clean_report
+from utils import clean_report, parse_text_tool_calls, parse_tool_args, repair_json
 
 load_dotenv()
 
@@ -109,7 +107,13 @@ class ContractReviewAgent:
                 )
                 # 解析分析结果，累积到会话存储
                 try:
-                    parsed = json.loads(result.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip())
+                    parsed = json.loads(
+                        result.strip()
+                        .removeprefix("```json")
+                        .removeprefix("```")
+                        .removesuffix("```")
+                        .strip()
+                    )
                     self._risk_findings.append(parsed)
                 except (json.JSONDecodeError, AttributeError):
                     pass  # 无法解析也不影响流程
@@ -189,7 +193,8 @@ class ContractReviewAgent:
             {
                 "role": "user",
                 "content": AGENT_USER_PROMPT.format(
-                    contract_type=contract_type, contract_text=contract_text,
+                    contract_type=contract_type,
+                    contract_text=contract_text,
                 ),
             },
         ]
@@ -211,23 +216,27 @@ class ContractReviewAgent:
                     use_text_mode = True
                     if self.verbose:
                         logger.warning("  🔄 JSON错误，切换文本格式工具调用模式")
-                    messages.append({
-                        "role": "user",
-                        "content": (
-                            "函数调用功能暂时不可用。请用以下文本格式调用工具（可一次调用多个）：\n\n"
-                            "<<TOOL:extract_clauses>>\n<<ARGS:{\"contract_type\": \"服务合同\"}>>\n\n"
-                            "<<TOOL:search_regulation>>\n<<ARGS:{\"keyword\": \"违约金\"}>>\n\n"
-                            "请继续审查流程。"
-                        ),
-                    })
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "函数调用功能暂时不可用。请用以下文本格式调用工具（可一次调用多个）：\n\n"
+                                '<<TOOL:extract_clauses>>\n<<ARGS:{"contract_type": "服务合同"}>>\n\n'
+                                '<<TOOL:search_regulation>>\n<<ARGS:{"keyword": "违约金"}>>\n\n'
+                                "请继续审查流程。"
+                            ),
+                        }
+                    )
                     continue
 
                 if api_retries < 3:
                     api_retries += 1
-                    messages.append({
-                        "role": "user",
-                        "content": f"API调用失败（{err_msg[:200]}），请重试。（{api_retries}/3）",
-                    })
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": f"API调用失败（{err_msg[:200]}），请重试。（{api_retries}/3）",
+                        }
+                    )
                     if self.verbose:
                         logger.warning("  ⚠️ API失败({}/3): {}", api_retries, err_msg[:120])
                     continue
@@ -270,10 +279,12 @@ class ContractReviewAgent:
                     logger.info("│  📋 返回 {} 字符", len(result))
                     if func_name == "generate_final_report":
                         last_report = result
-                    messages.append({
-                        "role": "user",
-                        "content": f"[工具 {func_name} 的执行结果]\n{result}",
-                    })
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": f"[工具 {func_name} 的执行结果]\n{result}",
+                        }
+                    )
                 logger.info("└" + "─" * 60 + "┘")
                 continue
 
@@ -298,27 +309,31 @@ class ContractReviewAgent:
                 args = self._parse_tool_args(raw_args)
                 if args is None:
                     # JSON 无法解析 → 工具报错协议，模型下轮自动修正
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc.id,
-                        "content": (
-                            f"参数JSON格式错误：{raw_args[:300]}\n"
-                            f"请用合法JSON重新调用 {func_name}（所有字符串用双引号包裹，"
-                            f"内容中的双引号用反斜杠转义，不要使用单引号作为键名）。"
-                        ),
-                    })
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "content": (
+                                f"参数JSON格式错误：{raw_args[:300]}\n"
+                                f"请用合法JSON重新调用 {func_name}（所有字符串用双引号包裹，"
+                                f"内容中的双引号用反斜杠转义，不要使用单引号作为键名）。"
+                            ),
+                        }
+                    )
                     if self.verbose:
                         logger.warning("│  ⚠️ {}: JSON解析失败，已反馈给模型重试", func_name)
                     continue
 
-                args_preview = ", ".join(
-                    f"{k}={str(v)[:50]}" for k, v in args.items()
-                )
+                args_preview = ", ".join(f"{k}={str(v)[:50]}" for k, v in args.items())
                 logger.info("│")
                 logger.info("│  🔧 {}({})", func_name, args_preview)
 
                 result = self._execute_tool(func_name, args)
-                max_chars = FINAL_REPORT_MAX_CHARS if func_name == "generate_final_report" else TOOL_RESULT_MAX_CHARS
+                max_chars = (
+                    FINAL_REPORT_MAX_CHARS
+                    if func_name == "generate_final_report"
+                    else TOOL_RESULT_MAX_CHARS
+                )
                 if len(result) > max_chars:
                     result = result[:max_chars] + "\n...（结果已截断）"
                 logger.info("│  📋 返回 {} 字符", len(result))
@@ -326,29 +341,35 @@ class ContractReviewAgent:
                 if func_name == "generate_final_report":
                     last_report = result
 
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc.id,
-                    "content": result,
-                })
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": result,
+                    }
+                )
 
             logger.info("└" + "─" * 60 + "┘")
 
         # 兜底：达到最大轮次，强制要求输出
-        messages.append({
-            "role": "user",
-            "content": "已达到最大轮次。请立即调用 generate_final_report 生成最终审查报告，然后输出报告全文。",
-        })
+        messages.append(
+            {
+                "role": "user",
+                "content": "已达到最大轮次。请立即调用 generate_final_report 生成最终审查报告，然后输出报告全文。",
+            }
+        )
         final_resp = self.client.chat(messages, tools=AGENT_TOOLS)
         final_msg = final_resp.choices[0].message
 
         # 如果模型还要调工具，忽略，直接要求纯文本回答
         if final_msg.tool_calls:
             messages.append(final_msg.model_dump(exclude_none=True))
-            messages.append({
-                "role": "user",
-                "content": "请直接输出最终审查报告，不要再调用工具。",
-            })
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "请直接输出最终审查报告，不要再调用工具。",
+                }
+            )
             final_resp = self.client.chat(messages, tools=None)
             final_msg = final_resp.choices[0].message
 

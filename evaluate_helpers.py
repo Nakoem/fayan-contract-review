@@ -2,9 +2,9 @@
 评估辅助函数：格式合规检查、风险覆盖检查、LLM裁判。
 """
 
-import re
 import json
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass
 
 
 @dataclass
@@ -47,11 +47,13 @@ def check_report_format(report: str) -> FormatCheckResult:
     }
     for name, pattern in md_checks.items():
         found = bool(re.search(pattern, report, re.MULTILINE))
-        checks.append({
-            "name": f"禁止Markdown-{name}",
-            "passed": not found,
-            "detail": "未发现" if not found else f"发现{name}格式",
-        })
+        checks.append(
+            {
+                "name": f"禁止Markdown-{name}",
+                "passed": not found,
+                "detail": "未发现" if not found else f"发现{name}格式",
+            }
+        )
 
     # 检查2: 五段式结构
     sections = [
@@ -63,11 +65,13 @@ def check_report_format(report: str) -> FormatCheckResult:
     ]
     for marker, name in sections:
         found = marker in report
-        checks.append({
-            "name": f"段落-{name}",
-            "passed": found,
-            "detail": "存在" if found else "缺失",
-        })
+        checks.append(
+            {
+                "name": f"段落-{name}",
+                "passed": found,
+                "detail": "存在" if found else "缺失",
+            }
+        )
 
     # 检查3: 禁止占位条目
     placeholder_patterns = [
@@ -77,11 +81,13 @@ def check_report_format(report: str) -> FormatCheckResult:
         "去重后不再重复",
     ]
     has_placeholder = any(p in report for p in placeholder_patterns)
-    checks.append({
-        "name": "禁止占位条目",
-        "passed": not has_placeholder,
-        "detail": "未发现" if not has_placeholder else "发现占位描述",
-    })
+    checks.append(
+        {
+            "name": "禁止占位条目",
+            "passed": not has_placeholder,
+            "detail": "未发现" if not has_placeholder else "发现占位描述",
+        }
+    )
 
     # 计算分数
     total = len(checks)
@@ -105,14 +111,26 @@ def check_risk_coverage(report: str, known_risks: list[dict]) -> CoverageResult:
         threshold = max(1, len(risk["keywords"]) * 0.5)
         if hits >= threshold:
             detected_ids.append(risk["id"])
-            details.append({"id": risk["id"], "detected": True, "hits": hits,
-                           "total_keywords": len(risk["keywords"])})
+            details.append(
+                {
+                    "id": risk["id"],
+                    "detected": True,
+                    "hits": hits,
+                    "total_keywords": len(risk["keywords"]),
+                }
+            )
         else:
             missed.append(risk["id"])
             missing_kws = [kw for kw in risk["keywords"] if kw not in report]
-            details.append({"id": risk["id"], "detected": False, "hits": hits,
-                           "total_keywords": len(risk["keywords"]),
-                           "missing_keywords": missing_kws[:5]})
+            details.append(
+                {
+                    "id": risk["id"],
+                    "detected": False,
+                    "hits": hits,
+                    "total_keywords": len(risk["keywords"]),
+                    "missing_keywords": missing_kws[:5],
+                }
+            )
 
     total = len(known_risks)
     detected_count = len(detected_ids)
@@ -154,8 +172,9 @@ _JUDGE_USER_PROMPT = """合同类型：{contract_type}
 }}"""
 
 
-def llm_judge(report: str, contract_text: str, contract_type: str,
-              api_key: str) -> JudgeResult | None:
+def llm_judge(
+    report: str, contract_text: str, contract_type: str, api_key: str
+) -> JudgeResult | None:
     """使用 LLM-as-judge 对报告质量打分。"""
     from llm_client import LLMClient
 

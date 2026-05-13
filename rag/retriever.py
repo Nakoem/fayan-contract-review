@@ -3,8 +3,9 @@
 """
 
 from rag.embedder import encode_query
-from rag.vector_store import search as vector_search, collection_exists
 from rag.indexer import build_all_indexes
+from rag.vector_store import collection_exists
+from rag.vector_store import search as vector_search
 
 
 def search(

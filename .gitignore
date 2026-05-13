@@ -31,6 +31,9 @@ Thumbs.db
 # Streamlit
 .streamlit/secrets.toml
 
+# pre-commit
+.pre-commit-cache/
+
 # 面试素材 / 个人资料
 简历-*
 知乎发布版-*

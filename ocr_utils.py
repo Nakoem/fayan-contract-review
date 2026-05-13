@@ -2,6 +2,7 @@
 
 import base64
 from pathlib import Path
+
 from openai import OpenAI
 
 
@@ -35,13 +36,18 @@ def ocr_image(image_path: str, api_key: str) -> str:
     resp = client.chat.completions.create(
         model="qwen-vl-plus",
         max_tokens=4096,
-        messages=[{
-            "role": "user",
-            "content": [
-                {"type": "image_url", "image_url": {"url": data_url}},
-                {"type": "text", "text": "请完整提取这张合同照片中的所有文字，不要遗漏任何条款。保持原文格式和段落结构。"},
-            ],
-        }],
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                    {
+                        "type": "text",
+                        "text": "请完整提取这张合同照片中的所有文字，不要遗漏任何条款。保持原文格式和段落结构。",
+                    },
+                ],
+            }
+        ],
     )
 
     return resp.choices[0].message.content

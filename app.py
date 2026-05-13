@@ -6,7 +6,6 @@
 import os
 import sys
 import time
-from datetime import date
 from pathlib import Path
 
 import streamlit as st
@@ -14,6 +13,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parent))
 
 from dotenv import load_dotenv
+
 from logger import init_logger
 from service import (
     CONTRACT_TYPES,
@@ -32,7 +32,8 @@ st.set_page_config(page_title="法眼 · 合同审查", page_icon="⚖️", layo
 # ═══════════════════════════════════════════════════════
 # 自定义 CSS
 # ═══════════════════════════════════════════════════════
-st.markdown("""
+st.markdown(
+    """
 <style>
 /* ═══════════════════════════════════════════════
    Slack-Inspired — 深茄紫 + 奶油薰衣草
@@ -193,7 +194,9 @@ a, a:visited { color: var(--link-blue) !important; }
     .report-card { padding: 18px; }
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ═══════════════════════════════════════════════════════
 # 初始化
@@ -220,8 +223,10 @@ with st.sidebar:
         api_key = os.getenv("DASHSCOPE_API_KEY", "")
     if not api_key:
         api_key = st.text_input(
-            "DashScope API Key", type="password", placeholder="sk-...",
-            help="去 dashscope.console.aliyun.com 获取"
+            "DashScope API Key",
+            type="password",
+            placeholder="sk-...",
+            help="去 dashscope.console.aliyun.com 获取",
         )
 
     st.markdown("**合同类型**")
@@ -233,16 +238,20 @@ with st.sidebar:
     if st.session_state.last_contract_type in contract_types:
         default_idx = contract_types.index(st.session_state.last_contract_type)
     contract_type = st.selectbox(
-        "合同类型", contract_types,
+        "合同类型",
+        contract_types,
         index=default_idx,
         label_visibility="collapsed",
     )
     if contract_type == "自定义":
-        contract_type = st.text_input("输入合同类型", placeholder="如：软件开发合同", label_visibility="collapsed")
+        contract_type = st.text_input(
+            "输入合同类型", placeholder="如：软件开发合同", label_visibility="collapsed"
+        )
 
     st.markdown("**上传合同**")
     uploaded_file = st.file_uploader(
-        "上传 .txt 或 .jpg/.png 照片", type=["txt", "jpg", "jpeg", "png", "bmp", "webp"],
+        "上传 .txt 或 .jpg/.png 照片",
+        type=["txt", "jpg", "jpeg", "png", "bmp", "webp"],
         label_visibility="collapsed",
     )
 
@@ -264,7 +273,7 @@ with st.sidebar:
         st.markdown("**📂 历史报告**")
         items_per_row = 3
         for row_start in range(0, len(st.session_state.report_history), items_per_row):
-            row_items = st.session_state.report_history[row_start:row_start + items_per_row]
+            row_items = st.session_state.report_history[row_start : row_start + items_per_row]
             cols = st.columns(items_per_row)
             for j, h in enumerate(row_items):
                 i = row_start + j
@@ -279,7 +288,9 @@ with st.sidebar:
                         help=f"{h['type']} · 🔴{h['summary'].get('high', '-')} 🟡{h['summary'].get('medium', '-')}",
                         use_container_width=True,
                     )
-                    st.caption(f"{h['type']} · 🔴{h['summary'].get('high', '-')} 🟡{h['summary'].get('medium', '-')}")
+                    st.caption(
+                        f"{h['type']} · 🔴{h['summary'].get('high', '-')} 🟡{h['summary'].get('medium', '-')}"
+                    )
 
     if st.session_state.report_history:
         if "show_clear_confirm" not in st.session_state:
@@ -307,7 +318,10 @@ with st.sidebar:
 # 页面标题
 # ═══════════════════════════════════════════════════════
 st.markdown('<div class="main-title">法眼</div>', unsafe_allow_html=True)
-st.markdown('<div class="main-subtitle">合同审查 Agent · 法规 × 判例 × 地方政策 · 三重交叉验证</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="main-subtitle">合同审查 Agent · 法规 × 判例 × 地方政策 · 三重交叉验证</div>',
+    unsafe_allow_html=True,
+)
 
 # ═══════════════════════════════════════════════════════
 # 读取上传文件（纯文本直接读，图片走 OCR）
@@ -344,10 +358,11 @@ with col_left:
         height=600,
         label_visibility="collapsed",
     )
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # Enter 快捷键触发审查
-    st.markdown("""
+    st.markdown(
+        """
     <script>
     (function() {
         const checkAndBind = function() {
@@ -373,7 +388,9 @@ with col_left:
         checkAndBind();
     })();
     </script>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
     if start_review:
         if not contract_text.strip():
@@ -390,7 +407,9 @@ with col_left:
                     st.session_state.get("last_contract_type", "未知"),
                     st.session_state.summary,
                 )
-                save_report_file(st.session_state.report, st.session_state.get("last_contract_type", "未知"))
+                save_report_file(
+                    st.session_state.report, st.session_state.get("last_contract_type", "未知")
+                )
 
             st.session_state["last_contract_type"] = contract_type
             st.session_state.last_contract_type = contract_type
@@ -408,12 +427,18 @@ with col_left:
                 tool_lines = runner.get_tool_log()
                 if tool_lines:
                     html_parts = []
-                    html_parts.append('<div style="font-family:JetBrains Mono,monospace;font-size:0.78rem;color:#5c5240;max-height:360px;overflow-y:auto;padding:8px;background:rgba(250,248,245,0.7);border-left:3px solid #c9a96e;border-radius:0 4px 4px 0;">')
+                    html_parts.append(
+                        '<div style="font-family:JetBrains Mono,monospace;font-size:0.78rem;color:#5c5240;max-height:360px;overflow-y:auto;padding:8px;background:rgba(250,248,245,0.7);border-left:3px solid #c9a96e;border-radius:0 4px 4px 0;">'
+                    )
                     for tl in tool_lines:
                         if "轮" in tl:
-                            html_parts.append(f'<div style="border-left-color:#f59e0b;font-weight:600;padding:4px 0 4px 10px;margin:2px 0;">{tl}</div>')
+                            html_parts.append(
+                                f'<div style="border-left-color:#f59e0b;font-weight:600;padding:4px 0 4px 10px;margin:2px 0;">{tl}</div>'
+                            )
                         else:
-                            html_parts.append(f'<div style="padding:2px 0 2px 10px;margin:1px 0;">{tl}</div>')
+                            html_parts.append(
+                                f'<div style="padding:2px 0 2px 10px;margin:1px 0;">{tl}</div>'
+                            )
                     html_parts.append("</div>")
                     live_display.markdown("".join(html_parts), unsafe_allow_html=True)
 

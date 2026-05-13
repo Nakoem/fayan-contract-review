@@ -10,27 +10,28 @@
     python evaluate.py --verbose                 # 详细输出
 """
 
-import sys
-import os
-import json
-import time
 import argparse
-from pathlib import Path
+import json
+import os
+import sys
+import time
 from datetime import datetime
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-from logger import init_logger, logger
 from evaluate_helpers import (
-    check_report_format, check_risk_coverage, llm_judge,
+    check_report_format,
+    check_risk_coverage,
+    llm_judge,
 )
+from logger import init_logger, logger
 from tests.known_risks.known_risks import RISK_MAP
 
 load_dotenv()
 
 
-def evaluate_single(contract_path: str, api_key: str,
-                    run_llm_judge: bool = True) -> dict | None:
+def evaluate_single(contract_path: str, api_key: str, run_llm_judge: bool = True) -> dict | None:
     """评估单个合同。审查 → 格式检查 → 风险覆盖 → LLM裁判。"""
     filename = Path(contract_path).name
     if filename not in RISK_MAP:
@@ -58,14 +59,18 @@ def evaluate_single(contract_path: str, api_key: str,
 
     # 2. 格式合规检查
     format_result = check_report_format(report)
-    logger.info("格式合规: {} ({:.0%})",
-                "✅" if format_result.passed else "❌", format_result.score)
+    logger.info(
+        "格式合规: {} ({:.0%})", "✅" if format_result.passed else "❌", format_result.score
+    )
 
     # 3. 风险覆盖检查
     coverage_result = check_risk_coverage(report, known_risks)
-    logger.info("风险覆盖: 召回率 {:.0%} ({}/{})",
-                coverage_result.recall, coverage_result.detected,
-                coverage_result.total_known)
+    logger.info(
+        "风险覆盖: 召回率 {:.0%} ({}/{})",
+        coverage_result.recall,
+        coverage_result.detected,
+        coverage_result.total_known,
+    )
 
     # 4. LLM裁判
     judge_result = None
@@ -127,12 +132,11 @@ def _print_aggregate(results: list[dict]) -> None:
     if n == 0:
         return
     fmt_pass = sum(1 for r in results if r["format"].passed)
-    avg_recall = (sum(r["coverage"].recall for r in results) / n
-                  if n else 0)
+    avg_recall = sum(r["coverage"].recall for r in results) / n if n else 0
     avg_time = sum(r["elapsed_seconds"] for r in results) / n if n else 0
     judge_results = [r["judge"] for r in results if r.get("judge")]
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"汇总 (n={n})")
     print(f"  格式合规率: {fmt_pass}/{n}")
     print(f"  平均风险召回率: {avg_recall:.1%}")
@@ -168,9 +172,12 @@ def main():
         results = [result] if result else []
     else:
         all_samples = [
-            "sample_lease.txt", "sample_employment.txt",
-            "sample_sales.txt", "sample_service.txt",
-            "sample_cooperation.txt", "sample_loan.txt",
+            "sample_lease.txt",
+            "sample_employment.txt",
+            "sample_sales.txt",
+            "sample_service.txt",
+            "sample_cooperation.txt",
+            "sample_loan.txt",
         ]
         results = []
         for i, filename in enumerate(all_samples, 1):
@@ -178,9 +185,9 @@ def main():
             if not path.exists():
                 logger.warning("跳过不存在的文件: {}", filename)
                 continue
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"[{i}/{len(all_samples)}] 评估: {filename}")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
             result = evaluate_single(str(path), api_key, not args.no_llm)
             if result:
                 results.append(result)
@@ -194,8 +201,7 @@ def main():
         }
         out_path = Path(args.output)
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(output, ensure_ascii=False, indent=2),
-                          encoding="utf-8")
+        out_path.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"\n评估报告已保存至: {args.output}")
 
 

@@ -16,15 +16,15 @@ from pathlib import Path
 # 确保项目根目录在 sys.path 中
 sys.path.insert(0, str(Path(__file__).parent))
 
+import mcp.types as types
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-import mcp.types as types
 
 from tools import (
-    search_regulation,
-    search_case_law,
     check_local_policy,
     lookup_tax_rule,
+    search_case_law,
+    search_regulation,
     web_search,
 )
 
@@ -66,8 +66,7 @@ async def list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="check_local_policy",
-            description="查询特定城市的房屋租赁地方政策。"
-            "支持城市：北京、上海、深圳、广州、成都。",
+            description="查询特定城市的房屋租赁地方政策。支持城市：北京、上海、深圳、广州、成都。",
             inputSchema={
                 "type": "object",
                 "properties": {

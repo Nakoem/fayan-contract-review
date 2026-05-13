@@ -1,7 +1,8 @@
 """临时脚本：替换 app.py 中的审查执行块。用完即删。"""
+
 import re
 
-with open("app.py", "r", encoding="utf-8") as f:
+with open("app.py", encoding="utf-8") as f:
     content = f.read()
 
 # 匹配整个 else 块（从 "else:" 到下一个顶级代码 "with col_right:"）
