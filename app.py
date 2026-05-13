@@ -3,14 +3,9 @@
 用法：streamlit run app.py
 """
 
-import io
-import re
-import sys
 import os
+import sys
 import time
-import threading
-import tempfile
-from contextlib import redirect_stdout
 from datetime import date
 from pathlib import Path
 
@@ -19,8 +14,15 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parent))
 
 from dotenv import load_dotenv
-from main import ContractReviewAgent
-from logger import init_logger, attach_web_buffer, detach_web_buffer
+from logger import init_logger
+from service import (
+    CONTRACT_TYPES,
+    ReviewRunner,
+    extract_summary,
+    read_uploaded_contract,
+    save_report_file,
+    save_to_history,
+)
 
 load_dotenv()
 init_logger(mode="web")
@@ -226,10 +228,7 @@ with st.sidebar:
     # 记住上次选择的合同类型
     if "last_contract_type" not in st.session_state:
         st.session_state.last_contract_type = "房屋租赁合同"
-    contract_types = [
-        "房屋租赁合同", "劳动合同", "买卖合同", "服务合同", "合作协议", "借款合同",
-        "自定义",
-    ]
+    contract_types = CONTRACT_TYPES
     default_idx = 0
     if st.session_state.last_contract_type in contract_types:
         default_idx = contract_types.index(st.session_state.last_contract_type)
@@ -314,32 +313,12 @@ st.markdown('<div class="main-subtitle">合同审查 Agent · 法规 × 判例 �
 # 读取上传文件（纯文本直接读，图片走 OCR）
 # ═══════════════════════════════════════════════════════
 if uploaded_file:
-    ext = Path(uploaded_file.name).suffix.lower()
-    if ext in (".jpg", ".jpeg", ".png", ".bmp", ".webp"):
-        # 先保存临时文件
-        import tempfile
-        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
-            tmp.write(uploaded_file.read())
-            tmp_path = tmp.name
-
-        if not api_key:
-            st.error("OCR 需要 API Key，请在侧边栏填写或配置到 .env / Streamlit Secrets")
-            contract_text = ""
-        else:
-            with st.spinner("正在 OCR 识别合同照片中的文字..."):
-                try:
-                    from ocr_utils import ocr_image
-                    contract_text = ocr_image(tmp_path, api_key)
-                    st.sidebar.success(f"已从照片提取 {len(contract_text)} 字")
-                except Exception as e:
-                    st.error(f"OCR 失败：{e}")
-                    contract_text = ""
-        try:
-            os.unlink(tmp_path)
-        except Exception:
-            pass
-    else:
-        contract_text = uploaded_file.read().decode("utf-8")
+    contract_text, ocr_error = read_uploaded_contract(uploaded_file, api_key)
+    if ocr_error:
+        st.error(ocr_error)
+        contract_text = ""
+    elif Path(uploaded_file.name).suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp", ".webp"):
+        st.sidebar.success(f"已从照片提取 {len(contract_text)} 字")
 else:
     contract_text = ""
 
@@ -402,219 +381,54 @@ with col_left:
         elif not api_key:
             st.error("请在侧边栏填写 API Key")
         else:
-            # 开始新审查前，把旧报告存入历史
+            # 新审查前保存旧报告到历史
             if st.session_state.report:
-                from datetime import datetime
-                st.session_state.report_history.insert(0, {
-                    "time": datetime.now().strftime("%m-%d %H:%M"),
-                    "type": st.session_state.get("last_contract_type", "未知"),
-                    "report": st.session_state.report,
-                    "log": st.session_state.log,
-                    "summary": st.session_state.summary,
-                })
-                # 最多保留 20 条
-                if len(st.session_state.report_history) > 20:
-                    st.session_state.report_history = st.session_state.report_history[:20]
-
-                # 同时自动保存到审查报告文件夹
-                report_dir = Path(__file__).parent / "审查报告"
-                report_dir.mkdir(exist_ok=True)
-                safe_type = st.session_state.get("last_contract_type", "未知").replace("/", "_")
-                filename = f"审查报告_{safe_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-                try:
-                    (report_dir / filename).write_text(st.session_state.report, encoding="utf-8")
-                except Exception:
-                    pass  # 文件保存失败不影响审查
+                st.session_state.report_history = save_to_history(
+                    st.session_state.report_history,
+                    st.session_state.report,
+                    st.session_state.log,
+                    st.session_state.get("last_contract_type", "未知"),
+                    st.session_state.summary,
+                )
+                save_report_file(st.session_state.report, st.session_state.get("last_contract_type", "未知"))
 
             st.session_state["last_contract_type"] = contract_type
-            st.session_state.last_contract_type = contract_type  # 记住选择
+            st.session_state.last_contract_type = contract_type
 
-            buf = io.StringIO()
             progress_bar = st.progress(0, "准备审查...")
-            status_text = st.empty()
-
-            result = {"report": "", "done": False, "error": None}
-
-            def _run():
-                try:
-                    attach_web_buffer(buf)
-                    with redirect_stdout(buf):
-                        agent = ContractReviewAgent(api_key=api_key, verbose=True)
-                        result["report"] = agent.run(contract_text, contract_type)
-                except Exception as e:
-                    result["error"] = e
-                finally:
-                    detach_web_buffer()
-                    result["done"] = True
-
-            t = threading.Thread(target=_run, daemon=True)
-            t.start()
-
-            # 在右栏实时展示审查过程
             live_display = st.empty()
-            while not result["done"]:
-                log_snapshot = buf.getvalue()
-                rounds = log_snapshot.count("┌─ 第")
-                if "generate_final_report" in log_snapshot:
-                    pct, label = 0.92, f"生成报告中... 92%"
-                elif rounds > 0:
-                    pct = min(0.88, rounds / 20)
-                    label = f"第 {rounds} 轮 · {int(pct * 100)}%"
-                else:
-                    pct, label = 0.02, "启动 Agent... 2%"
+
+            runner = ReviewRunner(api_key=api_key)
+            runner.start(contract_text, contract_type)
+
+            while not runner.done:
+                pct, label = runner.get_progress()
                 progress_bar.progress(pct, label)
 
-                # 实时展示工具调用
-                tool_lines = []
-                for line in log_snapshot.split("\n"):
-                    line = line.strip()
-                    if "🔧" in line or "📋" in line:
-                        tool_lines.append(line)
-                    elif "第" in line and "轮" in line:
-                        tool_lines.append(line)
+                tool_lines = runner.get_tool_log()
                 if tool_lines:
-                    html = '<div style="font-family:JetBrains Mono,monospace;font-size:0.78rem;color:#5c5240;max-height:360px;overflow-y:auto;padding:8px;background:rgba(250,248,245,0.7);border-left:3px solid #c9a96e;border-radius:0 4px 4px 0;">'
-                    for tl in tool_lines[-12:]:  # 最近12行
-                        css_class = "timeline-round"
+                    html_parts = []
+                    html_parts.append('<div style="font-family:JetBrains Mono,monospace;font-size:0.78rem;color:#5c5240;max-height:360px;overflow-y:auto;padding:8px;background:rgba(250,248,245,0.7);border-left:3px solid #c9a96e;border-radius:0 4px 4px 0;">')
+                    for tl in tool_lines:
                         if "轮" in tl:
-                            html += f'<div style="border-left-color:#f59e0b;font-weight:600;padding:4px 0 4px 10px;margin:2px 0;">{tl}</div>'
+                            html_parts.append(f'<div style="border-left-color:#f59e0b;font-weight:600;padding:4px 0 4px 10px;margin:2px 0;">{tl}</div>')
                         else:
-                            html += f'<div style="padding:2px 0 2px 10px;margin:1px 0;">{tl}</div>'
-                    html += '</div>'
-                    live_display.markdown(html, unsafe_allow_html=True)
+                            html_parts.append(f'<div style="padding:2px 0 2px 10px;margin:1px 0;">{tl}</div>')
+                    html_parts.append("</div>")
+                    live_display.markdown("".join(html_parts), unsafe_allow_html=True)
 
                 time.sleep(0.5)
 
-            progress_bar.progress(1.0, "审查完成 ✅")
+            progress_bar.progress(1.0, "审查完成 \u2705")
             time.sleep(0.3)
             progress_bar.empty()
-            status_text.empty()
             live_display.empty()
 
-            if result["error"]:
-                err_str = str(result["error"])
-                st.error(f"审查出错：{err_str}")
+            if runner.error:
+                st.error(f"审查出错：{runner.error}")
                 st.stop()
 
-            report = result["report"]
-            st.session_state.report = report
-            st.session_state.log = buf.getvalue()
-
-            # 从报告中提取统计
-            high_m = re.search(r'🔴\s*高风险条款[：:]\s*(\d+)', report)
-            med_m  = re.search(r'🟡\s*中风险条款[：:]\s*(\d+)', report)
-            high = int(high_m.group(1)) if high_m else 0
-            med  = int(med_m.group(1)) if med_m else 0
-            rounds = st.session_state.log.count("┌─ 第")
-            st.session_state.summary = {"high": high, "medium": med, "rounds": rounds}
-
+            st.session_state.report = runner.report
+            st.session_state.log = runner.log
+            st.session_state.summary = extract_summary(runner.report, runner.log)
             st.rerun()
-
-with col_right:
-    st.markdown("#### 📊 审查结果")
-
-    if st.session_state.report:
-
-        # 统计卡片
-        s = st.session_state.summary
-        if s:
-            sc1, sc2, sc3 = st.columns(3)
-            with sc1:
-                st.markdown(f"""
-                <div class="stat-box">
-                    <div class="stat-num" style="color:#dc2626;">{s.get('high', '-')}</div>
-                    <div class="stat-label">高风险条款</div>
-                </div>""", unsafe_allow_html=True)
-            with sc2:
-                st.markdown(f"""
-                <div class="stat-box">
-                    <div class="stat-num" style="color:#d97706;">{s.get('medium', '-')}</div>
-                    <div class="stat-label">中风险条款</div>
-                </div>""", unsafe_allow_html=True)
-            with sc3:
-                st.markdown(f"""
-                <div class="stat-box">
-                    <div class="stat-num" style="color:#3b82f6;">{s.get('rounds', '-')}</div>
-                    <div class="stat-label">审查轮次</div>
-                </div>""", unsafe_allow_html=True)
-
-        # 审查过程（时间线式折叠）
-        with st.expander("🔎 审查过程（点击展开）", expanded=False):
-            log = st.session_state.log
-            # 把原始日志转成时间线
-            for line in log.split("\n"):
-                line = line.strip()
-                if not line:
-                    continue
-                if "🔧" in line or "📋" in line:
-                    st.markdown(f'<div class="timeline-round">{line}</div>', unsafe_allow_html=True)
-                elif "第" in line and "轮" in line:
-                    st.markdown(f'<div class="timeline-round" style="border-left-color:#f59e0b;font-weight:600;">{line}</div>', unsafe_allow_html=True)
-                else:
-                    st.text(line)
-
-        st.divider()
-
-        # 报告卡片（默认折叠）
-        with st.expander("📋 审查报告全文（点击展开）", expanded=False):
-            st.markdown('<div class="report-card">', unsafe_allow_html=True)
-            st.markdown(st.session_state.report)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        col_dl, col_cp = st.columns([3, 1])
-        with col_dl:
-            st.download_button(
-                "📥 下载报告 (.txt)",
-                st.session_state.report,
-                file_name=f"审查报告_{contract_type}_{date.today().isoformat()}.txt",
-                mime="text/plain",
-                use_container_width=True,
-            )
-        with col_cp:
-            # 一键复制：用 text_area + JavaScript 实现
-            copy_js = """
-            <script>
-            function copyReport() {
-                const text = document.querySelector('.report-card').innerText;
-                navigator.clipboard.writeText(text).then(() => {
-                    const btn = document.getElementById('copy-btn');
-                    btn.innerHTML = '✅ 已复制';
-                    setTimeout(() => { btn.innerHTML = '📋 复制报告'; }, 2000);
-                });
-            }
-            </script>
-            <button id="copy-btn" onclick="copyReport()" style="
-                width:100%; padding:11px 16px; border-radius:4px; border:1px solid rgba(201,169,110,0.3);
-                background:#1a1f36; color:#e0cc9a; font-weight:500; font-size:0.9rem;
-                cursor:pointer; letter-spacing:0.5px; transition:all 0.3s;
-            " onmouseover="this.style.background='#2a3050';this.style.color='white';this.style.borderColor='#c9a96e'"
-               onmouseout="this.style.background='#1a1f36';this.style.color='#e0cc9a';this.style.borderColor='rgba(201,169,110,0.3)'">
-            📋 复制报告</button>
-            """
-            st.markdown(copy_js, unsafe_allow_html=True)
-    else:
-        st.info("👆 粘贴合同后点击「🔍 开始审查」，或上传 .txt / .jpg 合同文件")
-
-    # ── 功能概览卡片（右下角，始终可见）──
-    st.markdown("<br>", unsafe_allow_html=True)
-    with st.expander("📌 法眼 · 能力概览", expanded=True):
-        st.markdown("""
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;">
-            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
-                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">⚖ 10工具 ReAct Agent</div>
-                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">自主决策审查步骤</div>
-            </div>
-            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
-                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">📚 四重知识库</div>
-                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">法规·判例·政策·税务</div>
-            </div>
-            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
-                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">📋 六种合同类型</div>
-                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">每种配备法定红线标准</div>
-            </div>
-            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
-                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">🚀 多种使用方式</div>
-                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">CLI·Web·API·MCP·Docker</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)

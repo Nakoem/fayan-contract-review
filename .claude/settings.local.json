@@ -23,12 +23,79 @@
       "Bash(.venv/bin/python -c \"import mcp; print\\('mcp version:', mcp.__version__\\)\")",
       "Bash(ls .venv/Scripts/python.exe)",
       "Bash(.venv/Scripts/python.exe -c \"import mcp; print\\('mcp version:', mcp.__version__\\)\")",
-      "Bash(.venv/Scripts/python.exe -m pip list)"
+      "Bash(.venv/Scripts/python.exe -m pip list)",
+      "Bash(git checkout *)",
+      "Bash(streamlit run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8501)",
+      "Bash(pip show *)",
+      "Bash(.venv/Scripts/python.exe *)",
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(pkill -f streamlit)",
+      "Bash(pkill -9 -f \"streamlit\\\\|python.*app.py\")",
+      "Bash(netstat -ano)",
+      "Bash(findstr :8501)",
+      "Bash(taskkill /F /PID 82976 /PID 37416)",
+      "Bash(findstr LISTENING)",
+      "Bash(taskkill /F /PID 82976)",
+      "Bash(taskkill /F /PID 37416)",
+      "Read(//c/Users/Lenovo/Desktop/**)",
+      "WebFetch(domain:github.com)",
+      "mcp__filesystem__directory_tree",
+      "Bash(npm list *)",
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(playwright-cli --version)",
+      "Bash(playwright-cli --help)",
+      "Bash(playwright-cli install *)",
+      "Bash(playwright-cli open *)",
+      "Bash(playwright-cli snapshot *)",
+      "Bash(playwright-cli resize *)",
+      "Bash(playwright-cli fill textbox '战略合作协议 *)",
+      "Bash(playwright-cli fill *)",
+      "Bash(playwright-cli select *)",
+      "Bash(playwright-cli screenshot *)",
+      "Bash(playwright-cli click *)",
+      "Bash(playwright-cli eval *)",
+      "Bash(playwright-cli close *)",
+      "mcp__filesystem__read_media_file",
+      "Bash(taskkill /F /IM streamlit.exe)",
+      "Bash(sed -n '/二、高风险条款详解/,/三、需关注的中风险条款/p' 审查报告/test_A.txt)",
+      "Bash(sed -n '/二、高风险条款详解/,/三、需关注的中风险条款/p' 审查报告/test_B.txt)",
+      "Bash(sed -n '/二、高风险条款详解/,/三、需关注的中风险条款/p' 审查报告/test_C.txt)",
+      "Bash(sed -n '/二、高风险条款详解/,/三、需关注的中风险条款/p' 审查报告/test_D.txt)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8511)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:reference.langchain.com)",
+      "WebFetch(domain:langchain-ai.github.io)",
+      "Bash(xargs wc -l)",
+      "Bash(curl -s http://127.0.0.1:8000/api/v1/health)",
+      "Bash(curl -s http://127.0.0.1:8000/api/v1/contract-types)",
+      "Bash(kill %1)",
+      "Bash(claude plugins *)",
+      "Bash(where bash *)",
+      "Read(//c/Program Files/Git/bin/**)",
+      "Read(//c/Program Files \\(x86\\)/Git/bin/**)",
+      "Bash(export CLAUDE_PLUGIN_ROOT=\"$HOME/.claude/plugins/cache/superpowers-marketplace/superpowers/5.1.0\")",
+      "Bash(bash __TRACKED_VAR__/hooks/session-start)"
     ]
   },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "filesystem",
     "fayan"
-  ]
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" session-start",
+            "async": false
+          }
+        ]
+      }
+    ]
+  }
 }
