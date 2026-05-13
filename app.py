@@ -584,18 +584,15 @@ with col_right:
             )
         with col_cp:
             st.markdown(
-                """<script>
-                function copyReport() {
-                    const text = document.querySelector('.report-card').innerText;
-                    navigator.clipboard.writeText(text).then(() => {
-                        const btn = document.getElementById('copy-btn');
-                        btn.innerHTML = '✅ 已复制';
-                        setTimeout(() => { btn.innerHTML = '📋 复制报告'; }, 2000);
+                """<button id="copy-btn" onclick="
+                    var text = document.querySelector('.report-card').innerText;
+                    navigator.clipboard.writeText(text).then(function(){
+                        var btn=document.getElementById('copy-btn');
+                        btn.innerText='✅ 已复制';
+                        setTimeout(function(){btn.innerText='📋 复制报告';},2000);
                     });
-                }
-                </script>
-                <button id="copy-btn" onclick="copyReport()" style="
-                    width:100%; padding:11px 16px; border-radius:4px;
+                " style="
+                    width:100%; padding:10px 0; border-radius:4px;
                     border:1px solid rgba(201,169,110,0.3);
                     background:#1a1f36; color:#e0cc9a;
                     font-weight:500; font-size:0.9rem;
