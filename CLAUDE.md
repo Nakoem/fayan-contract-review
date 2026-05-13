@@ -4,6 +4,7 @@
 - 项目定位：AI 项目应用工程师面试展示材料，非商用
 - 所有 Step（1-5 + 法律问答Bot + LangGraph 改写）已完成
 - 知乎已发布技术复盘文章（待更新最新改动）
+- 在线 Demo：https://fayan-contract-review-777.streamlit.app/
 
 ## 启动方式
 - Web 界面：`streamlit run app.py`
