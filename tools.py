@@ -28,6 +28,52 @@ def _load_knowledge_json(filename: str, fallback: dict) -> dict:
     return fallback
 
 
+def _detect_contract_type(keyword: str) -> str:
+    """从搜索关键词推断合同类型，用于分类加权。"""
+    type_hints = [
+        (
+            "房屋租赁合同",
+            [
+                "租赁",
+                "押金",
+                "租金",
+                "转租",
+                "承租",
+                "出租",
+                "房东",
+                "备案",
+                "维修",
+                "取暖",
+                "群租",
+            ],
+        ),
+        (
+            "劳动合同",
+            [
+                "劳动",
+                "试用",
+                "加班",
+                "竞业",
+                "社保",
+                "工资",
+                "调岗",
+                "离职",
+                "双倍",
+                "工伤",
+                "补偿金",
+            ],
+        ),
+        ("买卖合同", ["买卖", "出卖", "买受", "质量", "瑕疵", "退货", "检验", "产品", "标的物"]),
+        ("服务合同", ["服务", "承揽", "定作", "验收", "中途", "预付", "技术合同"]),
+        ("合作协议", ["合作", "合伙", "出资", "利润", "退伙", "技术成果"]),
+        ("借款合同", ["借款", "借贷", "利息", "利率", "砍头息", "逾期", "本金", "LPR"]),
+    ]
+    for ct, hints in type_hints:
+        if any(h in keyword for h in hints):
+            return ct
+    return ""
+
+
 def _init_rag():
     global _rag_initialized, _search_funcs
     if _rag_initialized:
@@ -966,11 +1012,16 @@ def search_regulation(keyword: str) -> str:
     """根据关键词搜索相关法规条文，优先 RAG 语义检索，回退全文匹配。"""
     keyword = keyword.strip()
 
-    # 尝试 RAG 语义检索（含向量+关键词混合）
+    # 尝试 RAG 语义检索（含向量+关键词混合+分类加权）
     _init_rag()
     if _search_funcs:
         try:
-            results = _search_funcs["search"](keyword, "regulation", top_k=3)
+            results = _search_funcs["search"](
+                keyword,
+                "regulation",
+                top_k=3,
+                contract_type=_detect_contract_type(keyword),
+            )
             if results:
                 return _search_funcs["format_results"](results)
         except Exception:
@@ -993,7 +1044,12 @@ def search_case_law(keyword: str) -> str:
     _init_rag()
     if _search_funcs:
         try:
-            results = _search_funcs["search"](keyword, "case_law", top_k=3)
+            results = _search_funcs["search"](
+                keyword,
+                "case_law",
+                top_k=3,
+                contract_type=_detect_contract_type(keyword),
+            )
             if results:
                 return _search_funcs["format_results"](results)
         except Exception:
@@ -1018,7 +1074,12 @@ def check_local_policy(city: str, keyword: str = "") -> str:
     if _search_funcs:
         try:
             query = f"{city} {keyword}".strip()
-            results = _search_funcs["search"](query, "local_policy", top_k=3)
+            results = _search_funcs["search"](
+                query,
+                "local_policy",
+                top_k=3,
+                contract_type="房屋租赁合同",
+            )
             if results:
                 return _search_funcs["format_results"](results)
         except Exception:
@@ -1042,7 +1103,12 @@ def lookup_tax_rule(topic: str) -> str:
     _init_rag()
     if _search_funcs:
         try:
-            results = _search_funcs["search"](topic, "tax_rule", top_k=3)
+            results = _search_funcs["search"](
+                topic,
+                "tax_rule",
+                top_k=3,
+                contract_type=_detect_contract_type(topic),
+            )
             if results:
                 return _search_funcs["format_results"](results)
         except Exception:
@@ -1180,7 +1246,12 @@ def web_search(keyword: str) -> str:
     _init_rag()
     if _search_funcs:
         try:
-            results = _search_funcs["search"](keyword, "web_kb", top_k=3)
+            results = _search_funcs["search"](
+                keyword,
+                "web_kb",
+                top_k=3,
+                contract_type=_detect_contract_type(keyword),
+            )
             if results:
                 return _search_funcs["format_results"](results)
         except Exception:
