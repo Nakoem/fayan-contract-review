@@ -416,6 +416,18 @@ class ContractReviewAgent:
 
     def run_stream(self, contract_text: str, contract_type: str):
         """流式版 ReAct 循环。yield 结构化事件供 UI 实时展示。"""
+        try:
+            yield from self._run_stream_impl(contract_text, contract_type)
+        except Exception as e:
+            import traceback
+
+            yield {
+                "type": "error",
+                "message": f"{type(e).__name__}: {e}\n{traceback.format_exc()}",
+            }
+
+    def _run_stream_impl(self, contract_text: str, contract_type: str):
+        """run_stream 的实现体，外层由 run_stream 兜底异常。"""
         from tools import AGENT_TOOLS
 
         tools_list = _filter_tools(AGENT_TOOLS, self.enable_reflection)
