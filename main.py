@@ -377,6 +377,186 @@ class ContractReviewAgent:
         logger.info("{}", final_msg.content or "")
         return final_msg.content or ""
 
+    def run_stream(self, contract_text: str, contract_type: str):
+        """流式版 ReAct 循环。yield 结构化事件供 UI 实时展示。"""
+        from tools import AGENT_TOOLS
+
+        self._contract_text = contract_text
+        self._risk_findings = []
+
+        messages = [
+            {"role": "system", "content": str(AGENT_SYSTEM_PROMPT)},
+            {
+                "role": "user",
+                "content": AGENT_USER_PROMPT.format(
+                    contract_type=contract_type,
+                    contract_text=contract_text,
+                ),
+            },
+        ]
+
+        api_retries = 0
+        last_report = None
+        use_text_mode = False
+
+        for round_num in range(1, MAX_ITERATIONS + 1):
+            yield {"type": "round_start", "round": round_num}
+
+            # ── 流式调用 LLM ──
+            try:
+                tools = None if use_text_mode else AGENT_TOOLS
+                stream_events = []
+                for event in self.client.stream_chat(messages, tools=tools):
+                    if event["type"] == "delta":
+                        yield {"type": "thinking_delta", "content": event["content"]}
+                    stream_events.append(event)
+                last_event = (
+                    stream_events[-1]
+                    if stream_events
+                    else {"type": "finish", "content": "", "tool_calls": None}
+                )
+                content = last_event.get("content", "")
+                tool_calls = last_event.get("tool_calls")
+            except Exception as e:
+                err_msg = str(e)
+                if "function.arguments" in err_msg and "JSON" in err_msg:
+                    use_text_mode = True
+                    if self.verbose:
+                        logger.warning("  🔄 JSON错误，切换文本格式工具调用模式")
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "函数调用功能暂时不可用。请用以下文本格式调用工具（可一次调用多个）：\n\n"
+                                '<<TOOL:extract_clauses>>\n<<ARGS:{"contract_type": "服务合同"}>>\n\n'
+                                '<<TOOL:search_regulation>>\n<<ARGS:{"keyword": "违约金"}>>\n\n'
+                                "请继续审查流程。"
+                            ),
+                        }
+                    )
+                    continue
+
+                if api_retries < 3:
+                    api_retries += 1
+                    yield {"type": "retry", "attempt": api_retries, "message": err_msg[:200]}
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": f"API调用失败（{err_msg[:200]}），请重试。（{api_retries}/3）",
+                        }
+                    )
+                    if self.verbose:
+                        logger.warning("  ⚠️ API失败({}/3): {}", api_retries, err_msg[:120])
+                    continue
+                yield {"type": "error", "message": err_msg}
+                return
+
+            api_retries = 0
+
+            # 构造 assistant 消息
+            assistant_msg = {"role": "assistant", "content": content}
+            if tool_calls:
+                assistant_msg["tool_calls"] = [
+                    {
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {
+                            "name": tc["function"]["name"],
+                            "arguments": tc["function"]["arguments"],
+                        },
+                    }
+                    for tc in tool_calls
+                ]
+            messages.append(assistant_msg)
+
+            # ── 文本模式：解析 <<TOOL>> 标签 ──
+            if use_text_mode:
+                text_calls = self._parse_text_tool_calls(content or "")
+                if not text_calls:
+                    final = last_report if last_report else (content or "")
+                    yield {"type": "done", "report": final}
+                    return
+                for func_name, args in text_calls:
+                    yield {"type": "tool_start", "name": func_name}
+                    result = self._execute_tool(func_name, args)
+                    if len(result) > TOOL_RESULT_MAX_CHARS:
+                        result = result[:TOOL_RESULT_MAX_CHARS] + "\n...（结果已截断）"
+                    yield {"type": "tool_result", "name": func_name, "result_len": len(result)}
+                    if func_name == "generate_final_report":
+                        last_report = result
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": f"[工具 {func_name} 的执行结果]\n{result}",
+                        }
+                    )
+                continue
+
+            # ── 无 tool_calls → 任务完成 ──
+            if not tool_calls:
+                final = last_report if last_report else (content or "")
+                yield {"type": "done", "report": final}
+                return
+
+            # ── 执行工具调用（标准函数调用路径）──
+            for tc in tool_calls:
+                func_name = tc["function"]["name"]
+                raw_args = tc["function"]["arguments"] or "{}"
+
+                args = self._parse_tool_args(raw_args)
+                if args is None:
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc["id"],
+                            "content": (
+                                f"参数JSON格式错误：{raw_args[:300]}\n"
+                                f"请用合法JSON重新调用 {func_name}（所有字符串用双引号包裹）。"
+                            ),
+                        }
+                    )
+                    yield {"type": "tool_error", "name": func_name, "message": "JSON解析失败"}
+                    continue
+
+                yield {"type": "tool_start", "name": func_name}
+                result = self._execute_tool(func_name, args)
+                max_chars = (
+                    FINAL_REPORT_MAX_CHARS
+                    if func_name == "generate_final_report"
+                    else TOOL_RESULT_MAX_CHARS
+                )
+                if len(result) > max_chars:
+                    result = result[:max_chars] + "\n...（结果已截断）"
+                yield {"type": "tool_result", "name": func_name, "result_len": len(result)}
+
+                if func_name == "generate_final_report":
+                    last_report = result
+
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": result,
+                    }
+                )
+
+        # 兜底：达到最大轮次
+        yield {"type": "round_start", "round": MAX_ITERATIONS + 1}
+        messages.append(
+            {
+                "role": "user",
+                "content": "已达到最大轮次。请立即调用 generate_final_report 生成最终审查报告。",
+            }
+        )
+        for event in self.client.stream_chat(messages, tools=AGENT_TOOLS):
+            if event["type"] == "delta":
+                yield {"type": "thinking_delta", "content": event["content"]}
+            elif event["type"] == "finish":
+                final = event.get("content", "") or last_report or ""
+                yield {"type": "done", "report": final}
+                return
+        yield {"type": "done", "report": last_report or ""}
+
 
 def _clean_report(report: str, contract_text: str, contract_type: str) -> str:
     """后处理：清理占位文字 + 检查关键条款遗漏。委托给 utils.py。"""

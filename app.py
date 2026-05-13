@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 from logger import init_logger
 from service import (
     CONTRACT_TYPES,
-    ReviewRunner,
+    StreamingReviewRunner,
     extract_summary,
     read_uploaded_contract,
     save_report_file,
@@ -250,8 +250,8 @@ with st.sidebar:
 
     st.markdown("**上传合同**")
     uploaded_file = st.file_uploader(
-        "上传 .txt 或 .jpg/.png 照片",
-        type=["txt", "jpg", "jpeg", "png", "bmp", "webp"],
+        "上传 .txt / .pdf / .docx / .jpg/.png",
+        type=["txt", "pdf", "docx", "jpg", "jpeg", "png", "bmp", "webp"],
         label_visibility="collapsed",
     )
 
@@ -415,43 +415,84 @@ with col_left:
             st.session_state.last_contract_type = contract_type
 
             progress_bar = st.progress(0, "准备审查...")
-            live_display = st.empty()
+            thinking_placeholder = st.empty()
+            tool_placeholder = st.empty()
 
-            runner = ReviewRunner(api_key=api_key)
+            def render_tool_log(lines):
+                """内联渲染工具日志为 HTML。"""
+                parts = [
+                    '<div style="font-family:JetBrains Mono,monospace;font-size:0.78rem;'
+                    "color:#5c5240;max-height:360px;overflow-y:auto;padding:8px;"
+                    "background:rgba(250,248,245,0.7);border-left:3px solid #c9a96e;"
+                    'border-radius:0 4px 4px 0;">'
+                ]
+                for tl in lines:
+                    if "轮" in tl:
+                        tag = (
+                            f'<div style="border-left-color:#f59e0b;font-weight:600;'
+                            f'padding:4px 0 4px 10px;margin:2px 0;">{tl}</div>'
+                        )
+                    else:
+                        tag = f'<div style="padding:2px 0 2px 10px;margin:1px 0;">{tl}</div>'
+                    parts.append(tag)
+                parts.append("</div>")
+                return "".join(parts)
+
+            runner = StreamingReviewRunner(api_key=api_key)
             runner.start(contract_text, contract_type)
 
-            while not runner.done:
-                pct, label = runner.get_progress()
-                progress_bar.progress(pct, label)
+            thinking_text = ""
+            tool_lines = []
+            round_num = 0
 
-                tool_lines = runner.get_tool_log()
-                if tool_lines:
-                    html_parts = []
-                    html_parts.append(
-                        '<div style="font-family:JetBrains Mono,monospace;font-size:0.78rem;color:#5c5240;max-height:360px;overflow-y:auto;padding:8px;background:rgba(250,248,245,0.7);border-left:3px solid #c9a96e;border-radius:0 4px 4px 0;">'
+            for event in runner.events():
+                if event["type"] == "thinking_delta":
+                    thinking_text += event["content"]
+                    display = thinking_text[-800:]
+                    thinking_placeholder.markdown(
+                        f'<div style="font-family:JetBrains Mono,monospace;font-size:0.82rem;'
+                        f"color:#5c5240;max-height:200px;overflow-y:auto;padding:10px 14px;"
+                        f"background:rgba(250,248,245,0.7);border-left:3px solid #c9a96e;"
+                        f'border-radius:0 4px 4px 0;white-space:pre-wrap;">{display}</div>',
+                        unsafe_allow_html=True,
                     )
-                    for tl in tool_lines:
-                        if "轮" in tl:
-                            html_parts.append(
-                                f'<div style="border-left-color:#f59e0b;font-weight:600;padding:4px 0 4px 10px;margin:2px 0;">{tl}</div>'
-                            )
-                        else:
-                            html_parts.append(
-                                f'<div style="padding:2px 0 2px 10px;margin:1px 0;">{tl}</div>'
-                            )
-                    html_parts.append("</div>")
-                    live_display.markdown("".join(html_parts), unsafe_allow_html=True)
 
-                time.sleep(0.5)
+                elif event["type"] == "round_start":
+                    round_num = event["round"]
+                    pct = min(0.88, round_num / 20)
+                    progress_bar.progress(pct, f"第 {round_num} 轮 · {int(pct * 100)}%")
+                    tool_lines.append(f"第 {round_num} 轮")
+                    tool_placeholder.markdown(render_tool_log(tool_lines), unsafe_allow_html=True)
 
-            progress_bar.progress(1.0, "审查完成 \u2705")
+                elif event["type"] == "tool_start":
+                    tool_lines.append(f"🔧 {event['name']}()")
+                    tool_placeholder.markdown(render_tool_log(tool_lines), unsafe_allow_html=True)
+
+                elif event["type"] == "tool_result":
+                    tool_lines.append(f"📋 {event['name']} → {event['result_len']} 字符")
+                    tool_placeholder.markdown(render_tool_log(tool_lines), unsafe_allow_html=True)
+
+                elif event["type"] == "tool_error":
+                    tool_lines.append(f"⚠️ {event['name']}: {event.get('message', '失败')}")
+                    tool_placeholder.markdown(render_tool_log(tool_lines), unsafe_allow_html=True)
+
+                elif event["type"] == "retry":
+                    tool_lines.append(f"🔄 API重试 {event['attempt']}/3")
+                    tool_placeholder.markdown(render_tool_log(tool_lines), unsafe_allow_html=True)
+
+                elif event["type"] == "error":
+                    st.error(f"审查出错：{event['message']}")
+                    st.stop()
+
+                elif event["type"] == "done":
+                    progress_bar.progress(0.92, "生成报告中...")
+                    break
+
+            progress_bar.progress(1.0, "审查完成 ✅")
             time.sleep(0.3)
             progress_bar.empty()
-            live_display.empty()
-
-            if runner.error:
-                st.error(f"审查出错：{runner.error}")
-                st.stop()
+            thinking_placeholder.empty()
+            tool_placeholder.empty()
 
             st.session_state.report = runner.report
             st.session_state.log = runner.log

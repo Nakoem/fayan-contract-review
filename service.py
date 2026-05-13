@@ -7,6 +7,7 @@
 
 import io
 import os
+import queue
 import re
 import tempfile
 import threading
@@ -40,9 +41,11 @@ CONTRACT_TYPES = [
 
 def read_uploaded_contract(uploaded_file, api_key: str) -> tuple[str, str | None]:
     """读取上传的合同文件，返回 (文本, 错误消息)。
-    支持 .txt 纯文本和 .jpg/.png 图片（OCR）。
+    支持 .txt / .pdf / .docx / .jpg/.png（OCR）。
     """
     ext = Path(uploaded_file.name).suffix.lower()
+
+    # 图片 → OCR
     if ext in (".jpg", ".jpeg", ".png", ".bmp", ".webp"):
         if not api_key:
             return "", "OCR 需要 API Key，请在侧边栏填写或配置到 .env / Streamlit Secrets"
@@ -61,8 +64,55 @@ def read_uploaded_contract(uploaded_file, api_key: str) -> tuple[str, str | None
             except Exception:
                 pass
         return contract_text, None
-    else:
-        return uploaded_file.read().decode("utf-8"), None
+
+    # PDF → pypdf 提取文本
+    if ext == ".pdf":
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp.write(uploaded_file.read())
+            tmp_path = tmp.name
+        try:
+            from pypdf import PdfReader
+
+            reader = PdfReader(tmp_path)
+            parts = []
+            for page in reader.pages:
+                text = page.extract_text()
+                if text:
+                    parts.append(text)
+            contract_text = "\n\n".join(parts)
+        except Exception as e:
+            return "", f"PDF 解析失败：{e}"
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+        return contract_text, None
+
+    # DOCX → python-docx 提取文本
+    if ext == ".docx":
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+            tmp.write(uploaded_file.read())
+            tmp_path = tmp.name
+        try:
+            from docx import Document
+
+            doc = Document(tmp_path)
+            parts = []
+            for para in doc.paragraphs:
+                if para.text.strip():
+                    parts.append(para.text)
+            contract_text = "\n\n".join(parts)
+        except Exception as e:
+            return "", f"DOCX 解析失败：{e}"
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+        return contract_text, None
+
+    return uploaded_file.read().decode("utf-8"), None
 
 
 # ═══════════════════════════════════════════════════════════
@@ -153,6 +203,87 @@ class ReviewRunner:
             elif "第" in line and "轮" in line:
                 lines.append(line)
         return lines[-12:]
+
+
+class StreamingReviewRunner:
+    """流式版审查执行器：后台线程 + Queue 传递事件。
+
+    用法：
+        runner = StreamingReviewRunner(api_key)
+        runner.start(contract_text, contract_type)
+        for event in runner.events():
+            if event["type"] == "thinking_delta":
+                ...  # 实时显示思考内容
+            elif event["type"] == "done":
+                report = event["report"]
+    """
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self._queue: queue.Queue = queue.Queue()
+        self._report = ""
+        self._log = ""
+        self._error: str | None = None
+        self._done = False
+        self._thread: threading.Thread | None = None
+
+    @property
+    def report(self) -> str:
+        return self._report
+
+    @property
+    def error(self) -> str | None:
+        return self._error
+
+    @property
+    def done(self) -> bool:
+        return self._done
+
+    @property
+    def log(self) -> str:
+        return self._log
+
+    def start(self, contract_text: str, contract_type: str):
+        """启动后台审查线程。"""
+        self._done = False
+        self._report = ""
+        self._error = None
+        self._log = ""
+
+        def run():
+            try:
+                from main import ContractReviewAgent
+
+                agent = ContractReviewAgent(api_key=self.api_key, verbose=False)
+                for event in agent.run_stream(contract_text, contract_type):
+                    if event["type"] == "done":
+                        self._report = event["report"]
+                    elif event["type"] == "thinking_delta":
+                        self._log += event["content"]
+                    elif event["type"] == "tool_start":
+                        self._log += f"\n🔧 {event['name']}()"
+                    elif event["type"] == "tool_result":
+                        self._log += f"\n📋 {event['name']} → {event['result_len']} 字符"
+                    elif event["type"] == "round_start":
+                        self._log += f"\n\n第 {event['round']} 轮"
+                    self._queue.put(event)
+            except Exception as e:
+                self._error = str(e)
+                self._queue.put({"type": "error", "message": str(e)})
+            finally:
+                self._done = True
+
+        self._thread = threading.Thread(target=run, daemon=True)
+        self._thread.start()
+
+    def events(self):
+        """Generator: non-blocking drain queue。审查完成后自动停止。"""
+        while not self._done or not self._queue.empty():
+            try:
+                yield self._queue.get(timeout=0.1)
+            except queue.Empty:
+                if self._done:
+                    break
 
 
 # ═══════════════════════════════════════════════════════════

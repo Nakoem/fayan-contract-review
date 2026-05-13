@@ -11,3 +11,5 @@ langgraph
 langgraph-prebuilt
 langchain-openai
 pytest
+pypdf>=4.0
+python-docx>=1.1.0

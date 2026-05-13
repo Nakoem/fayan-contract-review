@@ -29,6 +29,55 @@ class LLMClient:
             kwargs["temperature"] = 0.0  # 消除随机性，确保审查结果一致
         return self.client.chat.completions.create(**kwargs)
 
+    def stream_chat(
+        self, messages: list[dict], tools: list[dict] | None = None, max_tokens: int = 4096
+    ):
+        """流式版 chat()。yield dict —— {"type":"delta","content":"..."} 或 {"type":"finish","content":"...","tool_calls":[...]}."""
+        kwargs = {
+            "model": self.model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "stream": True,
+        }
+        if tools:
+            kwargs["tools"] = tools
+            kwargs["temperature"] = 0.0
+
+        response = self.client.chat.completions.create(**kwargs)
+        full_content = ""
+        accumulated_tool_calls = []
+
+        for chunk in response:
+            delta = chunk.choices[0].delta if chunk.choices else None
+            if not delta:
+                continue
+            if delta.content:
+                full_content += delta.content
+                yield {"type": "delta", "content": delta.content}
+            if delta.tool_calls:
+                for tc_delta in delta.tool_calls:
+                    idx = tc_delta.index
+                    while len(accumulated_tool_calls) <= idx:
+                        accumulated_tool_calls.append(
+                            {"id": "", "function": {"name": "", "arguments": ""}}
+                        )
+                    if tc_delta.id:
+                        accumulated_tool_calls[idx]["id"] = tc_delta.id
+                    if tc_delta.function and tc_delta.function.name:
+                        accumulated_tool_calls[idx]["function"]["name"] += tc_delta.function.name
+                    if tc_delta.function and tc_delta.function.arguments:
+                        accumulated_tool_calls[idx]["function"]["arguments"] += (
+                            tc_delta.function.arguments
+                        )
+
+            if chunk.choices[0].finish_reason:
+                yield {
+                    "type": "finish",
+                    "content": full_content,
+                    "tool_calls": accumulated_tool_calls if accumulated_tool_calls else None,
+                    "finish_reason": chunk.choices[0].finish_reason,
+                }
+
     def call(self, system_prompt: str, user_prompt: str, max_tokens: int = 4096) -> str:
         resp = self.client.chat.completions.create(
             model=self.model,
