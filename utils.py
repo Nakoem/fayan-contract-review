@@ -112,8 +112,54 @@ def parse_tool_args(raw: str) -> dict:
 # ═══════════════════════════════════════════════════════════
 
 
+def _extract_clause_texts(section: str) -> list[str]:
+    """从报告的高/中风险详解段提取每条条款的原文（▸ 原文：后面的内容）。"""
+    texts = re.findall(r"▸\s*原文[：:]\s*(.+?)(?:\n\s*(?:▸|---)|\n\s*\n|\Z)", section, re.DOTALL)
+    return [re.sub(r"\s+", "", t)[:60] for t in texts]  # 去空白+取前60字做指纹
+
+
+def _dedup_report(report: str) -> str:
+    """后处理去重：同一条款原文同时出现在高风险和中风险段时，从中风险段移除。"""
+    # 找高/中风险详解分界
+    high_match = re.search(
+        r"高风险条款详解\s*\n[-]+\s*\n(.*?)(?=中风险条款详解)", report, re.DOTALL
+    )
+    med_match = re.search(r"中风险条款详解\s*\n[-]+\s*\n(.*?)(?=四、|五、|综合)", report, re.DOTALL)
+
+    if not high_match or not med_match:
+        return report
+
+    high_section = high_match.group(1)
+    med_section = med_match.group(1)
+    high_texts = _extract_clause_texts(high_section)
+
+    # 找到中风险段里与高风险重复的条款，删除
+    med_clauses = re.split(r"(?=\n\d+\.\s*【)", med_section)
+    kept = []
+    removed = 0
+    for clause in med_clauses:
+        med_text = _extract_clause_texts(clause)
+        med_fingerprint = med_text[0] if med_text else ""
+        is_dup = any(med_fingerprint == ht for ht in high_texts) if med_fingerprint else False
+        if is_dup:
+            removed += 1
+            continue
+        kept.append(clause)
+
+    if removed > 0:
+        new_med = "".join(kept)
+        # 更新中风险段
+        report = report[: med_match.start(1)] + new_med + report[med_match.end(1) :]
+        # 更新中风险计数
+        old_count = med_section.count("【")
+        new_count = old_count - removed
+        report = re.sub(r"(🟡\s*中风险条款[：:]\s*)\d+", rf"\g<1>{new_count}", report)
+
+    return report
+
+
 def clean_report(report: str, contract_text: str, contract_type: str) -> str:
-    """后处理：清理占位文字 + 检查关键条款遗漏。"""
+    """后处理：清理占位文字 + 去重 + 检查关键条款遗漏。"""
     # 1. 删除占位行
     report = re.sub(
         r"^\d+\.\s*【[^】]+】\s*\n\s*▸\s*原文[：:]\s*(?:该条款)?已在第\d+条[^。]*[去重|重复|列示][^。]*。\s*\n\s*▸\s*风险说明[：:][^。]*[去重|重复|列示][^。]*。\s*\n\s*▸\s*修改建议[：:][^。]*[去重|重复|列示][^。]*。\s*\n*",
@@ -140,9 +186,11 @@ def clean_report(report: str, contract_text: str, contract_type: str) -> str:
         report,
         flags=re.MULTILINE,
     )
-    # 2. 清理多余空行
+    # 2. 去重：同一条款在高风险和中风险段同时出现时，从中风险段移除
+    report = _dedup_report(report)
+    # 3. 清理多余空行
     report = re.sub(r"\n{4,}", "\n\n\n", report)
-    # 3. 合作协议 4.2 硬编码兜底
+    # 4. 合作协议 4.2 硬编码兜底
     if contract_type == "合作协议":
         has_42 = bool(
             re.search(

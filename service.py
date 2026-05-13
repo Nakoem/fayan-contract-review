@@ -264,7 +264,10 @@ class StreamingReviewRunner:
                 for event in gen:
                     try:
                         if event.get("type") == "done":
-                            self._report = event.get("report", "")
+                            from utils import clean_report
+
+                            report_raw = event.get("report", "")
+                            self._report = clean_report(report_raw, contract_text, contract_type)
                         elif event.get("type") == "thinking_delta":
                             self._log += event.get("content", "")
                         elif event.get("type") == "tool_start":
