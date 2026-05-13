@@ -307,10 +307,15 @@ def extract_summary(report: str, log: str) -> dict[str, int]:
     """从审查报告和日志中提取摘要统计。"""
     high_m = re.search(r"🔴\s*高风险条款[：:]\s*(\d+)", report)
     med_m = re.search(r"🟡\s*中风险条款[：:]\s*(\d+)", report)
+    rounds = log.count("┌─ 第") or log.count("第 ") if "第 " in log else 0
+    if not rounds:
+        # 流式模式：匹配 "第 N 轮"
+        m = re.findall(r"第\s*(\d+)\s*轮", log)
+        rounds = int(m[-1]) if m else 0
     return {
         "high": int(high_m.group(1)) if high_m else 0,
         "medium": int(med_m.group(1)) if med_m else 0,
-        "rounds": log.count("┌─ 第"),
+        "rounds": rounds,
     }
 
 
