@@ -35,162 +35,418 @@ st.set_page_config(page_title="法眼 · 合同审查", page_icon="⚖️", layo
 # ═══════════════════════════════════════════════════════
 st.markdown(
     """
+<script>
+(function() {
+    if (document.querySelector('link[href*="Newsreader"]')) return;
+    var links = [
+        'https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;700;900&display=swap',
+        'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap',
+        'https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&display=swap'
+    ];
+    links.forEach(function(url) {
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = url;
+        document.head.appendChild(link);
+    });
+})();
+</script>
+<script>
+(function() {
+    var cleanTips = setInterval(function() {
+        document.querySelectorAll('[data-testid="stSidebar"] button[title]').forEach(function(el) {
+            el.removeAttribute('title');
+        });
+        document.querySelectorAll('[data-testid="stSidebar"] button[aria-label]').forEach(function(el) {
+            var a = el.getAttribute('aria-label') || '';
+            if (a.indexOf('keyboard') !== -1) el.removeAttribute('aria-label');
+        });
+    }, 500);
+    setTimeout(function() { clearInterval(cleanTips); }, 8000);
+})();
+</script>
+<script>
+(function() {
+    var tries = 0;
+    var apply = function() {
+        tries++;
+        var blocks = document.querySelectorAll('[data-testid="stHorizontalBlock"]');
+        var found = false;
+        blocks.forEach(function(b) {
+            if (b.children.length !== 2) return;
+            if (!b.closest('[data-testid="stAppViewBlockContainer"]')) return;
+            if (b.querySelector('[data-testid="stHorizontalBlock"]')) return;
+            if (b.children[0].dataset._eline === '1') return;
+            b.children[0].dataset._eline = '1';
+            b.children[0].style.borderRight = '1px solid #d4cec4';
+            b.children[0].style.paddingRight = '28px';
+            b.children[0].style.background = '#ffffff';
+            b.children[1].style.background = '#ffffff';
+            found = true;
+        });
+        if (!found && tries < 20) setTimeout(apply, 400);
+    };
+    apply();
+})();
+</script>
 <style>
 /* ═══════════════════════════════════════════════
-   Slack-Inspired — 深茄紫 + 奶油薰衣草
-   #4a154b茄紫底 + #f4ede4奶油 + 药丸按钮
+   Editorial Ink & Paper — 纸媒编辑风
+   墨黑纸白 + Noto Serif SC + 新闻规则线
    ═══════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=JetBrains+Mono:wght@400;500&display=swap');
-
 :root {
-    --primary: #5c1d5e;
-    --primary-deep: #4a154b;
-    --primary-press: #7a2d7c;
-    --on-primary: #ffffff;
-    --on-aubergine-mute: #d9bdde;
-    --canvas: #f4ede4;
-    --canvas-lavender: #f9f0ff;
+    --paper: #fbf9f6;
+    --ink-black: #1c1c1c;
+    --ink-blue: #1a365d;
+    --ink-red: #9b2c2c;
+    --ink-amber: #8b6914;
+    --ink-green: #2d6a4f;
+    --border: #d4cec4;
+    --subtle: #e8e3da;
+    --muted: #8a8378;
     --surface: #ffffff;
-    --surface-aubergine: #5c1d5e;
-    --hairline: #e6e6e6;
-    --ink: #1d1d1d;
-    --ink-mute: #696969;
-    --link-blue: #1264a3;
-    --body: #454545;
-    --body-mid: #888888;
-    --red: #cc4117;
-    --red-bg: rgba(204,65,23,0.08);
-    --amber: #c37d0d;
-    --amber-bg: rgba(195,125,13,0.08);
-    --green: #007a5a;
-    --green-bg: rgba(0,122,90,0.08);
+    --surface-warm: #f4f1ea;
+    --red-bg: rgba(155,44,44,0.06);
+    --amber-bg: rgba(139,105,20,0.06);
+    --green-bg: rgba(45,106,79,0.06);
 }
 
-html, body, [class*="css"] { font-family: 'Inter', system-ui, -apple-system, 'Noto Sans SC', sans-serif; color: var(--body); }
-h1, h2, h3, h4, h5, h6 { font-family: 'Inter', system-ui, -apple-system, 'Noto Sans SC', sans-serif; font-weight: 600; color: var(--ink); }
+html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"],
+[data-testid="stMarkdownContainer"], [data-testid="stSidebarContent"] {
+    font-family: 'Newsreader', 'Noto Serif SC', serif !important;
+    color: var(--ink-black);
+}
+/* 排除所有图标/按钮元素，保留原生 icon font */
+.material-icons, .material-symbols-outlined,
+[data-testid="collapsedControl"], [data-testid="collapsedControl"] *,
+[data-testid="baseButton-header"], [data-testid="baseButton-header"] *,
+button[kind="header"], button[kind="headerNoPadding"],
+button[aria-label*="arrow"], button[aria-label*="Collapse"],
+button[aria-label*="Close"], button[aria-label*="close"],
+.st-emotion-cache-1h9us95, .st-emotion-cache-1qg05tj {
+    font-family: 'Material Icons', 'Material Symbols Outlined', system-ui, sans-serif !important;
+}
+[data-testid="stTextArea"] textarea {
+    font-family: 'Newsreader', 'Noto Serif SC', serif !important;
+    font-size: 1rem !important; line-height: 2 !important;
+    color: #1c1c1c !important;
+    background: #ffffff !important;
+    min-height: 380px !important;
+}
+[data-testid="stTextArea"] textarea::placeholder {
+    font-family: 'Newsreader', 'Noto Serif SC', serif !important;
+    font-style: italic !important;
+    color: #c5bfb0 !important;
+}
+h1, h2, h3, h4, h5, h6, [data-testid="stHeading"] {
+    font-family: 'DM Sans', 'Noto Serif SC', sans-serif !important;
+    font-weight: 700 !important; color: var(--ink-black) !important; letter-spacing: -0.01em;
+}
+[data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] span {
+    font-family: 'Newsreader', 'Noto Serif SC', serif !important;
+}
 
-[data-testid="stAppViewContainer"] { background: var(--canvas); }
+[data-testid="stAppViewContainer"] {
+    background: #fbf9f6 !important;
+}
+[data-testid="stAppViewContainer"] > div {
+    background: #ffffff !important;
+}
+[data-testid="stAppViewBlockContainer"],
+[data-testid="stAppViewBlockContainer"] > div,
+[data-testid="stAppViewBlockContainer"] > div > div {
+    background: #ffffff !important;
+}
+/* 主内容区两列 */
+[data-testid="stAppViewBlockContainer"] [data-testid="stHorizontalBlock"] {
+    background: #ffffff !important;
+}
+[data-testid="stAppViewBlockContainer"] [data-testid="stHorizontalBlock"] > div {
+    background: #ffffff !important;
+}
+[data-testid="stHorizontalBlock"] {
+    column-gap: 0 !important;
+    gap: 0 !important;
+}
+[data-testid="stHorizontalBlock"] > *:first-child {
+    border-right: 1px solid #d4cec4 !important;
+    padding-right: 28px !important;
+    margin-right: 0 !important;
+}
+[data-testid="stHorizontalBlock"] > *:last-child {
+    padding-left: 28px !important;
+}
 
 [data-testid="stHeader"] {
-    background: rgba(244,237,228,0.94);
+    background: rgba(251,249,246,0.94);
     backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--hairline);
+    border-bottom: 3px double var(--ink-black);
 }
 
 /* ── 标题 ── */
 .main-title {
-    font-family: 'Inter', system-ui, sans-serif !important;
-    font-size: 2.4rem !important; font-weight: 600 !important;
-    color: var(--ink) !important; letter-spacing: -0.5px;
+    font-family: 'Noto Serif SC', serif !important;
+    font-size: 2.8rem !important; font-weight: 900 !important;
+    color: var(--ink-black) !important; letter-spacing: 10px !important;
 }
-.main-subtitle { color: var(--body-mid); font-size: 0.9rem; font-weight: 400; }
+.main-subtitle {
+    color: var(--muted); font-size: 0.95rem; font-weight: 400;
+    font-style: italic; font-family: 'Newsreader', 'Noto Serif SC', serif;
+}
 
-/* ── 侧边栏：深茄紫 ── */
+/* ── 侧边栏：暖纸色 ── */
 [data-testid="stSidebar"] {
-    background: var(--surface-aubergine);
-    border-right: 1px solid rgba(255,255,255,0.08);
+    background: var(--surface-warm);
+    border-right: 1px solid var(--border);
 }
-[data-testid="stSidebar"] * { color: var(--on-aubergine-mute) !important; }
-[data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
-[data-testid="stSidebar"] label { color: var(--on-primary) !important; font-family: 'Inter', sans-serif !important; font-weight: 600; }
+[data-testid="stSidebar"] * {
+    color: var(--ink-black) !important;
+    font-family: 'DM Sans', 'Noto Serif SC', sans-serif !important;
+    pointer-events: auto !important;
+}
+[data-testid="stSidebar"] button,
+[data-testid="stSidebar"] [data-testid="collapsedControl"],
+[data-testid="stSidebar"] [data-testid="collapsedControl"] * {
+    font-family: 'Material Icons', 'Material Symbols Outlined', 'DM Sans', system-ui, sans-serif !important;
+}
+[data-testid="stSidebar"] [title] {
+    pointer-events: auto !important;
+}
+[data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+    font-weight: 700 !important; letter-spacing: 1px !important;
+}
 [data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div,
 [data-testid="stSidebar"] input {
-    background: rgba(255,255,255,0.08) !important;
-    border: 1px solid rgba(255,255,255,0.12) !important;
-    border-radius: 8px !important; color: var(--on-primary) !important;
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--ink-black) !important;
 }
 [data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div:hover,
-[data-testid="stSidebar"] input:hover { border-color: rgba(255,255,255,0.3) !important; }
-[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.1) !important; }
+[data-testid="stSidebar"] input:hover { border-color: var(--muted) !important; }
+[data-testid="stSidebar"] hr { border-color: var(--border) !important; }
 
 .sidebar-brand {
-    font-family: 'Inter', sans-serif !important;
-    font-size: 1.1rem !important; font-weight: 600 !important;
-    color: var(--on-primary) !important;
+    font-family: 'Noto Serif SC', serif !important;
+    font-size: 1.2rem !important; font-weight: 900 !important;
+    color: var(--ink-black) !important; letter-spacing: 4px !important;
 }
-.sidebar-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
-.sidebar-dot.online { background: var(--link-blue); animation: pulse-dot 2.5s infinite; }
-@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.sidebar-dot { display: inline-block; width: 5px; height: 5px; margin-right: 6px; }
+.sidebar-dot.online { background: var(--ink-blue); animation: ed-pulse 3s ease-in-out infinite; }
+@keyframes ed-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
 /* ── 合同输入区 ── */
 .contract-wrapper {
-    background: var(--canvas);
-    border: 1px solid var(--hairline);
-    border-radius: 8px;
+    background: #ffffff;
+    border: 1px solid var(--border);
 }
-.contract-wrapper:focus-within { border-color: var(--primary); }
-.contract-wrapper textarea {
-    background: transparent !important;
-    font-family: 'JetBrains Mono', 'SF Mono', monospace !important;
-    font-size: 0.85rem !important; line-height: 1.7 !important;
-    color: var(--ink) !important; border: none !important; box-shadow: none !important;
+.contract-wrapper:focus-within { border-color: var(--ink-black); }
+.contract-wrapper textarea,
+.contract-wrapper [data-testid="stTextArea"] textarea,
+[data-testid="stTextArea"] .contract-wrapper textarea {
+    background: #ffffff !important;
+    font-family: 'Newsreader', 'Noto Serif SC', serif !important;
+    font-size: 1rem !important; line-height: 2 !important;
+    color: #1c1c1c !important; border: none !important; box-shadow: none !important;
+    background-image: repeating-linear-gradient(0deg,
+        transparent, transparent 31px,
+        rgba(0,0,0,0.02) 31px, rgba(0,0,0,0.02) 32px) !important;
 }
-.contract-wrapper textarea::placeholder { color: var(--body-mid) !important; }
+.contract-wrapper textarea::placeholder,
+.contract-wrapper [data-testid="stTextArea"] textarea::placeholder {
+    color: #c5bfb0 !important;
+    font-family: 'Newsreader', 'Noto Serif SC', serif !important;
+    font-style: italic !important;
+}
 
-/* ── 按钮（黑药丸）── */
-div[data-testid="stButton"] > button {
-    background: var(--primary) !important; color: var(--on-primary) !important;
-    border: 1px solid transparent !important;
-    border-radius: 9999px !important; font-weight: 600 !important;
-    font-size: 0.875rem !important; padding: 10px 24px !important;
-    transition: opacity 0.15s !important;
+/* ── 按钮（墨黑矩形）── */
+[data-testid="stButton"] button,
+div[data-testid="stButton"] > button,
+button[kind="primary"],
+button[kind="secondary"] {
+    background: #1c1c1c !important;
+    color: #ffffff !important;
+    border: none !important; border-radius: 0 !important;
+    font-weight: 600 !important; letter-spacing: 2px !important;
+    font-family: 'Noto Sans SC', 'DM Sans', sans-serif !important;
+    font-size: 0.9rem !important; padding: 12px 28px !important;
+    text-transform: none !important;
 }
+[data-testid="stButton"] button *,
+div[data-testid="stButton"] > button *,
+[data-testid="stButton"] p,
+[data-testid="stButton"] span {
+    color: #ffffff !important;
+    font-family: 'Noto Sans SC', 'DM Sans', sans-serif !important;
+}
+[data-testid="stButton"] button:hover,
 div[data-testid="stButton"] > button:hover {
-    opacity: 0.85 !important;
+    background: #000 !important;
     transform: none !important; box-shadow: none !important;
+    color: #ffffff !important;
+}
+[data-testid="stButton"] button[kind="primary"],
+button[kind="primary"] {
+    border-bottom: 2px solid #9b2c2c !important;
 }
 
-/* ── 茄紫强调 ── */
-a, a:visited { color: var(--link-blue) !important; }
-[data-testid="stProgress"] > div > div { background: var(--primary) !important; }
+/* ── 文件上传器 ── */
+[data-testid="stFileUploader"] label {
+    display: none !important;
+}
+[data-testid="stFileUploader"] section,
+[data-testid="stFileUploader"] [data-testid="stFileDropzone"] {
+    background: transparent !important;
+    border: 1px solid var(--border) !important;
+    padding: 12px !important;
+}
+[data-testid="stFileUploader"] span,
+[data-testid="stFileUploader"] div {
+    font-family: 'DM Sans', 'Noto Sans SC', sans-serif !important;
+    font-size: 0.65rem !important;
+    color: var(--muted) !important;
+    letter-spacing: 1px !important;
+}
+[data-testid="stFileUploader"] button {
+    font-family: 'Noto Sans SC', 'DM Sans', sans-serif !important;
+    font-size: 0.7rem !important;
+}
+
+/* ── 链接 ── */
+a, a:visited { color: var(--ink-blue) !important; }
+[data-testid="stProgress"] > div > div { background: var(--ink-black) !important; }
 
 .timeline-round {
-    background: var(--surface); border-left: 2px solid var(--brand-green);
-    border-radius: 0 6px 6px 0; padding: 8px 12px; margin: 4px 0;
-    font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--body);
+    background: var(--surface); border-left: 3px solid var(--ink-black);
+    padding: 6px 12px; margin: 4px 0;
+    font-family: 'DM Sans', sans-serif; font-size: 0.72rem; color: var(--muted);
+    letter-spacing: 0.5px;
 }
 
 .report-card {
-    background: var(--canvas); border-radius: 12px; padding: 28px 32px; margin: 16px 0;
-    border: 1px solid var(--hairline);
+    background: var(--paper); padding: 28px 32px; margin: 16px 0;
+    border: 1px solid var(--border);
 }
 
 .risk-high, .risk-medium, .risk-low {
-    display:inline-block; padding:2px 10px; border-radius:9999px; font-weight:500; font-size:0.8rem;
+    display:inline-block; padding:2px 10px; font-weight:500; font-size:0.72rem;
+    letter-spacing: 1px; font-family: 'DM Sans', sans-serif;
 }
-.risk-high   { background:var(--red-bg); color:var(--red); }
-.risk-medium { background:var(--amber-bg); color:var(--amber); }
-.risk-low    { background:var(--green-bg); color:var(--green); }
+.risk-high   { background:var(--red-bg); color:var(--ink-red); border-bottom: 1px solid var(--ink-red); }
+.risk-medium { background:var(--amber-bg); color:var(--ink-amber); border-bottom: 1px solid var(--ink-amber); }
+.risk-low    { background:var(--green-bg); color:var(--ink-green); border-bottom: 1px solid var(--ink-green); }
 
-.stat-box {
-    background: var(--surface); border-radius: 8px; padding: 18px 20px;
-    text-align: center; border: 1px solid var(--hairline);
+.stat-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1fr !important;
+    gap: 0 !important;
+    border-top: 1px solid var(--border) !important;
+    border-left: 1px solid var(--border) !important;
 }
-.stat-num { font-family: 'Inter', sans-serif; font-size: 2rem; font-weight: 600; color: var(--ink); }
-.stat-label { font-size: 0.75rem; color: var(--body-mid); text-transform: uppercase; letter-spacing: 1px; }
+.stat-cell {
+    padding: 24px 12px !important;
+    text-align: center !important;
+    border-right: 1px solid var(--border) !important;
+    border-bottom: 1px solid var(--border) !important;
+    background: #ffffff !important;
+}
+.stat-num {
+    font-family: 'Noto Serif SC', serif !important;
+    font-size: 2rem !important; font-weight: 900 !important;
+    display: block; line-height: 1;
+}
+.stat-num.high { color: #9b2c2c !important; }
+.stat-num.mid { color: #8b6914 !important; }
+.stat-num.rounds { color: #1c1c1c !important; }
+.stat-lbl {
+    font-size: 0.55rem !important; color: #8a8378 !important;
+    text-transform: uppercase !important; letter-spacing: 2px !important;
+    font-family: 'DM Sans', sans-serif !important; font-weight: 500 !important;
+    margin-top: 8px !important; display: block;
+}
 
 [data-testid="stExpander"] details {
-    border-radius: 8px !important; border: 1px solid var(--hairline) !important;
+    border: 1px solid var(--border) !important;
     background: var(--surface) !important;
 }
-[data-testid="stExpander"] summary { font-weight: 600 !important; color: var(--ink) !important; padding: 10px 14px !important; }
-[data-testid="stInfo"] { background: var(--surface) !important; border: 1px solid var(--hairline) !important; border-radius: 8px !important; }
+[data-testid="stExpander"] summary {
+    font-weight: 600 !important; color: var(--ink-black) !important;
+    padding: 10px 14px !important; font-family: 'DM Sans', sans-serif !important;
+    font-size: 0.65rem !important; letter-spacing: 2px !important;
+    text-transform: uppercase !important;
+}
+[data-testid="stInfo"],
+[data-testid="stNotification"],
+[data-testid="stAlert"],
+[data-testid="stCallout"],
+div[data-baseweb="notification"] {
+    background: #ffffff !important;
+    border: 1px solid #d4cec4 !important;
+}
+[data-testid="stInfo"] *,
+[data-testid="stNotification"] * {
+    background: transparent !important;
+}
 
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--canvas); }
-::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border); }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
-/* ── 收紧全局留白 ── */
+/* ── 尺寸: 侧边栏260 / 主flex / 右380 ── */
+[data-testid="stSidebar"] { width: 260px !important; flex-shrink: 0 !important; }
+[data-testid="stSidebarContent"] { width: 260px !important; }
 [data-testid="stAppViewBlockContainer"] {
-    padding: 2rem 3rem 0 3rem;
+    padding: 40px 38px 0 38px !important;
     max-width: 100%;
+    background: #ffffff !important;
+}
+
+/* ── 主内容区白色底色 ── */
+section[data-testid="stAppViewBlockContainer"] {
+    background: #ffffff !important;
+}
+
+/* ── 去掉侧边栏折叠按钮的提示文字 ── */
+button[data-testid="baseButton-header"] [data-testid="stTooltipIcon"],
+button[data-testid="baseButton-headerNoPadding"] [data-testid="stTooltipIcon"] {
+    display: none !important;
+}
+
+/* ── checkbox 字体 ── */
+[data-testid="stCheckbox"] label,
+[data-testid="stCheckbox"] p,
+[data-testid="stCheckbox"] span {
+    font-size: 0.7rem !important;
+    font-family: 'DM Sans', 'Noto Sans SC', sans-serif !important;
+}
+
+/* ── 下载/复制 白色按钮 ── */
+[data-testid="stDownloadButton"] button {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #ffffff !important;
+    color: #1c1c1c !important;
+    border: 1px solid #d4cec4 !important;
+    padding: 0.25rem 0.75rem !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    line-height: 1.6 !important;
+    width: 100% !important;
+    min-height: 2.5rem !important;
+}
+[data-testid="stDownloadButton"] button:hover {
+    background: #f4f1ea !important;
+}
+[data-testid="stDownloadButton"] {
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 /* ── 移动端 ── */
 @media (max-width: 768px) {
-    .main-title { font-size: 1.6rem !important; }
+    .main-title { font-size: 1.8rem !important; letter-spacing: 4px !important; }
     div[data-testid="column"] { min-width: 100% !important; }
     .report-card { padding: 18px; }
 }
@@ -251,7 +507,7 @@ with st.sidebar:
 
     st.markdown("**上传合同**")
     uploaded_file = st.file_uploader(
-        "上传 .txt / .pdf / .docx / .jpg/.png",
+        "上传合同文件",
         type=["txt", "pdf", "docx", "jpg", "jpeg", "png", "bmp", "webp"],
         label_visibility="collapsed",
     )
@@ -262,7 +518,6 @@ with st.sidebar:
     st.session_state.enable_reflection = st.checkbox(
         "Self-Reflection 反思审查",
         value=st.session_state.enable_reflection,
-        help="开启后出报告前全局质量审核（稍慢更准）；关闭后跳过直接出报告（更快）",
     )
 
     st.divider()
@@ -270,11 +525,30 @@ with st.sidebar:
     # 审查统计
     if st.session_state.summary:
         s = st.session_state.summary
-        st.markdown("**本次统计**")
-        col_a, col_b = st.columns(2)
-        col_a.metric("🔴 高风险", s.get("high", 0))
-        col_b.metric("🟡 中风险", s.get("medium", 0))
-        st.metric("⚡ 审查轮次", s.get("rounds", 0))
+        st.markdown("**Statistics**")
+        st.markdown(
+            f"""<div style="display:flex;flex-direction:column;gap:6px;font-family:'DM Sans',sans-serif;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
+                <span style="display:flex;align-items:center;gap:6px;font-size:0.72rem;color:#8a8378;">
+                    <span style="display:inline-block;width:8px;height:8px;background:#9b2c2c;"></span> High Risk
+                </span>
+                <span style="font-weight:700;font-size:1rem;color:#9b2c2c;">{s.get("high", 0)}</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
+                <span style="display:flex;align-items:center;gap:6px;font-size:0.72rem;color:#8a8378;">
+                    <span style="display:inline-block;width:8px;height:8px;background:#8b6914;"></span> Medium Risk
+                </span>
+                <span style="font-weight:700;font-size:1rem;color:#8b6914;">{s.get("medium", 0)}</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
+                <span style="display:flex;align-items:center;gap:6px;font-size:0.72rem;color:#8a8378;">
+                    <span style="display:inline-block;width:8px;height:8px;background:#1c1c1c;"></span> Rounds
+                </span>
+                <span style="font-weight:700;font-size:1rem;color:#1c1c1c;">{s.get("rounds", 0)}</span>
+            </div>
+        </div>""",
+            unsafe_allow_html=True,
+        )
 
     st.divider()
 
@@ -349,26 +623,67 @@ else:
 # ═══════════════════════════════════════════════════════
 # 两栏布局
 # ═══════════════════════════════════════════════════════
-col_left, col_right = st.columns([3, 2])
+col_left, col_right = st.columns([7, 2], gap="small")
 
 with col_left:
     # 标题 + 按钮同一行
-    col_t, col_b = st.columns([3, 1])
+    col_t, col_b = st.columns([3, 1], gap="small")
     with col_t:
-        st.markdown("#### 📄 合同原文")
+        st.markdown("#### Contract Source")
     with col_b:
-        start_review = st.button("🔍 开始审查", type="primary", use_container_width=True)
+        start_review = st.button("开始审查", type="primary", use_container_width=True)
 
     # 纸张质感容器
     st.markdown('<div class="contract-wrapper">', unsafe_allow_html=True)
     contract_text = st.text_area(
         "合同原文",
         value=contract_text,
-        placeholder="在此粘贴合同全文，或从左侧上传 .txt 文件...\n\n💡 粘贴后按 Enter 即可开始审查",
-        height=600,
+        placeholder="在此粘贴合同全文，或从左侧上传文件...\n\n按 Enter 开始审查",
+        height=380,
         label_visibility="collapsed",
     )
     st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown(
+        '<div class="key-hint" style="font-family:\'DM Sans\',sans-serif;font-size:0.65rem;'
+        'color:var(--muted);letter-spacing:0.5px;margin-top:8px;">'
+        "<kbd style=\"font-family:'DM Sans',sans-serif;font-weight:600;color:var(--ink-black);"
+        "background:var(--paper);border:1px solid var(--border);padding:2px 6px;font-size:0.6rem;"
+        'letter-spacing:1px;">Enter</kbd> 开始审查 &nbsp; '
+        "<kbd style=\"font-family:'DM Sans',sans-serif;font-weight:600;color:var(--ink-black);"
+        "background:var(--paper);border:1px solid var(--border);padding:2px 6px;font-size:0.6rem;"
+        'letter-spacing:1px;">Shift</kbd> + '
+        "<kbd style=\"font-family:'DM Sans',sans-serif;font-weight:600;color:var(--ink-black);"
+        "background:var(--paper);border:1px solid var(--border);padding:2px 6px;font-size:0.6rem;"
+        'letter-spacing:1px;">Enter</kbd> 换行'
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    # 功能概览卡片
+    st.markdown("<br>", unsafe_allow_html=True)
+    with st.expander("Capabilities", expanded=False):
+        st.markdown(
+            """<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:4px;border-top:1px solid var(--border);border-left:1px solid var(--border);">
+            <div style="padding:14px 16px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);">
+                <div style="font-weight:600;color:var(--ink-black);font-size:0.75rem;font-family:'DM Sans',sans-serif;">11-Tool ReAct Agent</div>
+                <div style="font-size:0.7rem;color:var(--muted);margin-top:4px;">自主决策审查步骤 + 反思</div>
+            </div>
+            <div style="padding:14px 16px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);">
+                <div style="font-weight:600;color:var(--ink-black);font-size:0.75rem;font-family:'DM Sans',sans-serif;">Five Knowledge Bases</div>
+                <div style="font-size:0.7rem;color:var(--muted);margin-top:4px;">法规·判例·政策·税务·动态</div>
+            </div>
+            <div style="padding:14px 16px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);">
+                <div style="font-weight:600;color:var(--ink-black);font-size:0.75rem;font-family:'DM Sans',sans-serif;">Six Contract Types</div>
+                <div style="font-size:0.7rem;color:var(--muted);margin-top:4px;">每种配备法定红线标准</div>
+            </div>
+            <div style="padding:14px 16px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);">
+                <div style="font-weight:600;color:var(--ink-black);font-size:0.75rem;font-family:'DM Sans',sans-serif;">Multi-Interface</div>
+                <div style="font-size:0.7rem;color:var(--muted);margin-top:4px;">CLI·Web·API·MCP·Docker</div>
+            </div>
+        </div>""",
+            unsafe_allow_html=True,
+        )
 
     # Enter 快捷键触发审查
     st.markdown(
@@ -431,15 +746,15 @@ with col_left:
             def render_tool_log(lines):
                 """内联渲染工具日志为 HTML。"""
                 parts = [
-                    '<div style="font-family:JetBrains Mono,monospace;font-size:0.78rem;'
-                    "color:#5c5240;max-height:360px;overflow-y:auto;padding:8px;"
-                    "background:rgba(250,248,245,0.7);border-left:3px solid #c9a96e;"
+                    '<div style="font-family:DM Sans,sans-serif;font-size:0.72rem;'
+                    "color:#8a8378;max-height:360px;overflow-y:auto;padding:8px;"
+                    "background:var(--paper);border-left:3px solid var(--ink-black);"
                     'border-radius:0 4px 4px 0;">'
                 ]
                 for tl in lines:
                     if "轮" in tl:
                         tag = (
-                            f'<div style="border-left-color:#f59e0b;font-weight:600;'
+                            f'<div style="border-left-color:#1c1c1c;font-weight:600;'
                             f'padding:4px 0 4px 10px;margin:2px 0;">{tl}</div>'
                         )
                     else:
@@ -463,9 +778,9 @@ with col_left:
                     thinking_text += event["content"]
                     display = thinking_text[-800:]
                     thinking_placeholder.markdown(
-                        f'<div style="font-family:JetBrains Mono,monospace;font-size:0.82rem;'
-                        f"color:#5c5240;max-height:200px;overflow-y:auto;padding:10px 14px;"
-                        f"background:rgba(250,248,245,0.7);border-left:3px solid #c9a96e;"
+                        f'<div style="font-family:DM Sans,sans-serif;font-size:0.72rem;'
+                        f"color:#8a8378;max-height:200px;overflow-y:auto;padding:10px 14px;"
+                        f"background:var(--paper);border-left:3px solid var(--ink-black);"
                         f'border-radius:0 4px 4px 0;white-space:pre-wrap;">{display}</div>',
                         unsafe_allow_html=True,
                     )
@@ -516,40 +831,32 @@ with col_left:
 # 右栏：审查结果
 # ═══════════════════════════════════════════════════════
 with col_right:
-    st.markdown("#### 📊 审查结果")
+    st.markdown("#### Inspection Results")
 
     if st.session_state.report:
         # 统计卡片
         s = st.session_state.summary
         if s:
-            sc1, sc2, sc3 = st.columns(3)
-            with sc1:
-                st.markdown(
-                    f"""<div class="stat-box">
-                    <div class="stat-num" style="color:#dc2626;">{s.get("high", "-")}</div>
-                    <div class="stat-label">高风险条款</div>
-                </div>""",
-                    unsafe_allow_html=True,
-                )
-            with sc2:
-                st.markdown(
-                    f"""<div class="stat-box">
-                    <div class="stat-num" style="color:#d97706;">{s.get("medium", "-")}</div>
-                    <div class="stat-label">中风险条款</div>
-                </div>""",
-                    unsafe_allow_html=True,
-                )
-            with sc3:
-                st.markdown(
-                    f"""<div class="stat-box">
-                    <div class="stat-num" style="color:#3b82f6;">{s.get("rounds", "-")}</div>
-                    <div class="stat-label">审查轮次</div>
-                </div>""",
-                    unsafe_allow_html=True,
-                )
+            st.markdown(
+                f"""<div class="stat-grid">
+                <div class="stat-cell">
+                    <span class="stat-num high">{s.get("high", "-")}</span>
+                    <span class="stat-lbl">High Risk</span>
+                </div>
+                <div class="stat-cell">
+                    <span class="stat-num mid">{s.get("medium", "-")}</span>
+                    <span class="stat-lbl">Medium Risk</span>
+                </div>
+                <div class="stat-cell">
+                    <span class="stat-num rounds">{s.get("rounds", "-")}</span>
+                    <span class="stat-lbl">Rounds</span>
+                </div>
+            </div>""",
+                unsafe_allow_html=True,
+            )
 
         # 审查过程（时间线折叠）
-        with st.expander("🔎 审查过程（点击展开）", expanded=False):
+        with st.expander("Review Process", expanded=False):
             log = st.session_state.log
             for line in log.split("\n"):
                 line = line.strip()
@@ -559,7 +866,7 @@ with col_right:
                     st.markdown(f'<div class="timeline-round">{line}</div>', unsafe_allow_html=True)
                 elif "第" in line and "轮" in line:
                     st.markdown(
-                        f'<div class="timeline-round" style="border-left-color:#f59e0b;font-weight:600;">{line}</div>',
+                        f'<div class="timeline-round" style="border-left-color:#1c1c1c;font-weight:600;">{line}</div>',
                         unsafe_allow_html=True,
                     )
                 else:
@@ -568,15 +875,15 @@ with col_right:
         st.divider()
 
         # 报告卡片（默认折叠）
-        with st.expander("📋 审查报告全文（点击展开）", expanded=False):
+        with st.expander("Full Report", expanded=False):
             st.markdown('<div class="report-card">', unsafe_allow_html=True)
             st.markdown(st.session_state.report)
             st.markdown("</div>", unsafe_allow_html=True)
 
-        col_dl, col_cp = st.columns([3, 1])
+        col_dl, col_cp = st.columns([1, 1])
         with col_dl:
             st.download_button(
-                "📥 下载报告 (.txt)",
+                "下载报告",
                 st.session_state.report,
                 file_name=f"审查报告_{contract_type}_{date.today().isoformat()}.txt",
                 mime="text/plain",
@@ -588,43 +895,19 @@ with col_right:
                     var text = document.querySelector('.report-card').innerText;
                     navigator.clipboard.writeText(text).then(function(){
                         var btn=document.getElementById('copy-btn');
-                        btn.innerText='✅ 已复制';
-                        setTimeout(function(){btn.innerText='📋 复制报告';},2000);
+                        btn.innerText='已复制';
+                        setTimeout(function(){btn.innerText='复制报告';},2000);
                     });
                 " style="
-                    width:100%; padding:10px 0; border-radius:4px;
-                    border:1px solid rgba(201,169,110,0.3);
-                    background:#1a1f36; color:#e0cc9a;
-                    font-weight:500; font-size:0.9rem;
-                    cursor:pointer; letter-spacing:0.5px;
-                ">📋 复制报告</button>""",
+                    display:inline-flex; align-items:center; justify-content:center;
+                    width:100%; min-height:2.5rem;
+                    padding:0.25rem 0.75rem; margin:0;
+                    border:1px solid #d4cec4;
+                    background:#ffffff; color:#1c1c1c;
+                    cursor:pointer;
+                    border-radius:0; line-height:1.6;
+                ">复制报告</button>""",
                 unsafe_allow_html=True,
             )
-
     else:
-        st.info("👆 粘贴合同后点击「🔍 开始审查」，或上传合同文件")
-
-    # 功能概览卡片（右下角，始终可见）
-    st.markdown("<br>", unsafe_allow_html=True)
-    with st.expander("📌 法眼 · 能力概览", expanded=True):
-        st.markdown(
-            """<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;">
-            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
-                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">⚖ 11工具 ReAct Agent</div>
-                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">自主决策审查步骤 + 反思</div>
-            </div>
-            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
-                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">📚 五重知识库</div>
-                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">法规·判例·政策·税务·动态</div>
-            </div>
-            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
-                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">📋 六种合同类型</div>
-                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">每种配备法定红线标准</div>
-            </div>
-            <div style="background:#faf8f5;border:1px solid #e0d8c8;border-radius:4px;padding:14px 16px;">
-                <div style="font-weight:600;color:#1a1f36;font-size:0.85rem;">🚀 多种使用方式</div>
-                <div style="font-size:0.75rem;color:#5c5240;margin-top:4px;">CLI·Web·API·MCP·Docker</div>
-            </div>
-        </div>""",
-            unsafe_allow_html=True,
-        )
+        st.info('Paste contract and click "开始审查" to launch review')

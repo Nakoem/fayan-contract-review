@@ -88,7 +88,8 @@
       "Bash(\"C:/Users/Lenovo/AppData/Local/Programs/Python/Python311/python.exe\" -m pip install -r requirements.txt)",
       "Bash(git ls-remote *)",
       "WebFetch(domain:fayan-contract-review-777.streamlit.app)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(start *)"
     ]
   },
   "enableAllProjectMcpServers": true,
