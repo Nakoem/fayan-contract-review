@@ -29,17 +29,10 @@ from langgraph.prebuilt import ToolNode, tools_condition
 
 from llm_client import LLMClient
 from prompts import AGENT_SYSTEM_PROMPT, AGENT_USER_PROMPT
-from tools import AGENT_TOOLS
+from tools import AGENT_TOOLS as ALL_TOOLS_OAI
 from utils import clean_report, parse_text_tool_calls, parse_tool_args
 
 load_dotenv()
-
-
-# ═══════════════════════════════════════════════════════════
-# 全局状态
-# ═══════════════════════════════════════════════════════════
-
-_risk_findings: list[dict] = []
 
 
 def _get_client() -> LLMClient:
@@ -249,12 +242,77 @@ def _openai_to_ai_message(msg) -> AIMessage:
 
 
 # ═══════════════════════════════════════════════════════════
+# 工具分组：每个Agent只能看到自己的工具子集
+# ═══════════════════════════════════════════════════════════
+
+# 可调用工具映射（名字 → @tool函数，供内部ReAct循环执行）
+_AGENT_TOOL_FNS: dict[str, callable] = {
+    "extract_clauses": extract_clauses,
+    "search_regulation": search_regulation,
+    "search_case_law": search_case_law,
+    "check_local_policy": check_local_policy,
+    "lookup_tax_rule": lookup_tax_rule,
+    "web_search": web_search,
+    "analyze_single_clause": analyze_single_clause,
+    "check_completeness": check_completeness,
+    "self_reflection": self_reflection,
+    "generate_final_report": generate_final_report,
+    "switch_perspective": switch_perspective,
+}
+
+# OpenAI格式工具描述（按Agent分组，供LLM Function Calling使用）
+_EXTRACTION_OAI_TOOLS = [t for t in ALL_TOOLS_OAI if t["function"]["name"] == "extract_clauses"]
+_REGULATION_OAI_TOOLS = [
+    t
+    for t in ALL_TOOLS_OAI
+    if t["function"]["name"]
+    in {
+        "search_regulation",
+        "search_case_law",
+        "check_local_policy",
+        "lookup_tax_rule",
+        "web_search",
+    }
+]
+_ASSESSMENT_OAI_TOOLS = [
+    t for t in ALL_TOOLS_OAI if t["function"]["name"] == "analyze_single_clause"
+]
+_REFLECTION_OAI_TOOLS = [
+    t for t in ALL_TOOLS_OAI if t["function"]["name"] in {"check_completeness", "self_reflection"}
+]
+_REPORT_OAI_TOOLS = [t for t in ALL_TOOLS_OAI if t["function"]["name"] == "generate_final_report"]
+
+
+# ═══════════════════════════════════════════════════════════
 # Agent 节点：LLMClient 驱动的思考节点（带 qwen 修复）
 # ═══════════════════════════════════════════════════════════
 
 
-class AgentState(TypedDict):
+# ═══════════════════════════════════════════════════════════
+# 全局状态
+# ═══════════════════════════════════════════════════════════
+
+
+class MultiAgentState(TypedDict):
+    """多Agent协作的全局状态。"""
+
     messages: Annotated[list[BaseMessage], add_messages]
+    contract_type: str
+    contract_text: str
+
+    # Agent间传递的中间产出
+    clauses_json: str
+    regulation_context: str
+    risk_findings: list[dict]
+    completeness_result: str
+    reflection_result: dict
+    reflection_round: int
+
+    # 最终产出
+    final_report: str
+
+    # 路由 + 容错
+    current_phase: str
     use_text_mode: bool
     text_mode_triggered: bool
 
@@ -268,7 +326,7 @@ def _call_agent_impl(openai_msgs: list[dict], use_text: bool) -> tuple:
             if use_text:
                 resp = client.chat(openai_msgs, tools=None)
             else:
-                resp = client.chat(openai_msgs, tools=AGENT_TOOLS)
+                resp = client.chat(openai_msgs, tools=ALL_TOOLS_OAI)
             return resp, use_text
         except Exception as e:
             err = str(e)
@@ -283,7 +341,7 @@ def _call_agent_impl(openai_msgs: list[dict], use_text: bool) -> tuple:
     raise RuntimeError("LLM 调用失败：超过最大重试次数")
 
 
-def agent_node(state: AgentState) -> dict:
+def agent_node(state: MultiAgentState) -> dict:
     """Agent 思考节点。调用 LLM，返回 AIMessage（可能包含 tool_calls）。"""
     openai_msgs = _langchain_to_openai(state["messages"])
     use_text = state.get("use_text_mode", False)
@@ -328,7 +386,7 @@ def agent_node(state: AgentState) -> dict:
 
 def _build_graph():
     """构建 Agent 图：agent ↔ tools，直到 agent 不再调工具。"""
-    graph = StateGraph(AgentState)
+    graph = StateGraph(MultiAgentState)
 
     graph.add_node("agent", agent_node)
     tool_node = ToolNode(ALL_TOOLS)
@@ -376,7 +434,7 @@ def review_contract_langgraph(contract_text: str, contract_type: str) -> str:
         contract_text=contract_text,
     )
 
-    initial_state: AgentState = {
+    initial_state: MultiAgentState = {
         "messages": [
             SystemMessage(content=system_prompt),
             HumanMessage(content=user_prompt),
