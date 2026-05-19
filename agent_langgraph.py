@@ -23,9 +23,8 @@ from langchain_core.messages import (
     ToolMessage,
 )
 from langchain_core.tools import tool
-from langgraph.graph import START, StateGraph
+from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode, tools_condition
 
 from llm_client import LLMClient
 from prompts import AGENT_SYSTEM_PROMPT, AGENT_USER_PROMPT
@@ -721,6 +720,32 @@ def _report_agent(state: MultiAgentState) -> dict:
     }
 
 
+# ═══════════════════════════════════════════════════════════
+# Supervisor 路由（纯规则，不调LLM）
+# ═══════════════════════════════════════════════════════════
+
+
+def _supervisor(state: MultiAgentState) -> str:
+    """纯规则路由：根据 current_phase 决定下一个节点。"""
+    phase = state.get("current_phase", "extraction")
+
+    if phase == "extraction":
+        return "regulation_agent"
+    elif phase == "regulations":
+        return "assessment_agent"
+    elif phase == "assessment":
+        return "reflection_agent"
+    elif phase == "reflection":
+        r = state.get("reflection_result", {})
+        if not r.get("passed") and state.get("reflection_round", 0) < 3:
+            return "assessment_agent"
+        return "report_agent"
+    elif phase == "report":
+        return END
+
+    return END
+
+
 def _call_agent_impl(
     openai_msgs: list[dict], use_text: bool, oai_tools: list[dict] | None = None
 ) -> tuple:
@@ -793,17 +818,35 @@ def agent_node(state: MultiAgentState) -> dict:
 
 
 def _build_graph():
-    """构建 Agent 图：agent ↔ tools，直到 agent 不再调工具。"""
+    """构建多Agent图：5个Agent节点 + Supervisor路由。
+
+    START → extraction → regulation → assessment ↔ reflection → report → END
+                                  ↑__________________________| (passed=false & round<3)
+    """
     graph = StateGraph(MultiAgentState)
 
-    graph.add_node("agent", agent_node)
-    tool_node = ToolNode(ALL_TOOLS)
-    graph.add_node("tools", tool_node)
+    graph.add_node("extraction_agent", _extraction_agent)
+    graph.add_node("regulation_agent", _regulation_agent)
+    graph.add_node("assessment_agent", _assessment_agent)
+    graph.add_node("reflection_agent", _reflection_agent)
+    graph.add_node("report_agent", _report_agent)
 
-    graph.add_edge(START, "agent")
-    # tools_condition: 有 tool_calls → "tools"，无 → "__end__"
-    graph.add_conditional_edges("agent", tools_condition)
-    graph.add_edge("tools", "agent")
+    graph.add_edge(START, "extraction_agent")
+    graph.add_edge("extraction_agent", "regulation_agent")
+    graph.add_edge("regulation_agent", "assessment_agent")
+    graph.add_edge("assessment_agent", "reflection_agent")
+
+    # reflection → assessment（回退）or report → END
+    graph.add_conditional_edges(
+        "reflection_agent",
+        _supervisor,
+        {
+            "assessment_agent": "assessment_agent",
+            "report_agent": "report_agent",
+            END: END,
+        },
+    )
+    graph.add_edge("report_agent", END)
 
     return graph.compile()
 
