@@ -433,6 +433,119 @@ def _extraction_agent(state: MultiAgentState) -> dict:
     }
 
 
+# ═══════════════════════════════════════════════════════════
+# Agent 节点 2：法规检索
+# ═══════════════════════════════════════════════════════════
+
+# 按合同类型的法规检索清单
+_REGULATION_CHECKLIST: dict[str, list[str]] = {
+    "房屋租赁合同": [
+        "住房租赁条例",
+        "租赁押金退还",
+        "租赁违约金",
+        "租赁期限与维修义务",
+        "转租与优先购买权优先承租权",
+        "合同争议解决",
+    ],
+    "劳动合同": [
+        "劳动争议司法解释",
+        "劳动合同试用期",
+        "劳动报酬与加班费",
+        "社会保险社保与违约金",
+        "劳动关系与竞业限制",
+        "劳动合同解除调岗与补偿",
+        "合同争议解决",
+    ],
+    "买卖合同": [
+        "买卖合同",
+        "格式条款",
+        "不可抗力与情势变更",
+        "知识产权归属",
+        "合同争议解决",
+        "合同无效情形",
+    ],
+    "服务合同": [
+        "预付式消费",
+        "服务合同",
+        "格式条款",
+        "知识产权归属",
+        "合同争议解决",
+    ],
+    "合作协议": [
+        "合作协议",
+        "知识产权归属",
+        "格式条款",
+        "合同争议解决",
+        "不可抗力与情势变更",
+        "合同无效情形",
+        "劳动关系与竞业限制",
+    ],
+    "借款合同": [
+        "民间借贷利率",
+        "借款合同",
+        "担保规则",
+        "合同争议解决",
+        "合同无效情形",
+    ],
+}
+
+
+def _regulation_agent(state: MultiAgentState) -> dict:
+    """按合同类型逐项检索法规 → 产出 regulation_context。"""
+    ct = state["contract_type"]
+    checklist = _REGULATION_CHECKLIST.get(ct, ["合同争议解决", "格式条款"])
+    keywords = "、".join(checklist)
+
+    system = (
+        f"你是法规检索专家。当前合同类型为「{ct}」，你必须按以下清单逐条调用 "
+        f"search_regulation 工具，不可跳过任何一条：\n\n"
+        + "\n".join(f'  - search_regulation("{kw}")' for kw in checklist)
+        + "\n\n还可按需调用 search_case_law、check_local_policy、lookup_tax_rule、web_search。"
+        "\n查完所有法规后，用中文输出「法规检索完成」，列出已查关键词。"
+    )
+    user_msg = (
+        f"合同类型：{ct}\n"
+        f"已提取的条款摘要：\n{state['clauses_json'][:3000]}\n\n"
+        f"请逐条检索以下关键词：{keywords}"
+    )
+    messages: list[BaseMessage] = [
+        SystemMessage(content=system),
+        HumanMessage(content=user_msg),
+    ]
+
+    messages = _run_agent_loop(
+        messages,
+        tool_names={
+            "search_regulation",
+            "search_case_law",
+            "check_local_policy",
+            "lookup_tax_rule",
+            "web_search",
+        },
+        oai_tools=_REGULATION_OAI_TOOLS,
+    )
+
+    # 拼接所有检索结果
+    parts: list[str] = []
+    for msg in messages:
+        if isinstance(msg, ToolMessage) and msg.name in {
+            "search_regulation",
+            "search_case_law",
+            "check_local_policy",
+            "lookup_tax_rule",
+            "web_search",
+        }:
+            name = msg.name or "unknown"
+            content = (msg.content or "")[:2000]
+            parts.append(f"【{name}】\n{content}")
+
+    return {
+        "messages": messages,
+        "regulation_context": "\n\n".join(parts),
+        "current_phase": "regulations",
+    }
+
+
 def _call_agent_impl(
     openai_msgs: list[dict], use_text: bool, oai_tools: list[dict] | None = None
 ) -> tuple:
