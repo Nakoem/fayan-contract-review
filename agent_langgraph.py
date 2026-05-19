@@ -665,6 +665,62 @@ def _reflection_agent(state: MultiAgentState) -> dict:
     }
 
 
+# ═══════════════════════════════════════════════════════════
+# Agent 节点 5：报告生成
+# ═══════════════════════════════════════════════════════════
+
+_REPORT_SYSTEM = """你是法务报告编辑。请调用 generate_final_report 工具生成审查报告。
+
+参数：
+- contract_type: 合同类型
+- risk_findings_json: 传空字符串""即可（系统会自动使用累积的风险分析结果）
+
+调用完毕后，你的工作就完成了。"""
+
+
+def _report_agent(state: MultiAgentState) -> dict:
+    """汇总生成最终报告 → 产出 final_report。"""
+    findings_json = json.dumps(state.get("risk_findings", []), ensure_ascii=False)
+    user_msg = (
+        f"合同类型：{state['contract_type']}\n\n"
+        f"风险发现：\n{findings_json[:6000]}\n\n"
+        f"完整性检查结果：\n{state.get('completeness_result', '无')[:1000]}\n\n"
+        f"请调用 generate_final_report 生成最终报告。"
+    )
+    messages: list[BaseMessage] = [
+        SystemMessage(content=_REPORT_SYSTEM),
+        HumanMessage(content=user_msg),
+    ]
+
+    messages = _run_agent_loop(
+        messages,
+        tool_names={"generate_final_report"},
+        oai_tools=_REPORT_OAI_TOOLS,
+    )
+
+    # 提取报告
+    final_report = ""
+    for msg in reversed(messages):
+        if isinstance(msg, ToolMessage) and msg.name == "generate_final_report":
+            final_report = msg.content or ""
+            break
+
+    # 回退：取最后一条有实质内容的 AI 消息
+    if not final_report:
+        for msg in reversed(messages):
+            content = getattr(msg, "content", None)
+            tc = getattr(msg, "tool_calls", None)
+            if content and not tc and isinstance(content, str) and len(content) > 100:
+                final_report = content
+                break
+
+    return {
+        "messages": messages,
+        "final_report": final_report,
+        "current_phase": "report",
+    }
+
+
 def _call_agent_impl(
     openai_msgs: list[dict], use_text: bool, oai_tools: list[dict] | None = None
 ) -> tuple:
