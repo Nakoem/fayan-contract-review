@@ -27,7 +27,6 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 
 from llm_client import LLMClient
-from prompts import AGENT_SYSTEM_PROMPT, AGENT_USER_PROMPT
 from tools import AGENT_TOOLS as ALL_TOOLS_OAI
 from utils import clean_report, parse_text_tool_calls, parse_tool_args
 
@@ -774,44 +773,6 @@ def _call_agent_impl(
     raise RuntimeError("LLM 调用失败：超过最大重试次数")
 
 
-def agent_node(state: MultiAgentState) -> dict:
-    """Agent 思考节点。调用 LLM，返回 AIMessage（可能包含 tool_calls）。"""
-    openai_msgs = _langchain_to_openai(state["messages"])
-    use_text = state.get("use_text_mode", False)
-    resp, use_text = _call_agent_impl(openai_msgs, use_text, ALL_TOOLS_OAI)
-    msg = resp.choices[0].message
-
-    if use_text:
-        # 文本模式：尝试从文本中解析工具调用
-        content = msg.content or ""
-        text_calls = parse_text_tool_calls(content)
-        if text_calls:
-            lc_tool_calls = []
-            for i, (name, args) in enumerate(text_calls):
-                lc_tool_calls.append(
-                    {
-                        "name": name,
-                        "args": args,
-                        "id": f"text_{i}",
-                    }
-                )
-            ai_msg = AIMessage(content=content, tool_calls=lc_tool_calls)
-        else:
-            ai_msg = AIMessage(content=content)
-    else:
-        ai_msg = _openai_to_ai_message(msg)
-
-    result = {"messages": [ai_msg]}
-    if use_text and not state.get("text_mode_triggered"):
-        result["use_text_mode"] = True
-        result["text_mode_triggered"] = True
-    return result
-
-
-# ═══════════════════════════════════════════════════════════
-# 后处理
-# ═══════════════════════════════════════════════════════════
-
 # ═══════════════════════════════════════════════════════════
 # 搭建图
 # ═══════════════════════════════════════════════════════════
@@ -867,7 +828,7 @@ def _get_graph():
 
 
 def review_contract_langgraph(contract_text: str, contract_type: str) -> str:
-    """执行完整的合同审查（LangGraph 版）。
+    """执行完整的合同审查（LangGraph 多Agent版）。
 
     Args:
         contract_text: 合同全文
@@ -879,42 +840,43 @@ def review_contract_langgraph(contract_text: str, contract_type: str) -> str:
     global _risk_findings
     _risk_findings = []
 
-    system_prompt = str(AGENT_SYSTEM_PROMPT)
-    user_prompt = AGENT_USER_PROMPT.format(
-        contract_type=contract_type,
-        contract_text=contract_text,
-    )
-
     initial_state: MultiAgentState = {
-        "messages": [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_prompt),
-        ],
+        "messages": [],
+        "contract_type": contract_type,
+        "contract_text": contract_text,
+        "clauses_json": "",
+        "regulation_context": "",
+        "risk_findings": [],
+        "completeness_result": "",
+        "reflection_result": {},
+        "reflection_round": 0,
+        "final_report": "",
+        "current_phase": "extraction",
         "use_text_mode": False,
         "text_mode_triggered": False,
     }
 
     graph = _get_graph()
-    result = graph.invoke(initial_state, {"recursion_limit": 60})
+    result = graph.invoke(initial_state, {"recursion_limit": 120})
 
-    # 提取最终报告：优先取 generate_final_report 工具的输出（完整报告本体）
-    # 因为工具返回后 Agent 可能只输出一句"报告已生成"的总结语，那不是正式报告
-    final_report = ""
-    for msg in reversed(result["messages"]):
-        if isinstance(msg, ToolMessage) and msg.name == "generate_final_report":
-            final_report = msg.content or ""
-            break
+    final_report = result.get("final_report", "")
 
-    # 回退：取最后一条有实质内容的 AI 消息
+    # 回退：从 messages 中提取
     if not final_report:
-        for msg in reversed(result["messages"]):
+        for msg in reversed(result.get("messages", [])):
+            if isinstance(msg, ToolMessage) and msg.name == "generate_final_report":
+                final_report = msg.content or ""
+                break
+
+    if not final_report:
+        for msg in reversed(result.get("messages", [])):
             content = getattr(msg, "content", None)
             tc = getattr(msg, "tool_calls", None)
             if content and not tc and isinstance(content, str) and len(content) > 100:
                 final_report = content
                 break
 
-    if not final_report and result["messages"]:
+    if not final_report and result.get("messages"):
         last = result["messages"][-1]
         final_report = getattr(last, "content", "") or ""
 
