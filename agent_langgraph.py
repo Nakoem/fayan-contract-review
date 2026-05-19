@@ -546,6 +546,61 @@ def _regulation_agent(state: MultiAgentState) -> dict:
     }
 
 
+# ═══════════════════════════════════════════════════════════
+# Agent 节点 3：风险评估
+# ═══════════════════════════════════════════════════════════
+
+_ASSESSMENT_SYSTEM = """你是合同风险分析师。请逐条调用 analyze_single_clause 工具分析合同条款。
+
+对每条条款调用一次 analyze_single_clause，参数：
+- clause_text: 条款原文
+- category: 条款类别
+- contract_type: 合同类型
+- clause_position: 条款位置（如有）
+- regulation_context: 已查到的法规上下文（可从系统消息中获取）
+
+所有条款分析完毕后，用中文输出"风险评估完成"，列出分析了多少条条款。"""
+
+
+def _assessment_agent(state: MultiAgentState) -> dict:
+    """逐条分析条款风险 → 产出 risk_findings。"""
+    user_msg = (
+        f"合同类型：{state['contract_type']}\n\n"
+        f"已提取的条款：\n{state['clauses_json']}\n\n"
+        f"法规检索结果：\n{state.get('regulation_context', '无')[:4000]}"
+    )
+    messages: list[BaseMessage] = [
+        SystemMessage(content=_ASSESSMENT_SYSTEM),
+        HumanMessage(content=user_msg),
+    ]
+
+    messages = _run_agent_loop(
+        messages,
+        tool_names={"analyze_single_clause"},
+        oai_tools=_ASSESSMENT_OAI_TOOLS,
+    )
+
+    # 收集所有 analyze_single_clause 返回的风险发现
+    risk_findings: list[dict] = []
+    for msg in messages:
+        if isinstance(msg, ToolMessage) and msg.name == "analyze_single_clause":
+            try:
+                content = (msg.content or "").strip()
+                content = (
+                    content.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                )
+                parsed = json.loads(content)
+                risk_findings.append(parsed)
+            except (json.JSONDecodeError, AttributeError):
+                pass
+
+    return {
+        "messages": messages,
+        "risk_findings": risk_findings,
+        "current_phase": "assessment",
+    }
+
+
 def _call_agent_impl(
     openai_msgs: list[dict], use_text: bool, oai_tools: list[dict] | None = None
 ) -> tuple:
