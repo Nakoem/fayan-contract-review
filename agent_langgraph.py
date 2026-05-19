@@ -364,11 +364,6 @@ def _run_agent_loop(
 
 
 # ═══════════════════════════════════════════════════════════
-# Agent 节点：LLMClient 驱动的思考节点（带 qwen 修复）
-# ═══════════════════════════════════════════════════════════
-
-
-# ═══════════════════════════════════════════════════════════
 # 全局状态
 # ═══════════════════════════════════════════════════════════
 
@@ -395,6 +390,47 @@ class MultiAgentState(TypedDict):
     current_phase: str
     use_text_mode: bool
     text_mode_triggered: bool
+
+
+# ═══════════════════════════════════════════════════════════
+# Agent 节点 1：条款提取
+# ═══════════════════════════════════════════════════════════
+
+_EXTRACTION_SYSTEM = """你是资深法务合同审查师。请调用 extract_clauses 工具从合同中提取所有关键条款。
+
+调用参数：
+- contract_type: 合同类型
+- contract_text: 传空字符串""即可（合同已在上下文中）
+
+提取完条款后，用中文简要说明提取了哪些类别的条款。不要继续调用其他工具。"""
+
+
+def _extraction_agent(state: MultiAgentState) -> dict:
+    """提取合同条款 → 产出 clauses_json。"""
+    user_msg = f"合同类型：{state['contract_type']}\n\n合同全文：\n{state['contract_text']}"
+    messages: list[BaseMessage] = [
+        SystemMessage(content=_EXTRACTION_SYSTEM),
+        HumanMessage(content=user_msg),
+    ]
+
+    messages = _run_agent_loop(
+        messages,
+        tool_names={"extract_clauses"},
+        oai_tools=_EXTRACTION_OAI_TOOLS,
+    )
+
+    # 提取 clauses_json：取最后一个 ToolMessage（extract_clauses 的返回）
+    clauses_json = ""
+    for msg in reversed(messages):
+        if isinstance(msg, ToolMessage) and msg.name == "extract_clauses":
+            clauses_json = msg.content or ""
+            break
+
+    return {
+        "messages": messages,
+        "clauses_json": clauses_json,
+        "current_phase": "extraction",
+    }
 
 
 def _call_agent_impl(
