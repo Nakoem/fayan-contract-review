@@ -1,0 +1,871 @@
+# 多Agent协作改造 · 实现计划
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** 将 agent_langgraph.py 的单Agent ReAct循环拆分为5个专职Agent + 1个规则Supervisor
+
+**Architecture:** 每个Agent节点内部自循环（LLM ↔ 工具），节点间由Supervisor纯规则函数路由。State在节点间传递中间产出。对外接口 `review_contract_langgraph()` 签名不变。
+
+**Tech Stack:** LangGraph StateGraph, LangChain tools, OpenAI-compatible API (qwen-plus)
+
+---
+
+## 前置：代码改动总览
+
+只改 `agent_langgraph.py`。改动范围：
+- 第38-40行：删除 `_risk_findings` 全局变量
+- 第49-188行：保留所有 `@tool` 定义不变
+- 第190-248行：保留消息格式转换函数不变
+- 第256-317行：`AgentState` + `agent_node` → 替换为 `MultiAgentState` + 5个Agent节点 + Supervisor
+- 第329-352行：`_build_graph()` 重写
+- 第360-413行：`review_contract_langgraph()` 适配新 State
+
+---
+
+### Task 1: 定义 MultiAgentState 和工具映射
+
+**Files:**
+- Modify: `agent_langgraph.py:38-58`（替换 AgentState）
+- Modify: `agent_langgraph.py:189-248`（保留消息转换，在其后新增工具分组）
+
+- [ ] **Step 1: 替换 AgentState 为 MultiAgentState**
+
+定位到文件第38行，将 `_risk_findings` 全局变量和 `AgentState` 替换为：
+
+```python
+# ═══════════════════════════════════════════════════════════
+# 全局状态
+# ═══════════════════════════════════════════════════════════
+
+class MultiAgentState(TypedDict):
+    """多Agent协作的全局状态。"""
+    messages: Annotated[list[BaseMessage], add_messages]
+    contract_type: str
+    contract_text: str
+
+    # Agent间传递的中间产出
+    clauses_json: str
+    regulation_context: str
+    risk_findings: list[dict]
+    completeness_result: str
+    reflection_result: dict
+    reflection_round: int
+
+    # 最终产出
+    final_report: str
+
+    # 路由 + 容错
+    current_phase: str
+    use_text_mode: bool
+    text_mode_triggered: bool
+```
+
+- [ ] **Step 2: 在消息转换函数之后新增工具分组映射**
+
+在 `_openai_to_ai_message` 函数（约第248行）之后，插入工具分组代码：
+
+```python
+# ═══════════════════════════════════════════════════════════
+# 工具分组：每个Agent只能看到自己的工具子集
+# ═══════════════════════════════════════════════════════════
+
+# 可调用工具映射（名字 → @tool函数，供内部ReAct循环执行）
+_AGENT_TOOL_FNS: dict[str, callable] = {
+    "extract_clauses": extract_clauses,
+    "search_regulation": search_regulation,
+    "search_case_law": search_case_law,
+    "check_local_policy": check_local_policy,
+    "lookup_tax_rule": lookup_tax_rule,
+    "web_search": web_search,
+    "analyze_single_clause": analyze_single_clause,
+    "check_completeness": check_completeness,
+    "self_reflection": self_reflection,
+    "generate_final_report": generate_final_report,
+    "switch_perspective": switch_perspective,
+}
+
+# OpenAI格式工具描述（按Agent分组，供LLM Function Calling使用）
+_EXTRACTION_OAI_TOOLS = [
+    t for t in ALL_TOOLS_OAI  # 见下方——ALL_TOOLS_OAI从AGENT_TOOLS导入
+    if t["function"]["name"] == "extract_clauses"
+]
+_REGULATION_OAI_TOOLS = [
+    t for t in ALL_TOOLS_OAI
+    if t["function"]["name"] in {
+        "search_regulation", "search_case_law", "check_local_policy",
+        "lookup_tax_rule", "web_search",
+    }
+]
+_ASSESSMENT_OAI_TOOLS = [
+    t for t in ALL_TOOLS_OAI
+    if t["function"]["name"] == "analyze_single_clause"
+]
+_REFLECTION_OAI_TOOLS = [
+    t for t in ALL_TOOLS_OAI
+    if t["function"]["name"] in {"check_completeness", "self_reflection"}
+]
+_REPORT_OAI_TOOLS = [
+    t for t in ALL_TOOLS_OAI
+    if t["function"]["name"] == "generate_final_report"
+]
+```
+
+注意：需要在文件顶部从 `tools` 导入 `AGENT_TOOLS`（当前未导入），将其别名 `ALL_TOOLS_OAI`。
+
+- [ ] **Step 3: 新增 AGENT_TOOLS 导入**
+
+在文件顶部导入区（约第32行），添加：
+
+```python
+from tools import AGENT_TOOLS as ALL_TOOLS_OAI
+```
+
+当前第32行附近已有 `from tools import AGENT_TOOLS`（供 `AGENT_TOOLS` 目录使用），确认该行存在。若不存在则添加。
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add agent_langgraph.py
+git commit -m "refactor: 定义MultiAgentState + 工具分组映射"
+```
+
+---
+
+### Task 2: 实现内部ReAct循环辅助函数
+
+**Files:**
+- Modify: `agent_langgraph.py`（在工具分组后面新增）
+
+- [ ] **Step 1: 新增 `_run_agent_loop()` 函数**
+
+在工具分组代码之后（`_REPORT_OAI_TOOLS` 定义之后），新增：
+
+```python
+# ═══════════════════════════════════════════════════════════
+# 内部ReAct循环：Agent节点复用的 LLM ↔ 工具 执行器
+# ═══════════════════════════════════════════════════════════
+
+
+def _run_agent_loop(
+    messages: list[BaseMessage],
+    tool_names: set[str],
+    oai_tools: list[dict],
+    max_iterations: int = 30,
+) -> list[BaseMessage]:
+    """在给定的消息上下文中运行 ReAct 循环，直到LLM不再调用工具。
+
+    Args:
+        messages: 初始消息列表（含 SystemMessage + 上下文 HumanMessage）
+        tool_names: 本Agent允许调用的工具名集合
+        oai_tools: 对应的OpenAI格式工具定义列表
+        max_iterations: 最大循环次数，防止死循环
+
+    Returns:
+        追加了所有AI消息和ToolMessage的完整消息列表
+    """
+    use_text = False
+
+    for _ in range(max_iterations):
+        openai_msgs = _langchain_to_openai(messages)
+        resp, use_text = _call_agent_impl(openai_msgs, use_text)
+        msg = resp.choices[0].message
+
+        if use_text:
+            content = msg.content or ""
+            text_calls = parse_text_tool_calls(content)
+            if not text_calls:
+                messages.append(AIMessage(content=content))
+                break
+
+            messages.append(AIMessage(content=content))
+            for i, (name, args) in enumerate(text_calls):
+                fn = _AGENT_TOOL_FNS.get(name)
+                if fn and name in tool_names:
+                    try:
+                        result = fn.invoke(args)
+                    except Exception:
+                        result = f"工具执行失败: {name}"
+                    messages.append(ToolMessage(
+                        content=str(result),
+                        tool_call_id=f"text_{i}_{name}",
+                    ))
+        else:
+            ai_msg = _openai_to_ai_message(msg)
+            messages.append(ai_msg)
+
+            if not msg.tool_calls:
+                break
+
+            for tc in msg.tool_calls:
+                name = tc.function.name
+                fn = _AGENT_TOOL_FNS.get(name)
+                if fn and name in tool_names:
+                    try:
+                        args = parse_tool_args(tc.function.arguments)
+                        result = fn.invoke(args)
+                    except Exception:
+                        result = f"工具执行失败: {name}"
+                    messages.append(ToolMessage(
+                        content=str(result),
+                        tool_call_id=tc.id,
+                    ))
+
+    return messages
+```
+
+注意：`_call_agent_impl` 当前接收 `tools` 参数（OpenAI格式工具列表）。需要修改它使其在 `use_text=True` 时不传 tools。
+
+- [ ] **Step 2: 调整 `_call_agent_impl` 以适配新参数**
+
+定位到 `_call_agent_impl` 函数（约第262行），确认其签名和参数处理：
+
+当前代码（约第262-284行）：
+```python
+def _call_agent_impl(openai_msgs: list[dict], use_text: bool) -> tuple:
+    client = _get_client()
+    for attempt in range(4):
+        try:
+            if use_text:
+                resp = client.chat(openai_msgs, tools=None)
+            else:
+                resp = client.chat(openai_msgs, tools=AGENT_TOOLS)
+            return resp, use_text
+        ...
+```
+
+改为接收 `oai_tools` 参数：
+
+```python
+def _call_agent_impl(
+    openai_msgs: list[dict], use_text: bool, oai_tools: list[dict] | None = None
+) -> tuple:
+    """调用 LLMClient，返回 (response, used_text_mode)。带 JSON 修复 + 重试。"""
+    client = _get_client()
+
+    for attempt in range(4):
+        try:
+            if use_text:
+                resp = client.chat(openai_msgs, tools=None)
+            else:
+                resp = client.chat(openai_msgs, tools=oai_tools)
+            return resp, use_text
+        except Exception as e:
+            err = str(e)
+            if "function.arguments" in err and "JSON" in err:
+                use_text = True
+                continue
+            if attempt < 3:
+                continue
+            raise
+    raise RuntimeError("LLM 调用失败：超过最大重试次数")
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add agent_langgraph.py
+git commit -m "feat: 实现内部ReAct循环辅助函数 _run_agent_loop"
+```
+
+---
+
+### Task 3: 实现 extraction_agent 节点
+
+**Files:**
+- Modify: `agent_langgraph.py`（在 `_run_agent_loop` 之后新增）
+
+- [ ] **Step 1: 新增 `_extraction_agent` 函数**
+
+```python
+# ═══════════════════════════════════════════════════════════
+# Agent 节点 1：条款提取
+# ═══════════════════════════════════════════════════════════
+
+_EXTRACTION_SYSTEM = """你是资深法务合同审查师。请调用 extract_clauses 工具从合同中提取所有关键条款。
+
+调用参数：
+- contract_type: 合同类型
+- contract_text: 传空字符串""即可（合同已在上下文中）
+
+提取完条款后，用中文简要说明提取了哪些类别的条款。不要继续调用其他工具。"""
+
+
+def _extraction_agent(state: MultiAgentState) -> dict:
+    """提取合同条款 → 产出 clauses_json。"""
+    user_msg = (
+        f"合同类型：{state['contract_type']}\n\n"
+        f"合同全文：\n{state['contract_text']}"
+    )
+    messages: list[BaseMessage] = [
+        SystemMessage(content=_EXTRACTION_SYSTEM),
+        HumanMessage(content=user_msg),
+    ]
+
+    messages = _run_agent_loop(
+        messages,
+        tool_names={"extract_clauses"},
+        oai_tools=_EXTRACTION_OAI_TOOLS,
+    )
+
+    # 提取 clauses_json：取最后一个 ToolMessage（extract_clauses 的返回）
+    clauses_json = ""
+    for msg in reversed(messages):
+        if isinstance(msg, ToolMessage) and msg.name == "extract_clauses":
+            clauses_json = msg.content or ""
+            break
+
+    return {
+        "messages": messages,
+        "clauses_json": clauses_json,
+        "current_phase": "extraction",
+    }
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add agent_langgraph.py
+git commit -m "feat: 实现 extraction_agent 节点"
+```
+
+---
+
+### Task 4: 实现 regulation_agent 节点
+
+**Files:**
+- Modify: `agent_langgraph.py`（在 `_extraction_agent` 之后新增）
+
+- [ ] **Step 1: 新增 `_regulation_agent` 函数**
+
+```python
+# ═══════════════════════════════════════════════════════════
+# Agent 节点 2：法规检索
+# ═══════════════════════════════════════════════════════════
+
+# 按合同类型的法规检索清单
+_REGULATION_CHECKLIST: dict[str, list[str]] = {
+    "房屋租赁合同": [
+        "住房租赁条例", "租赁押金退还", "租赁违约金",
+        "租赁期限与维修义务", "转租与优先购买权优先承租权", "合同争议解决",
+    ],
+    "劳动合同": [
+        "劳动争议司法解释", "劳动合同试用期", "劳动报酬与加班费",
+        "社会保险社保与违约金", "劳动关系与竞业限制",
+        "劳动合同解除调岗与补偿", "合同争议解决",
+    ],
+    "买卖合同": [
+        "买卖合同", "格式条款", "不可抗力与情势变更",
+        "知识产权归属", "合同争议解决", "合同无效情形",
+    ],
+    "服务合同": [
+        "预付式消费", "服务合同", "格式条款",
+        "知识产权归属", "合同争议解决",
+    ],
+    "合作协议": [
+        "合作协议", "知识产权归属", "格式条款",
+        "合同争议解决", "不可抗力与情势变更",
+        "合同无效情形", "劳动关系与竞业限制",
+    ],
+    "借款合同": [
+        "民间借贷利率", "借款合同", "担保规则",
+        "合同争议解决", "合同无效情形",
+    ],
+}
+
+
+def _regulation_agent(state: MultiAgentState) -> dict:
+    """按合同类型逐项检索法规 → 产出 regulation_context。"""
+    ct = state["contract_type"]
+    checklist = _REGULATION_CHECKLIST.get(ct, ["合同争议解决", "格式条款"])
+    keywords = "、".join(checklist)
+
+    system = (
+        f"你是法规检索专家。当前合同类型为「{ct}」，你必须按以下清单逐条调用 "
+        f"search_regulation 工具，不可跳过任何一条：\n\n"
+        + "\n".join(f"  - search_regulation(\"{kw}\")" for kw in checklist)
+        + f"\n\n还可按需调用 search_case_law、check_local_policy、lookup_tax_rule、web_search。"
+        f"\n查完所有法规后，用中文输出「法规检索完成」，列出已查关键词。"
+    )
+    user_msg = (
+        f"合同类型：{ct}\n"
+        f"已提取的条款摘要：\n{state['clauses_json'][:3000]}\n\n"
+        f"请逐条检索以下关键词：{keywords}"
+    )
+    messages: list[BaseMessage] = [
+        SystemMessage(content=system),
+        HumanMessage(content=user_msg),
+    ]
+
+    messages = _run_agent_loop(
+        messages,
+        tool_names={
+            "search_regulation", "search_case_law", "check_local_policy",
+            "lookup_tax_rule", "web_search",
+        },
+        oai_tools=_REGULATION_OAI_TOOLS,
+    )
+
+    # 拼接所有检索结果
+    parts: list[str] = []
+    for msg in messages:
+        if isinstance(msg, ToolMessage) and msg.name in {
+            "search_regulation", "search_case_law", "check_local_policy",
+            "lookup_tax_rule", "web_search",
+        }:
+            name = msg.name or "unknown"
+            content = (msg.content or "")[:2000]
+            parts.append(f"【{name}】\n{content}")
+
+    return {
+        "messages": messages,
+        "regulation_context": "\n\n".join(parts),
+        "current_phase": "regulations",
+    }
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add agent_langgraph.py
+git commit -m "feat: 实现 regulation_agent 节点"
+```
+
+---
+
+### Task 5: 实现 assessment_agent 节点
+
+**Files:**
+- Modify: `agent_langgraph.py`（在 `_regulation_agent` 之后新增）
+
+- [ ] **Step 1: 新增 `_assessment_agent` 函数**
+
+```python
+# ═══════════════════════════════════════════════════════════
+# Agent 节点 3：风险评估
+# ═══════════════════════════════════════════════════════════
+
+_ASSESSMENT_SYSTEM = """你是合同风险分析师。请逐条调用 analyze_single_clause 工具分析合同条款。
+
+对每条条款调用一次 analyze_single_clause，参数：
+- clause_text: 条款原文
+- category: 条款类别
+- contract_type: 合同类型
+- clause_position: 条款位置（如有）
+- regulation_context: 已查到的法规上下文（可从系统消息中获取）
+
+所有条款分析完毕后，用中文输出"风险评估完成"，列出分析了多少条条款。"""
+
+
+def _assessment_agent(state: MultiAgentState) -> dict:
+    """逐条分析条款风险 → 产出 risk_findings。"""
+    user_msg = (
+        f"合同类型：{state['contract_type']}\n\n"
+        f"已提取的条款：\n{state['clauses_json']}\n\n"
+        f"法规检索结果：\n{state.get('regulation_context', '无')[:4000]}"
+    )
+    messages: list[BaseMessage] = [
+        SystemMessage(content=_ASSESSMENT_SYSTEM),
+        HumanMessage(content=user_msg),
+    ]
+
+    messages = _run_agent_loop(
+        messages,
+        tool_names={"analyze_single_clause"},
+        oai_tools=_ASSESSMENT_OAI_TOOLS,
+    )
+
+    # 收集所有 analyze_single_clause 返回的风险发现
+    risk_findings: list[dict] = []
+    for msg in messages:
+        if isinstance(msg, ToolMessage) and msg.name == "analyze_single_clause":
+            try:
+                content = (msg.content or "").strip()
+                content = content.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                parsed = json.loads(content)
+                risk_findings.append(parsed)
+            except (json.JSONDecodeError, AttributeError):
+                pass
+
+    return {
+        "messages": messages,
+        "risk_findings": risk_findings,
+        "current_phase": "assessment",
+    }
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add agent_langgraph.py
+git commit -m "feat: 实现 assessment_agent 节点"
+```
+
+---
+
+### Task 6: 实现 reflection_agent 节点
+
+**Files:**
+- Modify: `agent_langgraph.py`（在 `_assessment_agent` 之后新增）
+
+- [ ] **Step 1: 新增 `_reflection_agent` 函数**
+
+```python
+# ═══════════════════════════════════════════════════════════
+# Agent 节点 4：质量审核
+# ═══════════════════════════════════════════════════════════
+
+_REFLECTION_SYSTEM = """你是合同审查质量审核员。请依次调用以下两个工具：
+
+1. 先调用 check_completeness —— 检查已提取的条款是否有缺失
+2. 再调用 self_reflection —— 对分析结果做一致性、覆盖性、评分合规检查
+
+两个工具都调用完毕后，用中文输出审核结论。"""
+
+
+def _reflection_agent(state: MultiAgentState) -> dict:
+    """完整性检查 + 质量审核 → 产出 completeness_result + reflection_result。"""
+    findings_json = json.dumps(state.get("risk_findings", []), ensure_ascii=False)
+    user_msg = (
+        f"合同类型：{state['contract_type']}\n\n"
+        f"已提取的条款：\n{state['clauses_json'][:2000]}\n\n"
+        f"风险分析结果：\n{findings_json[:3000]}\n\n"
+        f"请先调用 check_completeness，再调用 self_reflection。"
+    )
+    messages: list[BaseMessage] = [
+        SystemMessage(content=_REFLECTION_SYSTEM),
+        HumanMessage(content=user_msg),
+    ]
+
+    messages = _run_agent_loop(
+        messages,
+        tool_names={"check_completeness", "self_reflection"},
+        oai_tools=_REFLECTION_OAI_TOOLS,
+    )
+
+    # 提取结果
+    completeness_result = ""
+    reflection_result: dict = {"passed": True, "score": 10, "issues": []}
+
+    for msg in messages:
+        if isinstance(msg, ToolMessage):
+            if msg.name == "check_completeness":
+                completeness_result = msg.content or ""
+            elif msg.name == "self_reflection":
+                try:
+                    content = (msg.content or "").strip()
+                    content = content.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                    reflection_result = json.loads(content)
+                except (json.JSONDecodeError, AttributeError):
+                    pass
+
+    current_round = state.get("reflection_round", 0) + 1
+
+    return {
+        "messages": messages,
+        "completeness_result": completeness_result,
+        "reflection_result": reflection_result,
+        "reflection_round": current_round,
+        "current_phase": "reflection",
+    }
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add agent_langgraph.py
+git commit -m "feat: 实现 reflection_agent 节点"
+```
+
+---
+
+### Task 7: 实现 report_agent 节点
+
+**Files:**
+- Modify: `agent_langgraph.py`（在 `_reflection_agent` 之后新增）
+
+- [ ] **Step 1: 新增 `_report_agent` 函数**
+
+```python
+# ═══════════════════════════════════════════════════════════
+# Agent 节点 5：报告生成
+# ═══════════════════════════════════════════════════════════
+
+_REPORT_SYSTEM = """你是法务报告编辑。请调用 generate_final_report 工具生成审查报告。
+
+参数：
+- contract_type: 合同类型
+- risk_findings_json: 传空字符串""即可（系统会自动使用累积的风险分析结果）
+
+调用完毕后，你的工作就完成了。"""
+
+
+def _report_agent(state: MultiAgentState) -> dict:
+    """汇总生成最终报告 → 产出 final_report。"""
+    findings_json = json.dumps(state.get("risk_findings", []), ensure_ascii=False)
+    user_msg = (
+        f"合同类型：{state['contract_type']}\n\n"
+        f"风险发现：\n{findings_json[:6000]}\n\n"
+        f"完整性检查结果：\n{state.get('completeness_result', '无')[:1000]}\n\n"
+        f"请调用 generate_final_report 生成最终报告。"
+    )
+    messages: list[BaseMessage] = [
+        SystemMessage(content=_REPORT_SYSTEM),
+        HumanMessage(content=user_msg),
+    ]
+
+    messages = _run_agent_loop(
+        messages,
+        tool_names={"generate_final_report"},
+        oai_tools=_REPORT_OAI_TOOLS,
+    )
+
+    # 提取报告
+    final_report = ""
+    for msg in reversed(messages):
+        if isinstance(msg, ToolMessage) and msg.name == "generate_final_report":
+            final_report = msg.content or ""
+            break
+
+    # 回退：取最后一条有实质内容的 AI 消息
+    if not final_report:
+        for msg in reversed(messages):
+            content = getattr(msg, "content", None)
+            tc = getattr(msg, "tool_calls", None)
+            if content and not tc and isinstance(content, str) and len(content) > 100:
+                final_report = content
+                break
+
+    return {
+        "messages": messages,
+        "final_report": final_report,
+        "current_phase": "report",
+    }
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add agent_langgraph.py
+git commit -m "feat: 实现 report_agent 节点"
+```
+
+---
+
+### Task 8: 实现 Supervisor 路由 + 构建新图
+
+**Files:**
+- Modify: `agent_langgraph.py`（替换 `_build_graph` 函数，约第329-352行）
+
+- [ ] **Step 1: 新增 Supervisor 路由函数**
+
+在 `_report_agent` 之后新增：
+
+```python
+# ═══════════════════════════════════════════════════════════
+# Supervisor 路由（纯规则，不调LLM）
+# ═══════════════════════════════════════════════════════════
+
+def _supervisor(state: MultiAgentState) -> str:
+    """纯规则路由：根据 current_phase 决定下一个节点。"""
+    phase = state.get("current_phase", "extraction")
+
+    if phase == "extraction":
+        return "regulation_agent"
+    elif phase == "regulations":
+        return "assessment_agent"
+    elif phase == "assessment":
+        return "reflection_agent"
+    elif phase == "reflection":
+        r = state.get("reflection_result", {})
+        if not r.get("passed") and state.get("reflection_round", 0) < 3:
+            return "assessment_agent"
+        return "report_agent"
+    elif phase == "report":
+        return END
+
+    return END
+```
+
+- [ ] **Step 2: 替换 `_build_graph` 函数**
+
+```python
+def _build_graph():
+    """构建多Agent图：5个Agent节点 + Supervisor路由。
+
+    START → extraction → regulation → assessment ↔ reflection → report → END
+                                  ↑__________________________| (passed=false & round<3)
+    """
+    graph = StateGraph(MultiAgentState)
+
+    graph.add_node("extraction_agent", _extraction_agent)
+    graph.add_node("regulation_agent", _regulation_agent)
+    graph.add_node("assessment_agent", _assessment_agent)
+    graph.add_node("reflection_agent", _reflection_agent)
+    graph.add_node("report_agent", _report_agent)
+
+    graph.add_edge(START, "extraction_agent")
+    graph.add_edge("extraction_agent", "regulation_agent")
+    graph.add_edge("regulation_agent", "assessment_agent")
+    graph.add_edge("assessment_agent", "reflection_agent")
+
+    # reflection → assessment（回退）or report → END
+    graph.add_conditional_edges(
+        "reflection_agent",
+        _supervisor,
+        {
+            "assessment_agent": "assessment_agent",
+            "report_agent": "report_agent",
+            END: END,
+        },
+    )
+    graph.add_edge("report_agent", END)
+
+    return graph.compile()
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add agent_langgraph.py
+git commit -m "feat: 实现Supervisor路由 + 新图结构"
+```
+
+---
+
+### Task 9: 更新 `review_contract_langgraph()` 对外接口
+
+**Files:**
+- Modify: `agent_langgraph.py:360-413`
+
+- [ ] **Step 1: 替换 `review_contract_langgraph` 函数**
+
+```python
+def review_contract_langgraph(contract_text: str, contract_type: str) -> str:
+    """执行完整的合同审查（LangGraph 多Agent版）。
+
+    Args:
+        contract_text: 合同全文
+        contract_type: 合同类型（如"房屋租赁合同"）
+
+    Returns:
+        最终审查报告文本
+    """
+    initial_state: MultiAgentState = {
+        "messages": [],
+        "contract_type": contract_type,
+        "contract_text": contract_text,
+        "clauses_json": "",
+        "regulation_context": "",
+        "risk_findings": [],
+        "completeness_result": "",
+        "reflection_result": {},
+        "reflection_round": 0,
+        "final_report": "",
+        "current_phase": "extraction",
+        "use_text_mode": False,
+        "text_mode_triggered": False,
+    }
+
+    graph = _get_graph()
+    result = graph.invoke(initial_state, {"recursion_limit": 120})
+
+    final_report = result.get("final_report", "")
+
+    # 回退：从 messages 中提取
+    if not final_report:
+        for msg in reversed(result.get("messages", [])):
+            if isinstance(msg, ToolMessage) and msg.name == "generate_final_report":
+                final_report = msg.content or ""
+                break
+
+    if not final_report:
+        for msg in reversed(result.get("messages", [])):
+            content = getattr(msg, "content", None)
+            tc = getattr(msg, "tool_calls", None)
+            if content and not tc and isinstance(content, str) and len(content) > 100:
+                final_report = content
+                break
+
+    if not final_report and result.get("messages"):
+        last = result["messages"][-1]
+        final_report = getattr(last, "content", "") or ""
+
+    return clean_report(final_report, contract_text, contract_type)
+```
+
+- [ ] **Step 2: 删除旧的 `agent_node` 函数**
+
+删除旧的 `agent_node` 函数（约第286-317行），它已被5个Agent节点替代。
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add agent_langgraph.py
+git commit -m "feat: 更新对外接口 review_contract_langgraph() 适配多Agent"
+```
+
+---
+
+### Task 10: 运行冒烟测试
+
+**Files:**
+- 无新建
+
+- [ ] **Step 1: 运行单元测试**
+
+```bash
+pytest tests/test_smoke.py -k "not Integration" -v
+```
+
+预期：22个单元测试全部通过。如果失败，根据错误信息修复 agent_langgraph.py。
+
+- [ ] **Step 2: 运行集成测试（可选，需API Key）**
+
+```bash
+pytest tests/test_smoke.py -k "Integration" -v
+```
+
+预期：3个集成测试通过（约4-5分钟，调用真实LLM）。
+
+- [ ] **Step 3: 终端验证**
+
+```bash
+python agent_langgraph.py sample_lease.txt "房屋租赁合同"
+```
+
+预期：正常输出审查报告，无报错。
+
+- [ ] **Step 4: 处理测试失败（如有）后 Commit**
+
+```bash
+git add agent_langgraph.py
+git commit -m "fix: 冒烟测试修复"
+```
+
+---
+
+### Task 11: 清理 + 最终验证
+
+**Files:**
+- Modify: `agent_langgraph.py`（移除未使用的旧代码）
+
+- [ ] **Step 1: 清理未使用的导入和函数**
+
+检查并删除：
+- 旧 `AgentState`（如未在 Task 1 删除）
+- 旧 `agent_node` 函数（如未在 Task 9 删除）
+- `ToolNode`、`tools_condition` 导入（如不再使用）
+- 全局变量 `_risk_findings`（如未删除）
+
+- [ ] **Step 2: 最终全量测试**
+
+```bash
+pytest tests/test_smoke.py -v
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add agent_langgraph.py
+git commit -m "chore: 清理多Agent改版后的遗留代码"
+```
