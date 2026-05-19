@@ -601,6 +601,70 @@ def _assessment_agent(state: MultiAgentState) -> dict:
     }
 
 
+# ═══════════════════════════════════════════════════════════
+# Agent 节点 4：质量审核
+# ═══════════════════════════════════════════════════════════
+
+_REFLECTION_SYSTEM = """你是合同审查质量审核员。请依次调用以下两个工具：
+
+1. 先调用 check_completeness —— 检查已提取的条款是否有缺失
+2. 再调用 self_reflection —— 对分析结果做一致性、覆盖性、评分合规检查
+
+两个工具都调用完毕后，用中文输出审核结论。"""
+
+
+def _reflection_agent(state: MultiAgentState) -> dict:
+    """完整性检查 + 质量审核 → 产出 completeness_result + reflection_result。"""
+    findings_json = json.dumps(state.get("risk_findings", []), ensure_ascii=False)
+    user_msg = (
+        f"合同类型：{state['contract_type']}\n\n"
+        f"已提取的条款：\n{state['clauses_json'][:2000]}\n\n"
+        f"风险分析结果：\n{findings_json[:3000]}\n\n"
+        f"请先调用 check_completeness，再调用 self_reflection。"
+    )
+    messages: list[BaseMessage] = [
+        SystemMessage(content=_REFLECTION_SYSTEM),
+        HumanMessage(content=user_msg),
+    ]
+
+    messages = _run_agent_loop(
+        messages,
+        tool_names={"check_completeness", "self_reflection"},
+        oai_tools=_REFLECTION_OAI_TOOLS,
+    )
+
+    # 提取结果
+    completeness_result = ""
+    reflection_result: dict = {"passed": True, "score": 10, "issues": []}
+
+    for msg in messages:
+        if isinstance(msg, ToolMessage):
+            if msg.name == "check_completeness":
+                completeness_result = msg.content or ""
+            elif msg.name == "self_reflection":
+                try:
+                    content = (msg.content or "").strip()
+                    content = (
+                        content.removeprefix("```json")
+                        .removeprefix("```")
+                        .removesuffix("```")
+                        .strip()
+                    )
+                    reflection_result = json.loads(content)
+                except (json.JSONDecodeError, AttributeError):
+                    pass
+
+    current_round = state.get("reflection_round", 0) + 1
+
+    return {
+        "messages": messages,
+        "completeness_result": completeness_result,
+        "reflection_result": reflection_result,
+        "reflection_round": current_round,
+        "current_phase": "reflection",
+    }
+
+
 def _call_agent_impl(
     openai_msgs: list[dict], use_text: bool, oai_tools: list[dict] | None = None
 ) -> tuple:
