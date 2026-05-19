@@ -38,7 +38,7 @@ def _get_client() -> LLMClient:
 
 
 # ═══════════════════════════════════════════════════════════
-# 工具定义（@tool 装饰器，供 ToolNode 使用）
+# 工具定义（@tool 装饰器，供 Agent 节点内部 ReAct 循环使用）
 # ═══════════════════════════════════════════════════════════
 
 
@@ -164,19 +164,9 @@ def self_reflection(
     )
 
 
-ALL_TOOLS = [
-    extract_clauses,
-    search_regulation,
-    analyze_single_clause,
-    generate_final_report,
-    search_case_law,
-    check_local_policy,
-    lookup_tax_rule,
-    check_completeness,
-    self_reflection,
-    switch_perspective,
-    web_search,
-]
+# 旧代码兼容：_risk_findings 供 @tool 包装器内部使用，新流程通过 State 传递
+_risk_findings: list[dict] = []
+
 
 # ═══════════════════════════════════════════════════════════
 # 消息格式转换
@@ -837,8 +827,7 @@ def review_contract_langgraph(contract_text: str, contract_type: str) -> str:
     Returns:
         最终审查报告文本
     """
-    global _risk_findings
-    _risk_findings = []
+    _risk_findings.clear()
 
     initial_state: MultiAgentState = {
         "messages": [],

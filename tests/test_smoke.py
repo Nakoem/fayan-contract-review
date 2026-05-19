@@ -198,9 +198,9 @@ class TestImports:
         assert callable(review_contract)
 
     def test_langgraph_agent(self):
-        from agent_langgraph import ALL_TOOLS, review_contract_langgraph
+        from agent_langgraph import _AGENT_TOOL_FNS, review_contract_langgraph
 
-        assert len(ALL_TOOLS) >= 11
+        assert len(_AGENT_TOOL_FNS) >= 11
         assert callable(review_contract_langgraph)
 
     def test_utils(self):
