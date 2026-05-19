@@ -284,6 +284,82 @@ _REPORT_OAI_TOOLS = [t for t in ALL_TOOLS_OAI if t["function"]["name"] == "gener
 
 
 # ═══════════════════════════════════════════════════════════
+# 内部ReAct循环：Agent节点复用的 LLM ↔ 工具 执行器
+# ═══════════════════════════════════════════════════════════
+
+
+def _run_agent_loop(
+    messages: list[BaseMessage],
+    tool_names: set[str],
+    oai_tools: list[dict],
+    max_iterations: int = 30,
+) -> list[BaseMessage]:
+    """在给定的消息上下文中运行 ReAct 循环，直到LLM不再调用工具。
+
+    Args:
+        messages: 初始消息列表（含 SystemMessage + 上下文 HumanMessage）
+        tool_names: 本Agent允许调用的工具名集合
+        oai_tools: 对应的OpenAI格式工具定义列表
+        max_iterations: 最大循环次数，防止死循环
+
+    Returns:
+        追加了所有AI消息和ToolMessage的完整消息列表
+    """
+    use_text = False
+
+    for _ in range(max_iterations):
+        openai_msgs = _langchain_to_openai(messages)
+        resp, use_text = _call_agent_impl(openai_msgs, use_text, oai_tools)
+        msg = resp.choices[0].message
+
+        if use_text:
+            content = msg.content or ""
+            text_calls = parse_text_tool_calls(content)
+            if not text_calls:
+                messages.append(AIMessage(content=content))
+                break
+
+            messages.append(AIMessage(content=content))
+            for i, (name, args) in enumerate(text_calls):
+                fn = _AGENT_TOOL_FNS.get(name)
+                if fn and name in tool_names:
+                    try:
+                        result = fn.invoke(args)
+                    except Exception:
+                        result = f"工具执行失败: {name}"
+                    messages.append(
+                        ToolMessage(
+                            content=str(result),
+                            tool_call_id=f"text_{i}_{name}",
+                        )
+                    )
+        else:
+            ai_msg = _openai_to_ai_message(msg)
+            messages.append(ai_msg)
+
+            if not msg.tool_calls:
+                break
+
+            for tc in msg.tool_calls:
+                name = tc.function.name
+                fn = _AGENT_TOOL_FNS.get(name)
+                if fn and name in tool_names:
+                    try:
+                        args = parse_tool_args(tc.function.arguments)
+                        result = fn.invoke(args)
+                    except Exception:
+                        result = f"工具执行失败: {name}"
+                    messages.append(
+                        ToolMessage(
+                            content=str(result),
+                            tool_call_id=tc.id,
+                        )
+                    )
+
+    return messages
+
+
+# ═══════════════════════════════════════════════════════════
 # Agent 节点：LLMClient 驱动的思考节点（带 qwen 修复）
 # ═══════════════════════════════════════════════════════════
 
@@ -317,7 +393,9 @@ class MultiAgentState(TypedDict):
     text_mode_triggered: bool
 
 
-def _call_agent_impl(openai_msgs: list[dict], use_text: bool) -> tuple:
+def _call_agent_impl(
+    openai_msgs: list[dict], use_text: bool, oai_tools: list[dict] | None = None
+) -> tuple:
     """调用 LLMClient，返回 (response, used_text_mode)。带 JSON 修复 + 重试。"""
     client = _get_client()
 
@@ -326,7 +404,7 @@ def _call_agent_impl(openai_msgs: list[dict], use_text: bool) -> tuple:
             if use_text:
                 resp = client.chat(openai_msgs, tools=None)
             else:
-                resp = client.chat(openai_msgs, tools=ALL_TOOLS_OAI)
+                resp = client.chat(openai_msgs, tools=oai_tools)
             return resp, use_text
         except Exception as e:
             err = str(e)
@@ -345,7 +423,7 @@ def agent_node(state: MultiAgentState) -> dict:
     """Agent 思考节点。调用 LLM，返回 AIMessage（可能包含 tool_calls）。"""
     openai_msgs = _langchain_to_openai(state["messages"])
     use_text = state.get("use_text_mode", False)
-    resp, use_text = _call_agent_impl(openai_msgs, use_text)
+    resp, use_text = _call_agent_impl(openai_msgs, use_text, ALL_TOOLS_OAI)
     msg = resp.choices[0].message
 
     if use_text:
