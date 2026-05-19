@@ -327,12 +327,14 @@ def _run_agent_loop(
                         result = fn.invoke(args)
                     except Exception:
                         result = f"工具执行失败: {name}"
-                    messages.append(
-                        ToolMessage(
-                            content=str(result),
-                            tool_call_id=f"text_{i}_{name}",
-                        )
+                else:
+                    result = f"工具 {name} 不可用或未授权"
+                messages.append(
+                    ToolMessage(
+                        content=str(result),
+                        tool_call_id=f"text_{i}_{name}",
                     )
+                )
         else:
             ai_msg = _openai_to_ai_message(msg)
             messages.append(ai_msg)
@@ -349,12 +351,14 @@ def _run_agent_loop(
                         result = fn.invoke(args)
                     except Exception:
                         result = f"工具执行失败: {name}"
-                    messages.append(
-                        ToolMessage(
-                            content=str(result),
-                            tool_call_id=tc.id,
-                        )
+                else:
+                    result = f"工具 {name} 不可用或未授权"
+                messages.append(
+                    ToolMessage(
+                        content=str(result),
+                        tool_call_id=tc.id,
                     )
+                )
 
     return messages
 
@@ -397,6 +401,8 @@ def _call_agent_impl(
     openai_msgs: list[dict], use_text: bool, oai_tools: list[dict] | None = None
 ) -> tuple:
     """调用 LLMClient，返回 (response, used_text_mode)。带 JSON 修复 + 重试。"""
+    if oai_tools is None:
+        oai_tools = ALL_TOOLS_OAI
     client = _get_client()
 
     for attempt in range(4):
