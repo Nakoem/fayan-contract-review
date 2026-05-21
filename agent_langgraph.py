@@ -6,12 +6,14 @@
 
 用法：
     from agent_langgraph import review_contract_langgraph
-    report = review_contract_langgraph(contract_text, "房屋租赁合同")
+    report, thread_id = review_contract_langgraph(contract_text, "房屋租赁合同")
 """
 
 import json
 import os
+import sqlite3
 import sys
+import uuid
 from typing import Annotated, TypedDict
 
 from dotenv import load_dotenv
@@ -22,7 +24,9 @@ from langchain_core.messages import (
     SystemMessage,
     ToolMessage,
 )
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 
@@ -767,13 +771,20 @@ def _call_agent_impl(
 # 搭建图
 # ═══════════════════════════════════════════════════════════
 
+# SQLite 连接 + Checkpointer（模块级，保持连接存活）
+_checkpoint_conn: sqlite3.Connection | None = None
+
 
 def _build_graph():
-    """构建多Agent图：5个Agent节点 + Supervisor路由。
+    """构建多Agent图：5个Agent节点 + Supervisor路由 + SqliteSaver断点。
 
     START → extraction → regulation → assessment ↔ reflection → report → END
                                   ↑__________________________| (passed=false & round<3)
+
+    每个节点执行完毕后自动 checkpoint → checkpoints.db。
     """
+    global _checkpoint_conn
+
     graph = StateGraph(MultiAgentState)
 
     graph.add_node("extraction_agent", _extraction_agent)
@@ -799,7 +810,10 @@ def _build_graph():
     )
     graph.add_edge("report_agent", END)
 
-    return graph.compile()
+    # 注入 SqliteSaver checkpointer
+    _checkpoint_conn = sqlite3.connect("checkpoints.db", check_same_thread=False)
+    checkpointer = SqliteSaver(_checkpoint_conn)
+    return graph.compile(checkpointer=checkpointer)
 
 
 _compiled_graph = None
@@ -817,17 +831,27 @@ def _get_graph():
 # ═══════════════════════════════════════════════════════════
 
 
-def review_contract_langgraph(contract_text: str, contract_type: str) -> str:
-    """执行完整的合同审查（LangGraph 多Agent版）。
+def review_contract_langgraph(
+    contract_text: str,
+    contract_type: str,
+    thread_id: str | None = None,
+) -> tuple[str, str]:
+    """执行完整的合同审查（LangGraph 多Agent版 + Checkpoint 断点恢复）。
 
     Args:
         contract_text: 合同全文
         contract_type: 合同类型（如"房屋租赁合同"）
+        thread_id: 会话线程ID。相同 thread_id 可从中断的 checkpoint 恢复。
+                   为 None 时自动生成新 ID。
 
     Returns:
-        最终审查报告文本
+        (最终审查报告文本, thread_id)
+        — thread_id 可用于后续 resume_review() 恢复
     """
     _risk_findings.clear()
+
+    if thread_id is None:
+        thread_id = str(uuid.uuid4())
 
     initial_state: MultiAgentState = {
         "messages": [],
@@ -845,8 +869,9 @@ def review_contract_langgraph(contract_text: str, contract_type: str) -> str:
         "text_mode_triggered": False,
     }
 
+    config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 120}
     graph = _get_graph()
-    result = graph.invoke(initial_state, {"recursion_limit": 120})
+    result = graph.invoke(initial_state, config)
 
     final_report = result.get("final_report", "")
 
@@ -869,7 +894,49 @@ def review_contract_langgraph(contract_text: str, contract_type: str) -> str:
         last = result["messages"][-1]
         final_report = getattr(last, "content", "") or ""
 
-    return clean_report(final_report, contract_text, contract_type)
+    return clean_report(final_report, contract_text, contract_type), thread_id
+
+
+def resume_review(thread_id: str) -> str:
+    """从指定 thread_id 的最近 checkpoint 恢复审查。
+
+    中间某 Agent 调接口失败后，用相同 thread_id 调用此函数，
+    LangGraph 自动从最近一次成功的 checkpoint 恢复 State，跳过已完成节点。
+
+    Args:
+        thread_id: 之前中断的会话 ID
+
+    Returns:
+        最终审查报告文本
+
+    Raises:
+        ValueError: thread_id 对应的 checkpoint 不存在
+    """
+    config: RunnableConfig = {"configurable": {"thread_id": thread_id}, "recursion_limit": 120}
+    graph = _get_graph()
+
+    state = graph.get_state(config)
+    if state is None or not state.values:
+        raise ValueError(f"未找到 thread_id='{thread_id}' 的 checkpoint，请先发起一次审查")
+
+    result = graph.invoke(None, config)
+    final_report = result.get("final_report", "")
+
+    if not final_report:
+        for msg in reversed(result.get("messages", [])):
+            if isinstance(msg, ToolMessage) and msg.name == "generate_final_report":
+                final_report = msg.content or ""
+                break
+
+    if not final_report and result.get("messages"):
+        for msg in reversed(result.get("messages", [])):
+            content = getattr(msg, "content", None)
+            tc = getattr(msg, "tool_calls", None)
+            if content and not tc and isinstance(content, str) and len(content) > 100:
+                final_report = content
+                break
+
+    return clean_report(final_report, "", "")
 
 
 # ── 命令行入口 ──
@@ -912,12 +979,15 @@ if __name__ == "__main__":
     logger.info("合同来源: {}", filepath)
     logger.info("=" * 60)
 
-    report = review_contract_langgraph(contract_text, ct)
+    report, thread_id = review_contract_langgraph(contract_text, ct)
 
     if output_path:
         Path(output_path).write_text(report, encoding="utf-8")
         logger.info("")
         logger.info("报告已保存至: {}", output_path)
+        logger.info("thread_id: {}（可用于 resume_review 断点恢复）", thread_id)
     else:
         logger.info("=" * 60)
         logger.info("{}", report)
+        logger.info("")
+        logger.info("thread_id: {}（可用于 resume_review 断点恢复）", thread_id)

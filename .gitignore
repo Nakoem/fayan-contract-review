@@ -31,6 +31,9 @@ Thumbs.db
 # Streamlit
 .streamlit/secrets.toml
 
+# LangGraph checkpoint（断点恢复SQLite文件）
+checkpoints.db
+
 # pre-commit
 .pre-commit-cache/
 

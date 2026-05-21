@@ -253,7 +253,8 @@ class TestIntegration:
 
         from agent_langgraph import review_contract_langgraph
 
-        report = review_contract_langgraph(contract_text, "房屋租赁合同")
+        report, thread_id = review_contract_langgraph(contract_text, "房屋租赁合同")
+        assert thread_id, "thread_id 不应为空"
         assert len(report) > 500, f"报告太短: {len(report)} 字符"
         assert "风险" in report
         assert "审查日期" in report
@@ -270,7 +271,7 @@ class TestIntegration:
         from main import review_contract
 
         r1 = review_contract(contract_text, "房屋租赁合同", os.getenv("DASHSCOPE_API_KEY"))
-        r2 = review_contract_langgraph(contract_text, "房屋租赁合同")
+        r2, _ = review_contract_langgraph(contract_text, "房屋租赁合同")
 
         # 长度偏差 ≤ 50%
         len_diff = abs(len(r1) - len(r2)) / max(len(r1), len(r2))
