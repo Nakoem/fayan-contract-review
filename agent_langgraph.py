@@ -811,7 +811,12 @@ def _build_graph():
     graph.add_edge("report_agent", END)
 
     # 注入 SqliteSaver checkpointer
-    _checkpoint_conn = sqlite3.connect("checkpoints.db", check_same_thread=False)
+    try:
+        _checkpoint_conn = sqlite3.connect("checkpoints.db", check_same_thread=False)
+    except sqlite3.Error as e:
+        raise RuntimeError(
+            f"无法创建 checkpoint 数据库 checkpoints.db：{e}。请检查磁盘空间和目录写入权限。"
+        ) from e
     checkpointer = SqliteSaver(_checkpoint_conn)
     return graph.compile(checkpointer=checkpointer)
 
@@ -829,6 +834,31 @@ def _get_graph():
 # ═══════════════════════════════════════════════════════════
 # 公开接口
 # ═══════════════════════════════════════════════════════════
+
+
+def _extract_final_report(result: dict) -> str:
+    """从 graph.invoke() 结果中提最终报告，带多级回退。"""
+    final_report = result.get("final_report", "")
+
+    if not final_report:
+        for msg in reversed(result.get("messages", [])):
+            if isinstance(msg, ToolMessage) and msg.name == "generate_final_report":
+                final_report = msg.content or ""
+                break
+
+    if not final_report:
+        for msg in reversed(result.get("messages", [])):
+            content = getattr(msg, "content", None)
+            tc = getattr(msg, "tool_calls", None)
+            if content and not tc and isinstance(content, str) and len(content) > 100:
+                final_report = content
+                break
+
+    if not final_report and result.get("messages"):
+        last = result["messages"][-1]
+        final_report = getattr(last, "content", "") or ""
+
+    return final_report
 
 
 def review_contract_langgraph(
@@ -873,28 +903,7 @@ def review_contract_langgraph(
     graph = _get_graph()
     result = graph.invoke(initial_state, config)
 
-    final_report = result.get("final_report", "")
-
-    # 回退：从 messages 中提取
-    if not final_report:
-        for msg in reversed(result.get("messages", [])):
-            if isinstance(msg, ToolMessage) and msg.name == "generate_final_report":
-                final_report = msg.content or ""
-                break
-
-    if not final_report:
-        for msg in reversed(result.get("messages", [])):
-            content = getattr(msg, "content", None)
-            tc = getattr(msg, "tool_calls", None)
-            if content and not tc and isinstance(content, str) and len(content) > 100:
-                final_report = content
-                break
-
-    if not final_report and result.get("messages"):
-        last = result["messages"][-1]
-        final_report = getattr(last, "content", "") or ""
-
-    return clean_report(final_report, contract_text, contract_type), thread_id
+    return clean_report(_extract_final_report(result), contract_text, contract_type), thread_id
 
 
 def resume_review(thread_id: str) -> str:
@@ -924,23 +933,8 @@ def resume_review(thread_id: str) -> str:
     contract_type = state.values.get("contract_type", "")
 
     result = graph.invoke(None, config)
-    final_report = result.get("final_report", "")
 
-    if not final_report:
-        for msg in reversed(result.get("messages", [])):
-            if isinstance(msg, ToolMessage) and msg.name == "generate_final_report":
-                final_report = msg.content or ""
-                break
-
-    if not final_report and result.get("messages"):
-        for msg in reversed(result.get("messages", [])):
-            content = getattr(msg, "content", None)
-            tc = getattr(msg, "tool_calls", None)
-            if content and not tc and isinstance(content, str) and len(content) > 100:
-                final_report = content
-                break
-
-    return clean_report(final_report, contract_text, contract_type)
+    return clean_report(_extract_final_report(result), contract_text, contract_type)
 
 
 # ── 命令行入口 ──
