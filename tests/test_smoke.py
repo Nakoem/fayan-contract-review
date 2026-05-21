@@ -203,6 +203,22 @@ class TestImports:
         assert len(_AGENT_TOOL_FNS) >= 11
         assert callable(review_contract_langgraph)
 
+    def test_resume_review_invalid_id(self):
+        """resume_review raises ValueError for nonexistent thread_id (no LLM needed)."""
+        from agent_langgraph import resume_review
+
+        try:
+            resume_review("nonexistent-thread-id-99999")
+            assert False, "should have raised ValueError"
+        except ValueError as e:
+            assert "checkpoint" in str(e).lower() or "thread_id" in str(e)
+
+    def test_resume_review_exists(self):
+        """resume_review is importable and callable."""
+        from agent_langgraph import resume_review
+
+        assert callable(resume_review)
+
     def test_utils(self):
         from utils import clean_report, parse_text_tool_calls, parse_tool_args, repair_json
 
@@ -258,6 +274,17 @@ class TestIntegration:
         assert len(report) > 500, f"报告太短: {len(report)} 字符"
         assert "风险" in report
         assert "审查日期" in report
+
+        # 验证 checkpoint DB 已写入
+        import sqlite3
+        from pathlib import Path
+
+        db_path = Path("checkpoints.db")
+        assert db_path.exists(), "checkpoints.db should be created after review"
+        conn = sqlite3.connect(str(db_path))
+        rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+        conn.close()
+        assert len(rows) > 0, "checkpoints.db should contain checkpoint tables"
 
     def test_two_versions_consistency(self, contract_text):
         """两版输出一致性检查（宽松标准）。"""

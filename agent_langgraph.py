@@ -919,6 +919,10 @@ def resume_review(thread_id: str) -> str:
     if state is None or not state.values:
         raise ValueError(f"未找到 thread_id='{thread_id}' 的 checkpoint，请先发起一次审查")
 
+    # 从 checkpoint state 中恢复合同信息，确保 clean_report 后处理正确
+    contract_text = state.values.get("contract_text", "")
+    contract_type = state.values.get("contract_type", "")
+
     result = graph.invoke(None, config)
     final_report = result.get("final_report", "")
 
@@ -936,7 +940,7 @@ def resume_review(thread_id: str) -> str:
                 final_report = content
                 break
 
-    return clean_report(final_report, "", "")
+    return clean_report(final_report, contract_text, contract_type)
 
 
 # ── 命令行入口 ──
