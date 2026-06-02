@@ -164,7 +164,7 @@ def main():
         logger.error("请设置 DASHSCOPE_API_KEY 环境变量")
         sys.exit(1)
 
-    sample_dir = Path(__file__).parent
+    sample_dir = Path(__file__).parent.parent
 
     if args.contract:
         path = Path(args.contract)

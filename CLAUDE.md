@@ -34,7 +34,12 @@
 | `logger.py` | Loguru 日志配置 |
 | `rag/` | RAG 管线：embedder / indexer / retriever / vector_store |
 | `tests/test_smoke.py` | 22 冒烟测试 |
-| `tests/benchmark_consistency.py` | 双版本一致性基准 |
+| `scripts/benchmark_consistency.py` | 双版本一致性基准 |
+| `scripts/evaluate.py` | 自动化评估工具 |
+| `scripts/evaluate_helpers.py` | 评估辅助函数 |
+| `cache.py` | Redis 缓存层 + 历史报告预热 |
+| `ocr_utils.py` | 合同照片 OCR（qwen-vl-plus） |
+| `pages/01_法律问答.py` | Streamlit 法律问答子页面 |
 
 ## 技术栈
 - 模型：阿里云百炼 qwen-plus（temperature=0.0）

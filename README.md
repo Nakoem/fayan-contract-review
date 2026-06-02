@@ -194,8 +194,7 @@ contract_review/
 │   ├── benchmark_consistency.py
 │   └── known_risks/
 ├── tests/
-│   ├── test_smoke.py       # 冒烟测试
-│   └── benchmark_consistency.py  # 一致性基准测试
+│   └── test_smoke.py       # 冒烟测试
 ├── .github/workflows/
 │   └── ci.yml              # GitHub Actions CI
 ├── 审查报告/               # 15份历史审查报告（预热数据源）

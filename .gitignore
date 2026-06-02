@@ -47,3 +47,8 @@ checkpoints.db
 # 面试素材 / 个人资料
 简历-*
 知乎发布版-*
+
+# 工具缓存
+.pytest_cache/
+.ruff_cache/
+benchmark_reports/
