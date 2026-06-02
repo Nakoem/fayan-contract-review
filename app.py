@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from dotenv import load_dotenv
 
+from cache import warmup_from_reports
 from logger import init_logger
 from service import (
     CONTRACT_TYPES,
@@ -27,6 +28,10 @@ from service import (
 
 load_dotenv()
 init_logger(mode="web")
+
+# ── 启动时 Redis 缓存预热 ──
+_warmup_result = warmup_from_reports()
+print(f"[缓存预热] {_warmup_result}")
 
 st.set_page_config(page_title="法眼 · 合同审查", page_icon="⚖️", layout="wide")
 

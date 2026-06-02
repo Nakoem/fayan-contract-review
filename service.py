@@ -17,6 +17,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from cache import contract_cache_key, get_cache
+
 load_dotenv()
 
 # ═══════════════════════════════════════════════════════════
@@ -165,18 +167,32 @@ class ReviewRunner:
         self._buf = io.StringIO()
 
         def _run():
+            _needs_detach = False
             try:
                 from logger import attach_web_buffer, detach_web_buffer
                 from main import ContractReviewAgent
+                from utils import clean_report
 
-                attach_web_buffer(self._buf)
-                with redirect_stdout(self._buf):
-                    agent = ContractReviewAgent(api_key=self.api_key, verbose=True)
-                    self._report = agent.run(contract_text, contract_type)
+                cache = get_cache()
+                ck = contract_cache_key(contract_text, contract_type)
+                cached = cache.get(ck)
+                if cached:
+                    self._buf.write("[缓存命中] 直接返回，跳过 LLM 审查\n")
+                    self._report = clean_report(cached, contract_text, contract_type)
+                else:
+                    attach_web_buffer(self._buf)
+                    _needs_detach = True
+                    with redirect_stdout(self._buf):
+                        agent = ContractReviewAgent(api_key=self.api_key, verbose=True)
+                        self._report = agent.run(contract_text, contract_type)
+                    if self._report:
+                        self._report = clean_report(self._report, contract_text, contract_type)
+                        cache.set(ck, self._report)
             except Exception as e:
                 self._error = str(e)
             finally:
-                detach_web_buffer()
+                if _needs_detach:
+                    detach_web_buffer()
                 self._done = True
 
         self._thread = threading.Thread(target=_run, daemon=True)
@@ -254,6 +270,17 @@ class StreamingReviewRunner:
         def run():
             try:
                 from main import ContractReviewAgent
+                from utils import clean_report
+
+                cache = get_cache()
+                ck = contract_cache_key(contract_text, contract_type)
+                cached = cache.get(ck)
+                if cached:
+                    self._log = "[缓存命中] 直接返回，跳过 LLM 审查\n"
+                    self._report = clean_report(cached, contract_text, contract_type)
+                    self._queue.put({"type": "thinking_delta", "content": "[缓存命中 ⚡]"})
+                    self._queue.put({"type": "done", "report": self._report})
+                    return
 
                 agent = ContractReviewAgent(
                     api_key=self.api_key,
@@ -264,10 +291,10 @@ class StreamingReviewRunner:
                 for event in gen:
                     try:
                         if event.get("type") == "done":
-                            from utils import clean_report
-
                             report_raw = event.get("report", "")
                             self._report = clean_report(report_raw, contract_text, contract_type)
+                            if self._report:
+                                cache.set(ck, self._report)
                         elif event.get("type") == "thinking_delta":
                             self._log += event.get("content", "")
                         elif event.get("type") == "tool_start":

@@ -13,3 +13,4 @@ langchain-openai
 pytest
 pypdf>=4.0
 python-docx>=1.1.0
+redis>=5.0.0
