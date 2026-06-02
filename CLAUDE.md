@@ -32,7 +32,6 @@
 | `mcp_server.py` | MCP 协议工具封装 |
 | `chat_engine.py` | 法律问答 RAG 引擎 |
 | `logger.py` | Loguru 日志配置 |
-| `prompt_manager.py` | YAML 驱动提示词版本管理 |
 | `rag/` | RAG 管线：embedder / indexer / retriever / vector_store |
 | `tests/test_smoke.py` | 22 冒烟测试 |
 | `tests/benchmark_consistency.py` | 双版本一致性基准 |

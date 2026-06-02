@@ -174,12 +174,10 @@ contract_review/
 ├── service.py              # 业务逻辑层（审查执行器、文件处理、报告统计）
 ├── llm_client.py           # LLM 客户端（OpenAI 兼容 API）
 ├── prompts.py              # 全部提示词（Agent/分析/报告/完整性）
-├── prompt_manager.py       # 提示词版本管理器
 ├── tools.py                # 10 个工具 + 4 大知识库
 ├── cache.py                # Redis 缓存层 + 历史报告预热
 ├── utils.py                # 工具函数（报告清洗、格式校验）
 ├── logger.py               # 日志输出管理
-├── chat.py                 # 对话式审查入口
 ├── chat_engine.py          # 对话引擎
 ├── evaluate.py             # 评估脚本
 ├── evaluate_helpers.py     # 评估辅助函数
@@ -190,6 +188,11 @@ contract_review/
 │   ├── embedder.py         # 向量嵌入
 │   ├── vector_store.py     # ChromaDB 向量存储
 │   └── retriever.py        # 混合检索（向量+关键词+去重）
+├── scripts/               # 评估与基准测试脚本
+│   ├── evaluate.py
+│   ├── evaluate_helpers.py
+│   ├── benchmark_consistency.py
+│   └── known_risks/
 ├── tests/
 │   ├── test_smoke.py       # 冒烟测试
 │   └── benchmark_consistency.py  # 一致性基准测试

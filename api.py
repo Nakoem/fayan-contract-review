@@ -53,6 +53,10 @@ _async_tasks: dict[str, dict] = {}
 # ══════════════════════════════════════════════════════
 
 
+class ResumeRequest(BaseModel):
+    thread_id: str = Field(..., description="要恢复的审查会话 thread_id")
+
+
 class ReviewRequest(BaseModel):
     contract_text: str = Field(..., description="合同全文", min_length=10)
     contract_type: str = Field(..., description="合同类型，如'房屋租赁合同'")
@@ -190,6 +194,33 @@ def get_review_result(task_id: str):
         report=task.get("report"),
         elapsed_seconds=task.get("elapsed_seconds"),
         error=task.get("error"),
+    )
+
+
+@app.post("/api/v1/review/resume", response_model=ReviewResponse)
+def resume_review_endpoint(request: ResumeRequest):
+    """从 checkpoint 恢复中断的审查。"""
+    api_key = os.getenv("DASHSCOPE_API_KEY")
+    if not api_key:
+        raise HTTPException(500, "服务端未配置 DASHSCOPE_API_KEY")
+
+    import time
+
+    from agent_langgraph import resume_review
+
+    t0 = time.perf_counter()
+    try:
+        report = resume_review(request.thread_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"恢复审查失败: {e}")
+
+    elapsed = time.perf_counter() - t0
+    return ReviewResponse(
+        contract_type="",
+        report=report,
+        elapsed_seconds=round(elapsed, 1),
     )
 
 

@@ -463,7 +463,13 @@ button[data-testid="baseButton-headerNoPadding"] [data-testid="stTooltipIcon"] {
 # ═══════════════════════════════════════════════════════
 # 初始化
 # ═══════════════════════════════════════════════════════
-for key, default in [("report", ""), ("log", ""), ("summary", {}), ("report_history", [])]:
+for key, default in [
+    ("report", ""),
+    ("log", ""),
+    ("summary", {}),
+    ("report_history", []),
+    ("last_thread_id", ""),
+]:
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -819,6 +825,9 @@ with col_left:
 
                 elif event["type"] == "done":
                     progress_bar.progress(0.92, "生成报告中...")
+                    thread_id = event.get("thread_id", "")
+                    if thread_id:
+                        st.session_state.last_thread_id = thread_id
                     break
 
             progress_bar.progress(1.0, "审查完成 ✅")

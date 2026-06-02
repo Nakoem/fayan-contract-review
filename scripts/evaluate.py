@@ -18,15 +18,17 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from dotenv import load_dotenv
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from dotenv import load_dotenv
 from evaluate_helpers import (
     check_report_format,
     check_risk_coverage,
     llm_judge,
 )
+from known_risks.known_risks import RISK_MAP
+
 from logger import init_logger, logger
-from tests.known_risks.known_risks import RISK_MAP
 
 load_dotenv()
 

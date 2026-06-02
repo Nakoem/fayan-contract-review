@@ -2,11 +2,11 @@
 多Agent一致性基准测试 — 同一合同跑N次，统计检出条款重叠率。
 
 用法：
-    python tests/benchmark_consistency.py [回合数] [合同文件] [合同类型]
+    python scripts/benchmark_consistency.py [回合数] [合同文件] [合同类型]
 
 示例：
-    python tests/benchmark_consistency.py 5 sample_lease.txt "房屋租赁合同"
-    python tests/benchmark_consistency.py 8 sample_sales.txt "买卖合同"
+    python scripts/benchmark_consistency.py 5 sample_lease.txt "房屋租赁合同"
+    python scripts/benchmark_consistency.py 8 sample_sales.txt "买卖合同"
 
 输出：
     - 每轮报告的指标（风险数、评分、长度）
