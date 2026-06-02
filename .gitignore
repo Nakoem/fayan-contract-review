@@ -37,6 +37,13 @@ checkpoints.db
 # pre-commit
 .pre-commit-cache/
 
+# Playwright 测试产物
+.playwright/
+.playwright-cli/
+
+# VSCode
+.vscode/
+
 # 面试素材 / 个人资料
 简历-*
 知乎发布版-*
