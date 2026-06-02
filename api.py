@@ -116,11 +116,11 @@ def review(request: ReviewRequest):
 
     import time
 
-    from main import review_contract
+    from agent_langgraph import review_contract_langgraph
 
     t0 = time.perf_counter()
     try:
-        report = review_contract(request.contract_text, request.contract_type, api_key)
+        report, _ = review_contract_langgraph(request.contract_text, request.contract_type)
     except Exception as e:
         raise HTTPException(500, f"审查失败: {e}")
 
@@ -154,12 +154,12 @@ def review_async(request: ReviewRequest):
     def _run():
         import time
 
-        from main import review_contract
+        from agent_langgraph import review_contract_langgraph
 
         _async_tasks[task_id]["status"] = "running"
         t0 = time.perf_counter()
         try:
-            report = review_contract(request.contract_text, request.contract_type, api_key)
+            report, _ = review_contract_langgraph(request.contract_text, request.contract_type)
             _async_tasks[task_id]["report"] = report
             _async_tasks[task_id]["elapsed_seconds"] = round(time.perf_counter() - t0, 1)
             _async_tasks[task_id]["status"] = "completed"

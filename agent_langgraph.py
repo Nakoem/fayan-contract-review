@@ -906,6 +906,124 @@ def review_contract_langgraph(
     return clean_report(_extract_final_report(result), contract_text, contract_type), thread_id
 
 
+_phase_labels: dict[str, str] = {
+    "extraction_agent": "正在提取合同条款...",
+    "regulation_agent": "正在检索法规依据...",
+    "assessment_agent": "正在逐条风险评估...",
+    "reflection_agent": "正在反思审核...",
+    "report_agent": "正在生成审查报告...",
+}
+
+
+def review_contract_langgraph_stream(
+    contract_text: str,
+    contract_type: str,
+    thread_id: str | None = None,
+):
+    """流式版 LangGraph 多Agent审查。yield 结构化事件供 UI 实时展示。
+
+    事件类型：
+        {"type": "phase_start", "phase": "extraction_agent", "label": "..."}
+        {"type": "thinking_delta", "content": "..."}
+        {"type": "tool_start", "name": "..."}
+        {"type": "tool_result", "name": "...", "result_len": N}
+        {"type": "done", "report": "..."}
+        {"type": "error", "message": "..."}
+    """
+    import queue
+    import threading
+
+    _risk_findings.clear()
+
+    if thread_id is None:
+        thread_id = str(uuid.uuid4())
+
+    initial_state: MultiAgentState = {
+        "messages": [],
+        "contract_type": contract_type,
+        "contract_text": contract_text,
+        "clauses_json": "",
+        "regulation_context": "",
+        "risk_findings": [],
+        "completeness_result": "",
+        "reflection_result": {},
+        "reflection_round": 0,
+        "final_report": "",
+        "current_phase": "extraction",
+        "use_text_mode": False,
+        "text_mode_triggered": False,
+    }
+
+    config: RunnableConfig = {"configurable": {"thread_id": thread_id}, "recursion_limit": 120}
+    graph = _get_graph()
+
+    event_queue: queue.Queue = queue.Queue()
+
+    def _run():
+        try:
+            for chunk in graph.stream(initial_state, config, stream_mode="updates"):
+                for node_name, node_output in chunk.items():
+                    if node_name in _phase_labels:
+                        event_queue.put(
+                            {
+                                "type": "phase_start",
+                                "phase": node_name,
+                                "label": _phase_labels[node_name],
+                            }
+                        )
+                    # 提取节点产出的新消息
+                    msgs = node_output.get("messages", [])
+                    for m in msgs:
+                        if isinstance(m, AIMessage):
+                            content = m.content or ""
+                            # 工具调用已在 AIMessage 中
+                            if hasattr(m, "tool_calls") and m.tool_calls:
+                                for tc in m.tool_calls:
+                                    event_queue.put(
+                                        {
+                                            "type": "tool_start",
+                                            "name": tc.get("name", ""),
+                                        }
+                                    )
+                            elif content.strip():
+                                event_queue.put(
+                                    {
+                                        "type": "thinking_delta",
+                                        "content": content[:200],
+                                    }
+                                )
+                        elif isinstance(m, ToolMessage):
+                            event_queue.put(
+                                {
+                                    "type": "tool_result",
+                                    "name": m.name if hasattr(m, "name") else "",
+                                    "result_len": len(str(m.content)) if m.content else 0,
+                                }
+                            )
+            # 获取最终结果
+            final_state = graph.get_state(config)
+            if final_state and final_state.values:
+                report = clean_report(
+                    _extract_final_report(final_state.values), contract_text, contract_type
+                )
+            else:
+                report = ""
+            event_queue.put({"type": "done", "report": report})
+        except Exception:
+            import traceback
+
+            event_queue.put({"type": "error", "message": traceback.format_exc()})
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+    while t.is_alive() or not event_queue.empty():
+        try:
+            yield event_queue.get(timeout=0.1)
+        except queue.Empty:
+            pass
+
+
 def resume_review(thread_id: str) -> str:
     """从指定 thread_id 的最近 checkpoint 恢复审查。
 
