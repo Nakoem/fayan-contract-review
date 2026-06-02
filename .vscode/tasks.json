@@ -1,0 +1,22 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "雪玲朗读",
+            "type": "shell",
+            "command": "C:/Users/Lenovo/AppData/Local/Programs/Python/Python311/python.exe",
+            "args": [
+                "C:/Users/Lenovo/Desktop/xueling_tts.py"
+            ],
+            "presentation": {
+                "echo": false,
+                "reveal": "never",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "problemMatcher": []
+        }
+    ]
+}

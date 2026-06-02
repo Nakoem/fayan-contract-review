@@ -9,12 +9,12 @@
     report, thread_id = review_contract_langgraph(contract_text, "房屋租赁合同")
 """
 
-import hashlib
 import json
 import os
 import sqlite3
 import sys
 import threading
+import uuid
 from typing import Annotated, TypedDict
 
 from dotenv import load_dotenv
@@ -883,7 +883,7 @@ def review_contract_langgraph(
     _clear_risk_findings()
 
     if thread_id is None:
-        thread_id = hashlib.md5(f"{contract_text[:500]}:{contract_type}".encode()).hexdigest()[:12]
+        thread_id = str(uuid.uuid4())
 
     initial_state: MultiAgentState = {
         "messages": [],
@@ -938,7 +938,7 @@ def review_contract_langgraph_stream(
     _clear_risk_findings()
 
     if thread_id is None:
-        thread_id = hashlib.md5(f"{contract_text[:500]}:{contract_type}".encode()).hexdigest()[:12]
+        thread_id = str(uuid.uuid4())
 
     initial_state: MultiAgentState = {
         "messages": [],
@@ -1014,7 +1014,9 @@ def review_contract_langgraph_stream(
         except Exception:
             import traceback
 
-            event_queue.put({"type": "error", "message": traceback.format_exc()})
+            event_queue.put(
+                {"type": "error", "message": traceback.format_exc(), "thread_id": thread_id}
+            )
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()

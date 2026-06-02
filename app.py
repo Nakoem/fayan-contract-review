@@ -733,6 +733,23 @@ with col_left:
             st.error("请粘贴或上传合同文本")
         elif not api_key:
             st.error("请在侧边栏填写 API Key")
+        elif st.session_state.get("failed_thread_id"):
+            # 上次审查中途失败 → 自动从 checkpoint 恢复
+            from agent_langgraph import resume_review
+
+            tid = st.session_state.pop("failed_thread_id")
+            try:
+                with st.spinner("从上次中断点恢复审查..."):
+                    report = resume_review(tid)
+                st.session_state.report = report
+                st.session_state.log = f"[断点恢复] thread_id={tid}"
+                st.session_state.summary = extract_summary(report, st.session_state.log)
+                st.session_state.last_thread_id = tid
+                st.rerun()
+            except ValueError as e:
+                st.warning(f"无法恢复，将重新审查：{e}")
+                st.session_state.pop("failed_thread_id", None)
+                st.rerun()
         else:
             # 新审查前保存旧报告到历史
             if st.session_state.report:
@@ -820,6 +837,9 @@ with col_left:
                     tool_placeholder.markdown(render_tool_log(tool_lines), unsafe_allow_html=True)
 
                 elif event["type"] == "error":
+                    failed_tid = event.get("thread_id", "")
+                    if failed_tid:
+                        st.session_state.failed_thread_id = failed_tid
                     st.error(f"审查出错：{event['message']}")
                     st.stop()
 
