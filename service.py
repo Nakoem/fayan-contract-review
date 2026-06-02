@@ -167,14 +167,12 @@ class ReviewRunner:
 
         def _run():
             try:
-                from utils import clean_report
-
                 cache = get_cache()
                 ck = contract_cache_key(contract_text, contract_type)
                 cached = cache.get(ck)
                 if cached:
                     self._buf.write("[缓存命中] 直接返回，跳过 LLM 审查\n")
-                    self._report = clean_report(cached, contract_text, contract_type)
+                    self._report = cached
                 else:
                     from agent_langgraph import _phase_labels, review_contract_langgraph
 
@@ -269,14 +267,12 @@ class StreamingReviewRunner:
 
         def run():
             try:
-                from utils import clean_report
-
                 cache = get_cache()
                 ck = contract_cache_key(contract_text, contract_type)
                 cached = cache.get(ck)
                 if cached:
                     self._log = "[缓存命中] 直接返回，跳过 LLM 审查\n"
-                    self._report = clean_report(cached, contract_text, contract_type)
+                    self._report = cached
                     self._queue.put({"type": "thinking_delta", "content": "[缓存命中 ⚡]"})
                     self._queue.put({"type": "done", "report": self._report})
                     return

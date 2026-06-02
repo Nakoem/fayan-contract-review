@@ -13,6 +13,7 @@ import json
 import os
 import sqlite3
 import sys
+import threading
 import uuid
 from typing import Annotated, TypedDict
 
@@ -114,7 +115,7 @@ def analyze_single_clause(
             result.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         )
         parsed = json.loads(cleaned)
-        _risk_findings.append(parsed)
+        _get_risk_findings().append(parsed)
     except (json.JSONDecodeError, AttributeError):
         pass
     return result
@@ -126,8 +127,9 @@ def generate_final_report(contract_type: str, risk_findings_json: str = "") -> s
     risk_findings_json 可传空字符串——系统自动使用累积结果。"""
     from tools import generate_final_report as _fn
 
-    if (not risk_findings_json or len(risk_findings_json) < 100) and _risk_findings:
-        risk_findings_json = json.dumps(_risk_findings, ensure_ascii=False)
+    rf = _get_risk_findings()
+    if (not risk_findings_json or len(risk_findings_json) < 100) and rf:
+        risk_findings_json = json.dumps(rf, ensure_ascii=False)
     elif not risk_findings_json:
         risk_findings_json = "[]"
     return _fn(_get_client(), risk_findings_json, contract_type)
@@ -168,8 +170,18 @@ def self_reflection(
     )
 
 
-# 旧代码兼容：_risk_findings 供 @tool 包装器内部使用，新流程通过 State 传递
-_risk_findings: list[dict] = []
+# 线程安全的风险发现存储（替代 module-level list，防止并发请求干扰）
+_risk_findings_local = threading.local()
+
+
+def _get_risk_findings() -> list[dict]:
+    if not hasattr(_risk_findings_local, "data"):
+        _risk_findings_local.data = []
+    return _risk_findings_local.data
+
+
+def _clear_risk_findings():
+    _risk_findings_local.data = []
 
 
 # ═══════════════════════════════════════════════════════════
@@ -534,7 +546,7 @@ def _regulation_agent(state: MultiAgentState) -> dict:
     return {
         "messages": messages,
         "regulation_context": "\n\n".join(parts),
-        "current_phase": "regulations",
+        "current_phase": "regulation",
     }
 
 
@@ -719,24 +731,11 @@ def _report_agent(state: MultiAgentState) -> dict:
 
 
 def _supervisor(state: MultiAgentState) -> str:
-    """纯规则路由：根据 current_phase 决定下一个节点。"""
-    phase = state.get("current_phase", "extraction")
-
-    if phase == "extraction":
-        return "regulation_agent"
-    elif phase == "regulations":
+    """纯规则路由：仅从 reflection_agent 调用，判断质量是否通过。"""
+    r = state.get("reflection_result", {})
+    if not r.get("passed") and state.get("reflection_round", 0) < 3:
         return "assessment_agent"
-    elif phase == "assessment":
-        return "reflection_agent"
-    elif phase == "reflection":
-        r = state.get("reflection_result", {})
-        if not r.get("passed") and state.get("reflection_round", 0) < 3:
-            return "assessment_agent"
-        return "report_agent"
-    elif phase == "report":
-        return END
-
-    return END
+    return "report_agent"
 
 
 def _call_agent_impl(
@@ -822,12 +821,15 @@ def _build_graph():
 
 
 _compiled_graph = None
+_graph_lock = threading.Lock()
 
 
 def _get_graph():
     global _compiled_graph
     if _compiled_graph is None:
-        _compiled_graph = _build_graph()
+        with _graph_lock:
+            if _compiled_graph is None:
+                _compiled_graph = _build_graph()
     return _compiled_graph
 
 
@@ -878,7 +880,7 @@ def review_contract_langgraph(
         (最终审查报告文本, thread_id)
         — thread_id 可用于后续 resume_review() 恢复
     """
-    _risk_findings.clear()
+    _clear_risk_findings()
 
     if thread_id is None:
         thread_id = str(uuid.uuid4())
@@ -933,7 +935,7 @@ def review_contract_langgraph_stream(
     import queue
     import threading
 
-    _risk_findings.clear()
+    _clear_risk_findings()
 
     if thread_id is None:
         thread_id = str(uuid.uuid4())
@@ -989,7 +991,7 @@ def review_contract_langgraph_stream(
                                 event_queue.put(
                                     {
                                         "type": "thinking_delta",
-                                        "content": content[:200],
+                                        "content": content,
                                     }
                                 )
                         elif isinstance(m, ToolMessage):
