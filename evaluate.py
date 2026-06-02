@@ -45,12 +45,12 @@ def evaluate_single(contract_path: str, api_key: str, run_llm_judge: bool = True
         return None
 
     # 1. 运行审查
-    from main import review_contract
+    from agent_langgraph import review_contract_langgraph
 
     logger.info("开始审查: {} ({})", filename, contract_type)
     t0 = time.perf_counter()
     try:
-        report = review_contract(contract_text, contract_type, api_key)
+        report, _ = review_contract_langgraph(contract_text, contract_type)
     except Exception as e:
         logger.error("审查失败: {}", e)
         return None

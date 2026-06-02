@@ -21,7 +21,7 @@
 | 文件 | 作用 |
 |:---|:---|
 | `app.py` | Streamlit Web 界面（SSE 流式，434 行） |
-| `main.py` | Agent ReAct 主循环（20 轮 + Self-Reflection） |
+| `main.py` | CLI 入口（调用 LangGraph 多Agent 引擎） |
 | `agent_langgraph.py` | LangGraph 自定义 StateGraph 版 Agent |
 | `llm_client.py` | LLM 客户端（含 `stream_chat()` 流式） |
 | `prompts.py` | 系统提示词 + 工具提示词 + 反思提示词 |
@@ -52,7 +52,7 @@
 - **RAG 混合检索**：向量语义 + 关键词全文扫描 + RRF 融合去重
 - **Self-Reflection 反思**：生成报告前全局质量审核（一致性/覆盖性/评分合规），最多 3 轮
 - **11 个工具**：extract_clauses / search_regulation / search_case_law / check_local_policy / lookup_tax_rule / web_search / analyze_single_clause / check_completeness / self_reflection / switch_perspective / generate_final_report
-- **双版本 Agent**：手写 ReAct（main.py）+ LangGraph StateGraph（agent_langgraph.py），互补对比
+- **LangGraph Supervisor 多Agent**：5 个专业 Agent 流水线，Supervisor 路由 + 断点恢复
 - **MCP 协议**：5 个查询工具暴露给外部 AI
 - **FastAPI REST**：`/api/v1/review` 同步审查接口
 

@@ -190,13 +190,6 @@ class TestImports:
         assert len(str(AGENT_SYSTEM_PROMPT)) > 100
         assert "{contract_type}" in str(AGENT_USER_PROMPT)
 
-    def test_main_agent(self):
-        from main import ContractReviewAgent, review_contract
-
-        agent = ContractReviewAgent(api_key="test", verbose=False)
-        assert agent is not None
-        assert callable(review_contract)
-
     def test_langgraph_agent(self):
         from agent_langgraph import _AGENT_TOOL_FNS, review_contract_langgraph
 
@@ -243,22 +236,6 @@ class TestIntegration:
         with open(path, encoding="utf-8") as f:
             return f.read()
 
-    def test_full_review_original(self, contract_text):
-        """原版 Agent 完整审查冒烟测试。"""
-        from dotenv import load_dotenv
-
-        load_dotenv()
-        api_key = os.getenv("DASHSCOPE_API_KEY")
-        if not api_key:
-            pytest.skip("DASHSCOPE_API_KEY not set")
-
-        from main import review_contract
-
-        report = review_contract(contract_text, "房屋租赁合同", api_key)
-        assert len(report) > 500, f"报告太短: {len(report)} 字符"
-        assert "风险" in report
-        assert "审查日期" in report
-
     def test_full_review_langgraph(self, contract_text):
         """LangGraph 版 Agent 完整审查冒烟测试。"""
         from dotenv import load_dotenv
@@ -286,25 +263,8 @@ class TestIntegration:
         conn.close()
         assert len(rows) > 0, "checkpoints.db should contain checkpoint tables"
 
-    def test_two_versions_consistency(self, contract_text):
-        """两版输出一致性检查（宽松标准）。"""
-        from dotenv import load_dotenv
+    def test_main_imports(self):
+        """确保 CLI 入口可正常导入。"""
+        from main import main
 
-        load_dotenv()
-        if not os.getenv("DASHSCOPE_API_KEY"):
-            pytest.skip("DASHSCOPE_API_KEY not set")
-
-        from agent_langgraph import review_contract_langgraph
-        from main import review_contract
-
-        r1 = review_contract(contract_text, "房屋租赁合同", os.getenv("DASHSCOPE_API_KEY"))
-        r2, _ = review_contract_langgraph(contract_text, "房屋租赁合同")
-
-        # 长度偏差 ≤ 50%
-        len_diff = abs(len(r1) - len(r2)) / max(len(r1), len(r2))
-        assert len_diff < 0.5, f"报告长度偏差过大: {len_diff:.1%}"
-
-        # 都包含关键结构
-        for key in ["风险", "合同类型", "审查日期"]:
-            assert key in r1, f"原版缺少: {key}"
-            assert key in r2, f"LangGraph版缺少: {key}"
+        assert callable(main)

@@ -1,5 +1,5 @@
 """
-单Agent一致性基准测试 — 同一合同跑N次，统计检出条款重叠率。
+多Agent一致性基准测试 — 同一合同跑N次，统计检出条款重叠率。
 
 用法：
     python tests/benchmark_consistency.py [回合数] [合同文件] [合同类型]
@@ -81,7 +81,7 @@ def extract_metrics(report: str) -> dict:
 
 
 def main():
-    from main import review_contract
+    from agent_langgraph import review_contract_langgraph
 
     n_runs = int(sys.argv[1]) if len(sys.argv) > 1 else 5
     contract_path = sys.argv[2] if len(sys.argv) > 2 else "sample_lease.txt"
@@ -102,7 +102,7 @@ def main():
         print(f"第 {i + 1}/{n_runs} 轮审查中...", end=" ", flush=True)
         t0 = time.time()
         try:
-            report = review_contract(contract_text, contract_type, API_KEY)
+            report, _ = review_contract_langgraph(contract_text, contract_type)
         except Exception as e:
             print(f"\n❌ 第 {i + 1} 轮失败: {e}")
             continue

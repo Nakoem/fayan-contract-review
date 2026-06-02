@@ -8,9 +8,9 @@
 [![CI](https://img.shields.io/badge/CI-GitHub_Actions-blue.svg)](https://github.com/Nakoem/fayan-contract-review/actions)
 [![MCP](https://img.shields.io/badge/Protocol-MCP-orange.svg)](https://modelcontextprotocol.io/)
 
-> 不只是"把合同丢给 GPT"——一个真正会查法规、找判例、逐条分析、自主决策审查步骤的 ReAct Agent。
+> 不只是"把合同丢给 GPT"——Supervisor 协调 5 个专业 Agent，真正会查法规、找判例、逐条分析的多 Agent 审查引擎。
 >
-> Not just "throw a contract at GPT" — a ReAct Agent that actually searches regulations, finds case law, analyzes clause by clause, and decides its own review strategy.
+> Not just "throw a contract at GPT" — a Supervisor-coordinated multi-agent pipeline that searches regulations, finds case law, analyzes clause by clause, and decides its own review strategy.
 
 ---
 
@@ -40,42 +40,7 @@
 
 ## 架构 / Architecture
 
-法眼提供两套 Agent 引擎：
-
-### 1. ReAct 单 Agent（`main.py`）
-
-经典的 思考→行动→观察 循环，Agent 自主决定调用哪些工具。
-
-```
-                       ┌─────────────────────┐
-                       │   ReAct Agent 主循环   │
-                       │   Thought → Act → Observe│
-                       │   （20 轮迭代上限）    │
-                       └──────────┬──────────┘
-                                  │
-           ┌──────────────────────┼──────────────────────┐
-           │                      │                      │
-    ┌──────▼──────┐       ┌──────▼──────┐       ┌──────▼──────┐
-    │   合同处理    │       │   知识检索    │       │   分析生成    │
-    │ extract_clauses│     │ search_regulation│   │ analyze_single_clause│
-    │ (OCR 照片→文本)│      │ search_case_law │    │ check_completeness│
-    │              │       │ check_local_policy│  │ switch_perspective│
-    │              │       │ lookup_tax_rule │    │ generate_final_report│
-    │              │       │ web_search      │       │              │
-    └──────────────┘       └──────┬──────────┘       └──────────────┘
-                                  │
-                   ┌──────────────┼──────────────┐
-                   │              │              │
-            ┌──────▼──────┐ ┌────▼────┐ ┌──────▼──────┐
-            │  法规原文库   │ │ 判例库  │ │ 地方政策+税务│
-            │ 民法典+司法解释│ │ 52个判例│ │ 5城×税务主题 │
-            │  + 行政法规   │ │         │ │              │
-            └──────────────┘ └─────────┘ └──────────────┘
-```
-
-### 2. LangGraph 多 Agent（`agent_langgraph.py`）
-
-Supervisor 协调 5 个专业 Agent 的流水线，支持断点恢复。
+Supervisor 协调 5 个专业 Agent 的流水线，支持 SqliteSaver 断点恢复。
 
 ```
                          ┌──────────────────┐
@@ -99,13 +64,13 @@ Supervisor 协调 5 个专业 Agent 的流水线，支持断点恢复。
                                  └─────────────────────┘
 ```
 
-| | ReAct 单 Agent | LangGraph 多 Agent |
-|---|---|---|
-| 引擎 | `main.py` | `agent_langgraph.py` |
-| 决策方式 | LLM 自主 tool calling | Supervisor 路由 |
-| 流程 | 自由循环 | 固定流水线 + 条件回退 |
-| 断点恢复 | ❌ | ✅ SqliteSaver |
-| 适用场景 | 灵活探索 | 稳定生产 |
+| 阶段 | Agent | 职责 |
+|------|-------|------|
+| 1. 提取 | `extraction_agent` | 从合同全文提取结构化条款 |
+| 2. 法规 | `regulation_agent` | 按合同类型检索法规+判例+政策 |
+| 3. 评估 | `assessment_agent` | 逐条三维评分（公平性/明确性/风险敞口） |
+| 4. 反思 | `reflection_agent` | 视角切换 + 质量检查，不通过回退到评估 |
+| 5. 报告 | `report_agent` | 汇总生成五段式审查报告 |
 
 ---
 
@@ -203,7 +168,7 @@ python mcp_server.py
 ```
 contract_review/
 ├── app.py                  # Streamlit Web 界面
-├── main.py                 # Agent ReAct 主循环（CLI 入口）
+├── main.py                 # CLI 入口（调用 LangGraph 多Agent 引擎）
 ├── agent_langgraph.py      # LangGraph 自定义 StateGraph 引擎
 ├── api.py                  # FastAPI REST 接口
 ├── service.py              # 业务逻辑层（审查执行器、文件处理、报告统计）
@@ -241,7 +206,7 @@ contract_review/
 ## 技术栈 / Tech Stack
 
 - **模型**: 阿里云百炼 Qwen-Plus / DeepSeek V4（OpenAI 兼容 API）
-- **Agent**: ReAct 模式 + LangGraph 自定义 StateGraph
+- **Agent**: LangGraph Supervisor 多 Agent 流水线
 - **RAG**: ChromaDB 向量语义检索 + 关键词兜底 + 去重融合
 - **缓存**: Redis（自动降级，15份历史报告预热）
 - **UI**: Streamlit（流式审查 + 历史管理）

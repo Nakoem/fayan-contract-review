@@ -22,7 +22,7 @@ init_logger(mode="web")
 
 app = FastAPI(
     title="法眼 · 合同审查 API",
-    description="AI驱动的合同审查服务，支持6种合同类型、10工具ReAct Agent、四重知识库交叉验证",
+    description="AI驱动的合同审查服务，支持6种合同类型、LangGraph Supervisor 多Agent引擎、四重知识库交叉验证",
     version="1.0.0",
 )
 
