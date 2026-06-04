@@ -569,11 +569,16 @@ def _regulation_agent(state: MultiAgentState) -> dict:
 
 _ASSESSMENT_SYSTEM = """你是合同风险分析师。请逐条调用 analyze_single_clause 工具分析合同条款。
 
-对每条条款调用一次 analyze_single_clause，参数：
-- clause_text: 条款原文
-- category: 条款类别
+🛑 关键规则：必须使用条款的真实原文！
+- 从"已提取的条款"JSON中找到每个条款对象的 "clause_text" 字段，将其内容原样传给 analyze_single_clause
+- 禁止使用JSON的类别键名（如"1. 金额条款"、"6. 知识产权"）作为 clause_text——这些只是分类标签，不是合同原文
+- 每个条款对象都要单独调用一次 analyze_single_clause
+
+调用参数：
+- clause_text: 从JSON的 "clause_text" 字段取出的真实合同文字（不是类别名！）
+- category: 该条款所属的类别名（即JSON的键名，如"金额条款"）
 - contract_type: 合同类型
-- clause_position: 条款位置（如有）
+- clause_position: 条款位置（从JSON的 "position" 字段取）
 - regulation_context: 已查到的法规上下文（可从系统消息中获取）
 
 所有条款分析完毕后，用中文输出"风险评估完成"，列出分析了多少条条款。"""
