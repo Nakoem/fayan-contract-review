@@ -571,26 +571,24 @@ def _regulation_agent(state: MultiAgentState) -> dict:
 
 _ASSESSMENT_SYSTEM = """你是合同风险分析师。请逐条调用 analyze_single_clause 工具分析合同条款。
 
-🛑 关键规则：必须使用条款的真实原文！
-- 从"已提取的条款"JSON中找到每个条款对象的 "clause_text" 字段，将其内容原样传给 analyze_single_clause
-- 禁止使用JSON的类别键名（如"1. 金额条款"、"6. 知识产权"）作为 clause_text——这些只是分类标签，不是合同原文
-- 每个条款对象都要单独调用一次 analyze_single_clause
-
-调用参数：
-- clause_text: 从JSON的 "clause_text" 字段取出的真实合同文字（不是类别名！）
-- category: 该条款所属的类别名（即JSON的键名，如"金额条款"）
+对每条条款调用一次 analyze_single_clause。参数直接从下方"已提取的条款"中对应条目提取：
+- clause_text: 填入对应条目的"原文："行（逐字复制，不要改写）
+- category: 填入对应条目的"类别："行
 - contract_type: 合同类型
-- clause_position: 条款位置（从JSON的 "position" 字段取）
-- regulation_context: 已查到的法规上下文（可从系统消息中获取）
+- clause_position: 填入对应条目的"位置："信息
+- regulation_context: 已查到的法规上下文
 
 所有条款分析完毕后，用中文输出"风险评估完成"，列出分析了多少条条款。"""
 
 
 def _assessment_agent(state: MultiAgentState) -> dict:
     """逐条分析条款风险 → 产出 risk_findings。"""
+    # 将 clauses_json 解析为逐条的"原文：XXX"格式，防止LLM把类别名当原文
+    clauses_text = _format_clauses_for_assessment(state["clauses_json"])
+
     user_msg = (
         f"合同类型：{state['contract_type']}\n\n"
-        f"已提取的条款：\n{state['clauses_json']}\n\n"
+        f"已提取的条款（逐条列出，每条包含类别、位置和真实原文）：\n{clauses_text}\n\n"
         f"法规检索结果：\n{state.get('regulation_context', '无')[:4000]}"
     )
     messages: list[BaseMessage] = [
@@ -625,6 +623,70 @@ def _assessment_agent(state: MultiAgentState) -> dict:
     }
 
 
+def _format_clauses_for_assessment(clauses_json: str) -> str:
+    """将提取的条款JSON解析为逐条明文，清晰分离类别与原文。
+    兼容新旧两种格式：旧格式{类别: [...]}, 新格式[{category, clause_text, ...}]。
+    """
+    if not clauses_json:
+        return "（无条款）"
+    try:
+        data = json.loads(clauses_json)
+    except json.JSONDecodeError:
+        from utils import repair_json
+
+        fixed = repair_json(clauses_json)
+        if fixed:
+            try:
+                data = json.loads(fixed)
+            except json.JSONDecodeError:
+                return clauses_json
+        else:
+            return clauses_json
+
+    lines: list[str] = []
+    idx = 0
+
+    # 新格式：扁平数组 [{category, clause_text, ...}]
+    if isinstance(data, list):
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            idx += 1
+            cat = item.get("category", "")
+            ct = item.get("clause_text", "")
+            pos = item.get("position", "")
+            simplified = item.get("simplified", "")
+            pos_str = f" [位置：{pos}]" if pos else ""
+            lines.append(f"--- 条款 {idx} ---")
+            lines.append(f"类别：{cat}{pos_str}")
+            lines.append(f"原文：{ct}")
+            if simplified:
+                lines.append(f"摘要：{simplified}")
+    # 旧格式：{类别: [{clause_text, ...}]}
+    elif isinstance(data, dict):
+        for category, items in data.items():
+            cat_name = category.lstrip("0123456789. ").strip()
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                idx += 1
+                ct = item.get("clause_text", "")
+                pos = item.get("position", "")
+                simplified = item.get("simplified", "")
+                pos_str = f" [位置：{pos}]" if pos else ""
+                lines.append(f"--- 条款 {idx} ---")
+                lines.append(f"类别：{cat_name}{pos_str}")
+                lines.append(f"原文：{ct}")
+                if simplified:
+                    lines.append(f"摘要：{simplified}")
+
+    if not lines:
+        return clauses_json
+    return "\n".join(lines)
+
+
 # ═══════════════════════════════════════════════════════════
 # Agent 节点 4：质量审核
 # ═══════════════════════════════════════════════════════════
@@ -633,12 +695,6 @@ _REFLECTION_SYSTEM = """你是合同审查质量审核员。请依次调用以�
 
 1. 先调用 check_completeness —— 检查已提取的条款是否有缺失
 2. 再调用 self_reflection —— 对分析结果做一致性、覆盖性、评分合规检查
-
-🛑 额外质检要点（self_reflection 中必须覆盖）：
-- 逐条检查风险发现中的 clause_text 是否为合同真实文字。如发现 clause_text 是类别标签
-  （如"6. 知识产权"、"1. 金额条款"等编号+类别名的形式）而非合同原文，必须在审核结论中
-  明确指出"第X条 clause_text 为类别标签而非原文，需回退 assessment 重做"，并设置 passed=false
-- 风险等级分布是否合理：全高/全低都是异常信号，需检查评分依据
 
 两个工具都调用完毕后，用中文输出审核结论。"""
 
