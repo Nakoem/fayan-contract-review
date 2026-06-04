@@ -89,11 +89,11 @@ def web_search(keyword: str) -> str:
 
 @tool
 def extract_clauses(contract_type: str, contract_text: str = "") -> str:
-    """从合同全文提取关键条款，按类别整理为结构化 JSON。审查合同的第一步。
-    contract_text 传空字符串即可——合同已在上下文中。"""
+    """从合同全文提取关键条款，按类别整理为结构化 JSON。审查合同的第一步。"""
     from tools import extract_clauses as _fn
 
-    return _fn(_get_client(), contract_text or "", contract_type)
+    text = contract_text or _get_contract_text()
+    return _fn(_get_client(), text, contract_type)
 
 
 @tool
@@ -173,6 +173,9 @@ def self_reflection(
 # 线程安全的风险发现存储（替代 module-level list，防止并发请求干扰）
 _risk_findings_local = threading.local()
 
+# 线程安全的合同文本存储（供 extract_clauses 工具回退使用）
+_contract_text_local = threading.local()
+
 
 def _get_risk_findings() -> list[dict]:
     if not hasattr(_risk_findings_local, "data"):
@@ -182,6 +185,14 @@ def _get_risk_findings() -> list[dict]:
 
 def _clear_risk_findings():
     _risk_findings_local.data = []
+
+
+def _set_contract_text(text: str):
+    _contract_text_local.text = text
+
+
+def _get_contract_text() -> str:
+    return getattr(_contract_text_local, "text", "")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -336,6 +347,7 @@ def _run_agent_loop(
                 messages.append(
                     ToolMessage(
                         content=str(result),
+                        name=name,
                         tool_call_id=f"text_{i}_{name}",
                     )
                 )
@@ -360,6 +372,7 @@ def _run_agent_loop(
                 messages.append(
                     ToolMessage(
                         content=str(result),
+                        name=name,
                         tool_call_id=tc.id,
                     )
                 )
@@ -404,7 +417,7 @@ _EXTRACTION_SYSTEM = """你是资深法务合同审查师。请调用 extract_cl
 
 调用参数：
 - contract_type: 合同类型
-- contract_text: 传空字符串""即可（合同已在上下文中）
+- contract_text: 留空即可（系统会自动注入合同全文）
 
 提取完条款后，用中文简要说明提取了哪些类别的条款。不要继续调用其他工具。"""
 
@@ -881,6 +894,7 @@ def review_contract_langgraph(
         — thread_id 可用于后续 resume_review() 恢复
     """
     _clear_risk_findings()
+    _set_contract_text(contract_text)
 
     if thread_id is None:
         thread_id = str(uuid.uuid4())
@@ -936,6 +950,7 @@ def review_contract_langgraph_stream(
     import threading
 
     _clear_risk_findings()
+    _set_contract_text(contract_text)
 
     if thread_id is None:
         thread_id = str(uuid.uuid4())

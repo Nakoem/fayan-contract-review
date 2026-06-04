@@ -29,6 +29,9 @@ from service import (
 load_dotenv()
 init_logger(mode="web")
 
+# Windows 控制台 GBK 编码下 emoji 会炸，强制 UTF-8
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 # ── 启动时 Redis 缓存预热 ──
 _warmup_result = warmup_from_reports()
 print(f"[缓存预热] {_warmup_result}")
