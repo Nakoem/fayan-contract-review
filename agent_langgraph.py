@@ -815,7 +815,7 @@ def _report_agent(state: MultiAgentState) -> dict:
 def _supervisor(state: MultiAgentState) -> str:
     """纯规则路由：仅从 reflection_agent 调用，判断质量是否通过。"""
     r = state.get("reflection_result", {})
-    if not r.get("passed") and state.get("reflection_round", 0) < 3:
+    if not r.get("passed") and state.get("reflection_round", 0) < 1:
         return "assessment_agent"
     return "report_agent"
 
