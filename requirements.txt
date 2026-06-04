@@ -8,6 +8,7 @@ uvicorn[standard]>=0.29.0
 chromadb>=0.5.0
 mcp>=1.0.0
 langgraph
+langgraph-checkpoint-sqlite
 langgraph-prebuilt
 langchain-openai
 pytest
