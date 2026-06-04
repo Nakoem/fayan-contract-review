@@ -1159,7 +1159,7 @@ def extract_clauses(client: "LLMClient", contract_text: str, contract_type: str)
     text = contract_text[:8000]  # 截断超长合同
     system = EXTRACT_CLAUSES_SYSTEM.format(contract_type=contract_type)
     user = EXTRACT_CLAUSES_USER.format(contract_type=contract_type, contract_text=text)
-    return client.call(system, user, max_tokens=1024)
+    return client.call(system, user, max_tokens=4096)
 
 
 def analyze_single_clause(
