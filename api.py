@@ -121,14 +121,24 @@ def review(request: ReviewRequest):
     import time
 
     from agent_langgraph import review_contract_langgraph
+    from cache import contract_cache_key, get_cache
 
-    t0 = time.perf_counter()
-    try:
-        report, _ = review_contract_langgraph(request.contract_text, request.contract_type)
-    except Exception as e:
-        raise HTTPException(500, f"审查失败: {e}")
+    cache = get_cache()
+    ck = contract_cache_key(request.contract_text, request.contract_type)
+    cached = cache.get(ck)
+    if cached:
+        elapsed = 0.0
+        report = cached
+    else:
+        t0 = time.perf_counter()
+        try:
+            report, _ = review_contract_langgraph(request.contract_text, request.contract_type)
+        except Exception as e:
+            raise HTTPException(500, f"审查失败: {e}")
+        if report:
+            cache.set(ck, report)
+        elapsed = time.perf_counter() - t0
 
-    elapsed = time.perf_counter() - t0
     return ReviewResponse(
         contract_type=request.contract_type,
         report=report,
@@ -159,6 +169,16 @@ def review_async(request: ReviewRequest):
         import time
 
         from agent_langgraph import review_contract_langgraph
+        from cache import contract_cache_key, get_cache
+
+        cache = get_cache()
+        ck = contract_cache_key(request.contract_text, request.contract_type)
+        cached = cache.get(ck)
+        if cached:
+            _async_tasks[task_id]["report"] = cached
+            _async_tasks[task_id]["elapsed_seconds"] = 0.0
+            _async_tasks[task_id]["status"] = "completed"
+            return
 
         _async_tasks[task_id]["status"] = "running"
         t0 = time.perf_counter()
@@ -167,6 +187,8 @@ def review_async(request: ReviewRequest):
             _async_tasks[task_id]["report"] = report
             _async_tasks[task_id]["elapsed_seconds"] = round(time.perf_counter() - t0, 1)
             _async_tasks[task_id]["status"] = "completed"
+            if report:
+                cache.set(ck, report)
         except Exception as e:
             _async_tasks[task_id]["error"] = str(e)
             _async_tasks[task_id]["status"] = "failed"

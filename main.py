@@ -66,7 +66,18 @@ def main():
     logger.info("合同来源: {}", filepath)
     logger.info("=" * 60)
 
-    report, thread_id = review_contract_langgraph(contract_text, contract_type)
+    from cache import contract_cache_key, get_cache
+
+    cache = get_cache()
+    ck = contract_cache_key(contract_text, contract_type)
+    cached = cache.get(ck)
+    if cached:
+        logger.info("[缓存命中] 直接返回，跳过 LLM 审查")
+        report = cached
+    else:
+        report, thread_id = review_contract_langgraph(contract_text, contract_type)
+        if report:
+            cache.set(ck, report)
 
     if output_path:
         Path(output_path).write_text(report, encoding="utf-8")
