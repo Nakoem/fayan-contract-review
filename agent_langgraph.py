@@ -173,8 +173,9 @@ def self_reflection(
 # 线程安全的风险发现存储（替代 module-level list，防止并发请求干扰）
 _risk_findings_local = threading.local()
 
-# 线程安全的合同文本存储（供 extract_clauses 工具回退使用）
-_contract_text_local = threading.local()
+# 模块级合同文本存储（供 extract_clauses 工具回退使用）
+# 注意：不能用 thread-local，因为 StreamingReviewRunner 在单独线程中运行 graph
+_contract_text: str = ""
 
 
 def _get_risk_findings() -> list[dict]:
@@ -188,11 +189,12 @@ def _clear_risk_findings():
 
 
 def _set_contract_text(text: str):
-    _contract_text_local.text = text
+    global _contract_text
+    _contract_text = text
 
 
 def _get_contract_text() -> str:
-    return getattr(_contract_text_local, "text", "")
+    return _contract_text
 
 
 # ═══════════════════════════════════════════════════════════
