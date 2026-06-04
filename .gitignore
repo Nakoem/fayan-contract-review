@@ -33,6 +33,11 @@ Thumbs.db
 
 # LangGraph checkpoint（断点恢复SQLite文件）
 checkpoints.db
+checkpoints.db-shm
+checkpoints.db-wal
+
+# Playwright MCP
+.playwright-mcp/
 
 # pre-commit
 .pre-commit-cache/
