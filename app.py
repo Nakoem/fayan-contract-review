@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from dotenv import load_dotenv
 
 from cache import warmup_from_reports
+from db import ensure_user, save_review
 from logger import init_logger
 from service import (
     CONTRACT_TYPES,
@@ -472,9 +473,24 @@ for key, default in [
     ("summary", {}),
     ("report_history", []),
     ("last_thread_id", ""),
+    ("user_id", None),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
+
+
+# 默认登录 Nakko（缓存，Streamlit 生命周期内只执行一次）
+@st.cache_resource
+def _init_user(username: str = "Nakko") -> int:
+    try:
+        return ensure_user(username)
+    except Exception as e:
+        st.warning(f"数据库连接失败，审查记录将不会保存：{e}")
+        return 0
+
+
+if st.session_state.user_id is None:
+    st.session_state.user_id = _init_user("Nakko")
 
 # ═══════════════════════════════════════════════════════
 # 侧边栏
@@ -842,6 +858,21 @@ with col_left:
             st.session_state.report = runner.report
             st.session_state.log = runner.log
             st.session_state.summary = extract_summary(runner.report, runner.log)
+
+            # 自动写入 MySQL
+            if st.session_state.user_id > 0:
+                try:
+                    save_review(
+                        st.session_state.user_id,
+                        file_name=getattr(uploaded_file, "name", contract_type),
+                        file_type=contract_type,
+                        report_text=runner.report,
+                        high_count=st.session_state.summary.get("high", 0),
+                        medium_count=st.session_state.summary.get("medium", 0),
+                    )
+                except Exception as e:
+                    st.warning(f"数据库写入失败（不影响审查结果）：{e}")
+
             st.rerun()
 
 # ═══════════════════════════════════════════════════════
