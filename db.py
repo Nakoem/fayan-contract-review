@@ -81,25 +81,38 @@ def save_review(
 
 def _extract_and_insert_risks(cur, report_id: int, report_text: str):
     """从报告文本提取风险点并写入 risks 表（在已有事务中）。"""
-    clause_chars = r"[零一二三四五六七八九十百千万\d]+"
-    high_pattern = re.compile(rf"🔴.*?(?:第{clause_chars}条).*?(?:\n|$)", re.MULTILINE)
-    medium_pattern = re.compile(rf"🟡.*?(?:第{clause_chars}条).*?(?:\n|$)", re.MULTILINE)
+    sections = [
+        ("高风险", "高风险条款"),
+        ("中风险", "中风险条款"),
+    ]
 
-    for match in high_pattern.finditer(report_text):
-        text = match.group().strip()[:500]
-        cur.execute(
-            "INSERT INTO risks (report_id, level, original_text, section, description) "
-            "VALUES (%s, '高风险', %s, '', %s)",
-            (report_id, text, text),
+    for level, section_keyword in sections:
+        header_match = re.search(
+            rf"[一二三四五六七八九十]+[、.]\s*.*?{section_keyword}",
+            report_text,
         )
+        if not header_match:
+            continue
+        start = header_match.end()
 
-    for match in medium_pattern.finditer(report_text):
-        text = match.group().strip()[:500]
-        cur.execute(
-            "INSERT INTO risks (report_id, level, original_text, section, description) "
-            "VALUES (%s, '中风险', %s, '', %s)",
-            (report_id, text, text),
+        next_section = re.search(
+            r"\n(?=[一二三四五六七八九十]+[、．.])",
+            report_text[start:],
         )
+        section_end = start + next_section.start() if next_section else len(report_text)
+        section_text = report_text[start:section_end]
+
+        items = re.split(r"\n(?=\d+\.\s*【)", section_text)[1:]
+
+        for item in items:
+            item = item.strip()[:500]
+            title_match = re.match(r"\d+\.\s*【(.+?)】", item)
+            title = title_match.group(1) if title_match else ""
+            cur.execute(
+                "INSERT INTO risks (report_id, level, original_text, section, description) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                (report_id, level, item, title, item),
+            )
 
 
 def get_review_history(user_id: int, limit: int = 20):
