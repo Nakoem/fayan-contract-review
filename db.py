@@ -106,13 +106,25 @@ def _extract_and_insert_risks(cur, report_id: int, report_text: str):
         items = re.split(r"\n(?=\d+\.\s*【)", section_text)[1:]
 
         for item in items:
-            item = item.strip()[:500]
+            item = item.strip()
             title_match = re.match(r"\d+\.\s*【(.+?)】", item)
             title = title_match.group(1) if title_match else ""
+
+            def _extract(label: str) -> str:
+                m = re.search(rf"▸\s*{label}\s*[：:]?\s*(.+?)(?=\n\s*▸|\n\s*$|\Z)", item, re.DOTALL)
+                return m.group(1).strip()[:500] if m else ""
+
+            original = _extract("原文")
+            risk_desc = _extract("风险说明")
+            suggestion = _extract("修改建议")
+
+            if not original and not risk_desc:
+                risk_desc = item[:500]
+
             cur.execute(
-                "INSERT INTO risks (report_id, level, original_text, section, description) "
-                "VALUES (%s, %s, %s, %s, %s)",
-                (report_id, level, item, title, item),
+                "INSERT INTO risks (report_id, level, original_text, section, description, suggestion) "
+                "VALUES (%s, %s, %s, %s, %s, %s)",
+                (report_id, level, original, title, risk_desc, suggestion),
             )
 
 
