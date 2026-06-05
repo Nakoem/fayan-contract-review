@@ -84,6 +84,7 @@ def _extract_and_insert_risks(cur, report_id: int, report_text: str):
     sections = [
         ("高风险", "高风险条款"),
         ("中风险", "中风险条款"),
+        ("低风险", "低风险条款"),
     ]
 
     for level, section_keyword in sections:
