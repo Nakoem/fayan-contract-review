@@ -115,7 +115,7 @@ def _extract_and_insert_risks(cur, report_id: int, report_text: str):
                 return m.group(1).strip()[:500] if m else ""
 
             original = _extract("原文")
-            risk_desc = _extract("风险说明")
+            risk_desc = _extract("风险说明") or _extract("判断依据")
             suggestion = _extract("修改建议")
 
             if not original and not risk_desc:
