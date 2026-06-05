@@ -5,6 +5,7 @@
 [![Streamlit](https://img.shields.io/badge/UI-Streamlit-ff4b4b.svg)](https://streamlit.io/)
 [![LangGraph](https://img.shields.io/badge/Agent-LangGraph-6c47ff.svg)](https://langchain.com/langgraph)
 [![Redis](https://img.shields.io/badge/Cache-Redis-red.svg)](https://redis.io/)
+[![MySQL](https://img.shields.io/badge/DB-MySQL-4479A1.svg)](https://www.mysql.com/)
 [![CI](https://img.shields.io/badge/CI-GitHub_Actions-blue.svg)](https://github.com/Nakoem/fayan-contract-review/actions)
 [![MCP](https://img.shields.io/badge/Protocol-MCP-orange.svg)](https://modelcontextprotocol.io/)
 
@@ -30,6 +31,7 @@
 ## 新特性 / What's New
 
 - **Redis 缓存层** — 同合同不重复审查，15份历史报告预热69条法规热点，秒级返回
+- **MySQL 持久化** — 审查结果自动入库，用户/合同/报告/风险点四表事务写入，三档风险三级提取
 - **LangGraph 引擎** — `agent_langgraph.py` 自定义 StateGraph，替代 `create_react_agent`
 - **流式审查** — `StreamingReviewRunner` 实时输出思考过程，不再黑盒等待
 - **CI/CD** — GitHub Actions 自动 Ruff 检查
@@ -120,6 +122,13 @@ docker run -d --name redis -p 6379:6379 redis:alpine
 # 启动 app.py 时自动从 15 份历史报告预热缓存
 ```
 
+### MySQL 持久化（可选）
+
+```bash
+docker run -d --name mysql -p 3306:3306 -e MYSQL_ROOT_PASSWORD=root mysql:8.0
+# 首次启动会通过 db.py 自动建表，无需手动 CREATE TABLE
+```
+
 ---
 
 ## Agent 工具集 / 10 Tools
@@ -176,6 +185,7 @@ contract_review/
 ├── prompts.py              # 全部提示词（Agent/分析/报告/完整性）
 ├── tools.py                # 10 个工具 + 4 大知识库
 ├── cache.py                # Redis 缓存层 + 历史报告预热
+├── db.py                   # MySQL 持久化层（用户/合同/报告/风险四表）
 ├── utils.py                # 工具函数（报告清洗、格式校验）
 ├── logger.py               # 日志输出管理
 ├── chat_engine.py          # 对话引擎
@@ -211,6 +221,7 @@ contract_review/
 - **Agent**: LangGraph Supervisor 多 Agent 流水线
 - **RAG**: ChromaDB 向量语义检索 + 关键词兜底 + 去重融合
 - **缓存**: Redis（自动降级，15份历史报告预热）
+- **数据库**: MySQL（审查记录持久化，三档风险自动提取入库）
 - **UI**: Streamlit（流式审查 + 历史管理）
 - **API**: FastAPI REST 接口
 - **协议**: MCP（Model Context Protocol）标准化工具接口
