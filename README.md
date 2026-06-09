@@ -30,6 +30,7 @@
 
 ## 新特性 / What's New
 
+- 🆕 **MySQL+RAG 双引擎法律问答** — 法律对话升级为轻量 Agent（Function Calling），能查法规也能查历史审查记录。问"我审过的合同里最常见风险是什么？"→ 跨合同统计分析；上传合同自动指纹匹配，秒知"这份审过没"。
 - **Redis 缓存层** — 同合同不重复审查，15份历史报告预热69条法规热点，秒级返回
 - **MySQL 持久化** — 审查结果自动入库，用户/合同/报告/风险点四表事务写入，三档风险三级提取
 - **LangGraph 引擎** — `agent_langgraph.py` 自定义 StateGraph，替代 `create_react_agent`
@@ -131,7 +132,9 @@ docker run -d --name mysql -p 3306:3306 -e MYSQL_ROOT_PASSWORD=root mysql:8.0
 
 ---
 
-## Agent 工具集 / 10 Tools
+## Agent 工具集 / Tools
+
+### 合同审查 Agent（11个工具）
 
 | 工具 | 功能 |
 |------|------|
@@ -145,6 +148,18 @@ docker run -d --name mysql -p 3306:3306 -e MYSQL_ROOT_PASSWORD=root mysql:8.0
 | `check_completeness` | 检查合同条款完整性，找出缺失项 |
 | `switch_perspective` | 切换视角（出租方↔承租方，用人单位↔劳动者） |
 | `generate_final_report` | 汇总生成五段式审查报告 |
+| `self_reflection` | 全局质量审核，发现错误和遗漏 |
+
+### 法律问答 Agent（1个工具，6种查询模式）
+
+| `query_review_history` | 模式 | 功能 |
+|------|------|------|
+| | `count` | 统计审查总数、平均分、按类型分布 |
+| | `top_risks` | 跨合同风险排行（支持 risk_level 筛选） |
+| | `list` | 合同列表（支持 score/recent 排序） |
+| | `detail` | 查具体合同的风险详情（原文+风险+建议） |
+| | `report` | 搜索审查报告全文 |
+| | `match` | 合同指纹匹配（Redis缓存 + MySQL回退） |
 
 ---
 
@@ -204,7 +219,8 @@ contract_review/
 │   ├── benchmark_consistency.py
 │   └── known_risks/
 ├── tests/
-│   └── test_smoke.py       # 冒烟测试
+│   ├── test_smoke.py       # 冒烟测试（25个）
+│   └── test_qa_history.py  # 法律问答历史查询测试（17个）
 ├── .github/workflows/
 │   └── ci.yml              # GitHub Actions CI
 ├── 审查报告/               # 15份历史审查报告（预热数据源）
@@ -220,7 +236,7 @@ contract_review/
 - **模型**: 阿里云百炼 Qwen-Plus / DeepSeek V4（OpenAI 兼容 API）
 - **Agent**: LangGraph Supervisor 多 Agent 流水线
 - **RAG**: ChromaDB 向量语义检索 + 关键词兜底 + 去重融合
-- **缓存**: Redis（自动降级，15份历史报告预热）
+- **法律问答**: 轻量 Agent（Function Calling），Chroma + MySQL 双引擎混合检索
 - **数据库**: MySQL（审查记录持久化，三档风险自动提取入库）
 - **UI**: Streamlit（流式审查 + 历史管理）
 - **API**: FastAPI REST 接口
