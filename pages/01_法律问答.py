@@ -140,11 +140,28 @@ with st.sidebar:
     st.caption("© 2026 法眼 · Powered by Qwen-Plus + RAG")
 
 # ═══════════════════════════════════════════════════════
-# 合同状态提示
+# 合同状态提示 + 指纹匹配
 # ═══════════════════════════════════════════════════════
 if contract_text:
+    # 计算合同指纹，检查是否审过
+    match_hint = ""
+    try:
+        from cache import contract_cache_key as compute_fingerprint
+
+        fp = compute_fingerprint(contract_text, "未知")
+        # review:{hash16} → 取 hash16 部分
+        fingerprint = fp.replace("review:", "")
+        from tools import query_review_history
+
+        match_result = query_review_history(action="match", fingerprint=fingerprint)
+        if "已找到" in match_result:
+            match_hint = f" · {match_result.strip()}"
+    except Exception:
+        pass
+
+    bar_text = f"📎 已加载合同（{len(contract_text)}字）{match_hint} · 你可以针对这份合同提问"
     st.markdown(
-        '<div class="contract-bar">📎 已加载合同 · 你可以针对这份合同提问，如"第四条合法吗？"、"违约金合理吗？"</div>',
+        f'<div class="contract-bar">{bar_text}</div>',
         unsafe_allow_html=True,
     )
 
@@ -194,6 +211,7 @@ if prompt := st.chat_input("输入你的法律问题..."):
                     history=st.session_state.chat_history,
                     contract_text=contract_text,
                     api_key=api_key,
+                    enable_tools=True,
                 ):
                     full_response += chunk
                     placeholder.markdown(full_response + "▌")

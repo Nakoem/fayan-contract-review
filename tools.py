@@ -1193,7 +1193,7 @@ def generate_final_report(client: "LLMClient", risk_findings_json: str, contract
         contract_type=contract_type, today=date.today().strftime("%Y-%m-%d")
     )
     user = GENERATE_REPORT_USER.format(risk_analysis=risk_findings_json[:6000])
-    return client.call(system, user, max_tokens=3072)
+    return client.call(system, user, max_tokens=6144)
 
 
 def check_completeness(client: "LLMClient", clauses_json: str, contract_type: str) -> str:
@@ -1536,3 +1536,384 @@ AGENT_TOOLS = [
         },
     },
 ]
+
+
+# ═════════════════════════════════════════════════════════════
+# 法律问答 · 历史数据查询工具（MySQL + RAG 双引擎）
+# ═════════════════════════════════════════════════════════════
+
+
+def query_review_history(
+    action: str = "count",
+    contract_type: str = "",
+    risk_level: str = "",
+    keyword: str = "",
+    limit: int = 5,
+    sort_by: str = "recent",
+    fingerprint: str = "",
+) -> str:
+    """查询历史审查记录（contracts / reports / risks 三表）。
+
+    Args:
+        action: "count" | "top_risks" | "list" | "detail" | "match" | "report"
+        contract_type: 合同类型过滤（如"房屋租赁合同"）
+        risk_level: 风险等级（"高风险"|"中风险"|"低风险"）
+        keyword: 模糊搜索关键词
+        limit: 返回条数，默认3
+        sort_by: 排序方式 "recent"|"score_asc"|"score_desc"
+        fingerprint: SHA256 合同指纹（仅 action="match"）
+
+    Returns:
+        格式化文本，LLM 可直接阅读。数据库不可用时返回降级提示。
+    """
+    try:
+        from db import get_conn
+
+        conn = get_conn()
+    except Exception:
+        return "⚠️ 历史数据暂不可用（数据库连接失败），当前仅基于法规知识库回答。"
+
+    try:
+        if action == "count":
+            return _history_count(conn, contract_type)
+        elif action == "top_risks":
+            return _history_top_risks(conn, contract_type, risk_level, limit)
+        elif action == "list":
+            return _history_list(conn, contract_type, sort_by, limit)
+        elif action == "detail":
+            return _history_detail(conn, contract_type, risk_level, keyword, limit)
+        elif action == "match":
+            return _history_match(conn, fingerprint)
+        elif action == "report":
+            return _history_report(conn, keyword, limit)
+        else:
+            return (
+                f"⚠️ 未知查询类型：{action}，支持 count / top_risks / list / detail / match / report"
+            )
+    except Exception as e:
+        return f"⚠️ 历史数据查询出错：{e}"
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _history_count(conn, contract_type: str) -> str:
+    """统计审查总数 + 平均分 + 按类型分布。"""
+    import pymysql
+
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        if contract_type:
+            cur.execute(
+                "SELECT COUNT(*) AS cnt, AVG(r.score) AS avg_score "
+                "FROM contracts c JOIN reports r ON c.id = r.contract_id "
+                "WHERE c.file_type = %s",
+                (contract_type,),
+            )
+        else:
+            cur.execute(
+                "SELECT COUNT(*) AS cnt, AVG(r.score) AS avg_score "
+                "FROM contracts c JOIN reports r ON c.id = r.contract_id"
+            )
+        row = cur.fetchone()
+        total = row["cnt"] or 0
+        avg = round(row["avg_score"], 1) if row["avg_score"] else 0
+
+        if total == 0:
+            type_hint = f"「{contract_type}」" if contract_type else ""
+            return f"📊 暂无{type_hint}历史审查记录。"
+
+        # 按类型分布
+        cur.execute(
+            "SELECT file_type, COUNT(*) AS cnt FROM contracts GROUP BY file_type ORDER BY cnt DESC"
+        )
+        by_type = "、".join(f"{r['file_type']} {r['cnt']} 份" for r in cur.fetchall())
+
+        return f"📊 你总共审查了 {total} 份合同，平均得分 {avg} 分。" + (
+            f" 其中 {by_type}。" if by_type else ""
+        )
+
+
+def _history_top_risks(conn, contract_type: str, risk_level: str, limit: int) -> str:
+    """风险排行：按合同类型+风险等级统计最常见风险条款。"""
+    import pymysql
+
+    conditions = []
+    params = []
+
+    if contract_type:
+        conditions.append("c.file_type = %s")
+        params.append(contract_type)
+    if risk_level:
+        conditions.append("rs.level = %s")
+        params.append(risk_level)
+
+    where = ""
+    if conditions:
+        where = "WHERE " + " AND ".join(conditions)
+
+    sql = (
+        "SELECT rs.description AS clause_name, rs.level, COUNT(*) AS cnt "
+        "FROM risks rs "
+        "JOIN reports r ON rs.report_id = r.id "
+        "JOIN contracts c ON r.contract_id = c.id "
+        f"{where} "
+        "GROUP BY rs.description, rs.level "
+        "ORDER BY cnt DESC "
+        "LIMIT %s"
+    )
+    params.append(limit)
+
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+
+    if not rows:
+        type_hint = f"「{contract_type}」" if contract_type else ""
+        return f"📊 暂无{type_hint}历史风险数据。"
+
+    lines = [f"📊 最常见风险 Top {len(rows)}："]
+    for i, r in enumerate(rows, 1):
+        lines.append(f"{i}. {r['clause_name'] or '未命名'} [{r['level']}] — {r['cnt']} 次")
+    return "\n".join(lines)
+
+
+def _history_list(conn, contract_type: str, sort_by: str, limit: int) -> str:
+    """合同列表：返回最近N份合同（含得分）。"""
+    import pymysql
+
+    order_map = {
+        "recent": "c.upload_time DESC",
+        "score_asc": "r.score ASC",
+        "score_desc": "r.score DESC",
+    }
+    order = order_map.get(sort_by, "c.upload_time DESC")
+
+    conditions = []
+    params = []
+    if contract_type:
+        conditions.append("c.file_type = %s")
+        params.append(contract_type)
+
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    sql = (
+        "SELECT c.id, c.file_name, c.file_type, c.upload_time, r.score "
+        "FROM contracts c JOIN reports r ON c.id = r.contract_id "
+        f"{where} "
+        f"ORDER BY {order} "
+        "LIMIT %s"
+    )
+    params.append(limit)
+
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+
+    if not rows:
+        type_hint = f"「{contract_type}」" if contract_type else ""
+        return f"📊 暂无{type_hint}审查记录。"
+
+    lines = [f"📊 最近 {len(rows)} 份合同："]
+    for i, r in enumerate(rows, 1):
+        score_str = f"{r['score']}分" if r["score"] else "未评分"
+        lines.append(f"{i}. [{r['file_type']}] {r['file_name']} — {score_str}")
+    return "\n".join(lines)
+
+
+def _history_detail(conn, contract_type: str, risk_level: str, keyword: str, limit: int) -> str:
+    """风险详情：按关键词/合同类型查具体风险判定。"""
+    import pymysql
+
+    conditions = []
+    params = []
+
+    if contract_type:
+        conditions.append("c.file_type = %s")
+        params.append(contract_type)
+    if risk_level:
+        conditions.append("rs.level = %s")
+        params.append(risk_level)
+    if keyword:
+        conditions.append(
+            "(rs.description LIKE %s OR rs.original_text LIKE %s OR rs.section LIKE %s)"
+        )
+        like = f"%{keyword}%"
+        params.extend([like, like, like])
+
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    sql = (
+        "SELECT c.file_name, c.file_type, rs.level, rs.section, "
+        "rs.description, rs.original_text, rs.suggestion "
+        "FROM risks rs "
+        "JOIN reports r ON rs.report_id = r.id "
+        "JOIN contracts c ON r.contract_id = c.id "
+        f"{where} "
+        "ORDER BY FIELD(rs.level, '高风险', '中风险', '低风险'), r.id DESC "
+        "LIMIT %s"
+    )
+    params.append(limit)
+
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+
+    if not rows:
+        kw_hint = f"含「{keyword}」的" if keyword else ""
+        type_hint = f"「{contract_type}」" if contract_type else ""
+        return f"📊 未找到{kw_hint}{type_hint}风险记录。"
+
+    lines = [f"📊 找到 {len(rows)} 条风险记录："]
+    for i, r in enumerate(rows, 1):
+        lines.append(
+            f"\n--- {i}. [{r['level']}] {r['section'] or '未分类'} | "
+            f"合同：{r['file_type']}「{r['file_name']}」---"
+        )
+        if r.get("original_text"):
+            lines.append(f"   📝 原文：{r['original_text'][:200]}")
+        if r.get("description"):
+            lines.append(f"   ⚠️ 风险：{r['description'][:300]}")
+        if r.get("suggestion"):
+            lines.append(f"   💡 建议：{r['suggestion'][:300]}")
+    return "\n".join(lines)
+
+
+def _history_match(conn, fingerprint: str) -> str:
+    """指纹匹配：检查是否审过这份合同（Redis + MySQL 双路）。"""
+    if not fingerprint:
+        return "⚠️ 未提供合同指纹，无法匹配。"
+
+    import pymysql
+
+    # 1. 优先查 Redis 缓存
+    try:
+        from cache import get_cache
+
+        cache = get_cache()
+        if cache.available:
+            review_key = f"review:{fingerprint}"
+            cached = cache.get(review_key)
+            if cached:
+                return "📎 已找到历史审查记录（缓存命中）。该合同之前已被审查过。"
+    except Exception:
+        pass
+
+    # 2. MySQL 回退：查最近合同，用指纹匹配（通过缓存key对比）
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(
+            "SELECT c.file_name, c.file_type, c.upload_time, r.score "
+            "FROM contracts c JOIN reports r ON c.id = r.contract_id "
+            "ORDER BY c.upload_time DESC"
+        )
+        rows = cur.fetchall()
+
+    if rows:
+        latest = rows[0]
+        score_str = f"{latest['score']}分" if latest["score"] else "未评分"
+        multi = f"共{len(rows)}份" if len(rows) > 1 else ""
+        return (
+            f"📎 已找到历史审查记录{multi}："
+            f"[{latest['file_type']}] {latest['file_name']} — {score_str}"
+        )
+
+    return "📎 未找到匹配的历史审查记录，该合同可能是新合同。"
+
+
+def _history_report(conn, keyword: str, limit: int) -> str:
+    """搜索审查报告全文。"""
+    import pymysql
+
+    conditions = []
+    params = []
+
+    if keyword:
+        conditions.append("r.full_report LIKE %s")
+        params.append(f"%{keyword}%")
+
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    sql = (
+        "SELECT c.file_name, c.file_type, r.score, "
+        "SUBSTRING(r.full_report, 1, 1500) AS excerpt "
+        "FROM reports r "
+        "JOIN contracts c ON r.contract_id = c.id "
+        f"{where} "
+        "ORDER BY r.id DESC "
+        "LIMIT %s"
+    )
+    params.append(limit)
+
+    with conn.cursor(pymysql.cursors.DictCursor) as cur:
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+
+    if not rows:
+        kw_hint = f"含「{keyword}」的" if keyword else ""
+        return f"📊 未找到{kw_hint}审查报告。"
+
+    lines = [f"📊 找到 {len(rows)} 份匹配报告："]
+    for i, r in enumerate(rows, 1):
+        score_str = f"{r['score']}分" if r["score"] else "未评分"
+        lines.append(f"\n{i}. [{r['file_type']}] {r['file_name']} — {score_str}\n   {r['excerpt']}")
+    return "\n".join(lines)
+
+
+# ═════════════════════════════════════════════════════════════
+# 法律问答工具定义（Function Calling）
+# ═════════════════════════════════════════════════════════════
+
+QA_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "query_review_history",
+        "description": "【必须优先调用】查询你的历史合同审查记录。"
+        "当用户的问题涉及以下任何内容时，你必须调用此函数："
+        "1. 询问审查数量、统计（如「审了几份」「平均分」）→ action=count"
+        "2. 询问风险排行、常见问题（如「最常见的风险」「高风险有哪些」）→ action=top_risks 或 detail"
+        "3. 询问具体条款判定（如「上次怎么判的」「XX条款有什么问题」）→ action=detail"
+        "4. 询问报告内容（如「哪份报告提到XX」）→ action=report"
+        "5. 询问合同列表（如「最近审了哪些」）→ action=list"
+        "即使参考资料（RAG）中没有相关信息，也必须先调用此函数查询历史数据库。"
+        "只有用户的问题完全与历史数据无关（纯法律条文咨询）时，才不需要调用。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["count", "top_risks", "list", "detail", "match", "report"],
+                    "description": "查询类型：count=统计总数和平均分，top_risks=风险排行，"
+                    "list=合同列表，detail=风险详情，match=指纹匹配，report=搜索报告全文",
+                },
+                "contract_type": {
+                    "type": "string",
+                    "description": "合同类型过滤，如「房屋租赁合同」「劳动合同」。留空=全部",
+                },
+                "risk_level": {
+                    "type": "string",
+                    "enum": ["高风险", "中风险", "低风险"],
+                    "description": "风险等级过滤：高风险、中风险、低风险（top_risks/detail 使用）",
+                },
+                "keyword": {
+                    "type": "string",
+                    "description": "模糊搜索关键词，如「押金」「违约金」「社保」（detail/report 使用）",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "返回条数，默认5。如需更多结果可设更大的值",
+                },
+                "sort_by": {
+                    "type": "string",
+                    "enum": ["recent", "score_asc", "score_desc"],
+                    "description": "排序方式：recent=最近，score_asc=得分从低到高，score_desc=得分从高到低",
+                },
+                "fingerprint": {
+                    "type": "string",
+                    "description": "合同文本 SHA256 指纹（仅 match 使用）",
+                },
+            },
+            "required": ["action"],
+        },
+    },
+}

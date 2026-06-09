@@ -7,11 +7,13 @@ from rag.retriever import format_results, search
 SYSTEM_PROMPT = """你是法眼法律助手，基于中国法律法规知识库为用户提供法律咨询。
 
 规则：
-1. 回答必须基于提供的"参考资料"。如果资料中没有相关信息，如实说"根据现有知识库，我暂无法回答这个问题"，然后给出现有知识库中最相关的建议。
-2. 引用法条或判例时，必须注明出处（如"根据《民法典》第585条"）。
-3. 回答简洁、通俗，让非法律专业人士也能听懂。末尾可附1-2条实操建议。
-4. 如果用户上传了合同并针对合同提问，结合合同内容和法规分析。
-5. 不做具体法律建议，提醒用户重大事项咨询专业律师。
+1. 你有一个工具 `query_review_history` 可以查询用户的历史合同审查数据（MySQL）。当用户询问审查历史、风险详情、合同统计等问题时，必须优先调用该工具，不要仅凭参考资料回答。
+2. 参考资料（RAG）中的法规条文是补充信息，历史数据工具返回的结果才是用户问的实际数据。
+3. ⚠️ 禁止编造任何数字、百分比、金额、日期——包括举例中的数字（如"日息0.1%""年化36%"等）。工具返回什么就引用什么，工具没返回的数据不能说，连"例如XX%"这种举例也不行。
+4. 引用法条或判例时，必须注明出处（如"根据《民法典》第585条"）。
+5. 回答简洁、通俗，让非法律专业人士也能听懂。末尾可附1-2条实操建议。
+6. 如果用户上传了合同并针对合同提问，结合合同内容和法规分析。
+7. 不做具体法律建议，提醒用户重大事项咨询专业律师。
 
 {contract_context}
 """
@@ -81,6 +83,7 @@ def chat_stream(
     history: list[dict],
     contract_text: str = "",
     api_key: str = "",
+    enable_tools: bool = False,
 ) -> str:
     """流式对话：逐 chunk 返回 LLM 回复。
 
@@ -89,23 +92,60 @@ def chat_stream(
         history: [{"user": "...", "assistant": "..."}, ...]
         contract_text: 可选的合同全文
         api_key: DashScope API Key
+        enable_tools: 是否启用历史数据查询工具（轻量 Agent 模式）
 
     Yields:
         文本 chunk
     """
+    import json
+
     from llm_client import LLMClient
 
     system, user = build_context(query, history, contract_text)
 
     client = LLMClient(api_key=api_key, model="qwen-plus")
 
-    # 用 OpenAI SDK 的 stream 模式
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
+
+    # ── 轻量 Agent：LLM 决定是否调工具 ──
+    if enable_tools:
+        from tools import QA_TOOL, query_review_history
+
+        # 第一步：LLM 看上下文 + 工具定义，决定要不要调
+        tool_response = client.client.chat.completions.create(
+            model="qwen-plus",
+            messages=messages,
+            tools=[QA_TOOL],
+            tool_choice="auto",
+            max_tokens=512,
+            temperature=0.1,
+        )
+
+        tool_calls = getattr(tool_response.choices[0].message, "tool_calls", None)
+
+        if tool_calls and len(tool_calls) > 0:
+            # LLM 决定查历史数据 → 执行工具
+            tool_call = tool_calls[0]
+            args = json.loads(tool_call.function.arguments)
+            tool_result = query_review_history(**args)
+
+            # 把工具调用和结果追加到对话
+            messages.append(tool_response.choices[0].message)
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": tool_result,
+                }
+            )
+
+    # ── 最终流式输出 ──
     response = client.client.chat.completions.create(
         model="qwen-plus",
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
+        messages=messages,
         stream=True,
         max_tokens=2048,
         temperature=0.3,
