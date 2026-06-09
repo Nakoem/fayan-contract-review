@@ -1,4 +1,4 @@
-"""合同照片 OCR（调用阿里云多模态模型 qwen-vl-plus）"""
+"""合同照片 OCR（调用阿里云多模态模型 qwen3.6-flash）"""
 
 import base64
 from pathlib import Path
@@ -17,7 +17,7 @@ def _image_to_base64(image_path: str) -> str:
 
 
 def ocr_image(image_path: str, api_key: str) -> str:
-    """用 qwen-vl-plus 提取合同照片中的全部文字。
+    """用 qwen3.6-flash 提取合同照片中的全部文字。
 
     Args:
         image_path: 图片路径（支持 jpg/png/bmp/webp）
@@ -34,7 +34,7 @@ def ocr_image(image_path: str, api_key: str) -> str:
     data_url = _image_to_base64(image_path)
 
     resp = client.chat.completions.create(
-        model="qwen-vl-plus",
+        model="qwen3.6-flash",
         max_tokens=4096,
         messages=[
             {

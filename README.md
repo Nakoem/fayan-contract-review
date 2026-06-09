@@ -207,7 +207,7 @@ contract_review/
 ├── evaluate.py             # 评估脚本
 ├── evaluate_helpers.py     # 评估辅助函数
 ├── mcp_server.py           # MCP 协议 Server
-├── ocr_utils.py            # 合同照片 OCR（qwen-vl-plus）
+├── ocr_utils.py            # 合同照片 OCR（qwen3.6-flash）
 ├── rag/
 │   ├── indexer.py          # 知识库构建（分块→嵌入→索引）
 │   ├── embedder.py         # 向量嵌入
