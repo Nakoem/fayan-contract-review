@@ -54,11 +54,12 @@
 - **SSE 流式输出**：LLMClient.stream_chat() → Agent.run_stream() → StreamingReviewRunner(Queue) → for-event-loop
 - **PDF/DOCX 解析**：pypdf + python-docx 原生文本提取，扫描件走 OCR
 - **RAG 混合检索**：向量语义 + 关键词全文扫描 + RRF 融合去重
-- **Self-Reflection 反思**：生成报告前全局质量审核（一致性/覆盖性/评分合规），最多 3 轮
+- **Self-Reflection 反思**：生成报告前全局质量审核（一致性/覆盖性/评分合规），最多 1 轮（从 3 轮缩减，避免死循环）
 - **11 个工具**：extract_clauses / search_regulation / search_case_law / check_local_policy / lookup_tax_rule / web_search / analyze_single_clause / check_completeness / self_reflection / switch_perspective / generate_final_report
 - **LangGraph Supervisor 多Agent**：5 个专业 Agent 流水线，Supervisor 路由 + 断点恢复
 - **MCP 协议**：5 个查询工具暴露给外部 AI
-- **FastAPI REST**：`/api/v1/review` 同步审查接口
+- **FastAPI REST**：`/api/v1/review` 同步 + `/api/v1/review/async` 异步审查接口
+- **Redis 缓存**：Web + CLI + API 三入口共享（SHA256 合同内容+类型 → report），命中后跳过 LLM 审查。Redis 不可用时自动降级
 
 ## 支持的合同类型
 房屋租赁合同、劳动合同、买卖合同、服务合同、合作协议、借款合同、自定义
@@ -71,6 +72,14 @@
   3. `json_error_count >= 3` 时强制纯文本输出报告，防止死循环
 - self_reflection 工具因为参数较长，更容易触发 qwen-plus JSON 错误 → 参数已截断 + 兜底策略可保底
 - ENTER 快捷键依赖前端 JS 注入，首次加载可能需点一次按钮激活
+
+## 开发陷阱（写代码时注意 ⚠️）
+- **prompts.py 的 `str.format()`**：所有 JSON 花括号必须双写 `{{"key":"value"}}`，否则 `.format(contract_type=xxx)` 会把 `{category}` 当占位符 → KeyError
+- **ToolMessage 必须传 `name`**：`agent_langgraph.py` 中创建 ToolMessage 时缺 `name` 会导致下游 Agent 匹配不到工具结果 → 空报告
+- **`contract_text` 不能用 thread-local**：StreamingReviewRunner 在单独线程中运行 graph，`threading.local()` 跨线程读不到
+- **`.venv` 才是正确的 Python**：本机有多个 Python 版本，`pip install` 和运行时都要确认在 `.venv` 环境
+- **Streamlit Cloud 部署**：新增 pip 依赖必须写入 `requirements.txt`（特别是 `langgraph-checkpoint-sqlite`），否则部署端 `No module named`
+- **`extract_clauses` max_tokens**：当前 2048，太小会截断合同末尾条款
 
 ## 审查质量保障
 - temperature=0.0 消除随机性
