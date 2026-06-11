@@ -30,7 +30,8 @@
 | `service.py` | Web 业务逻辑层（文件读取/审查执行/报告管理） |
 | `api.py` | FastAPI REST 接口 |
 | `mcp_server.py` | MCP 协议工具封装 |
-| `chat_engine.py` | 法律问答 RAG 引擎 |
+| `chat_engine.py` | 法律问答 MySQL+RAG 双引擎 |
+| `db.py` | MySQL 持久化：用户/合同/报告/风险点 CRUD |
 | `logger.py` | Loguru 日志配置 |
 | `rag/` | RAG 管线：embedder / indexer / retriever / vector_store |
 | `tests/test_smoke.py` | 22 冒烟测试 |
@@ -38,15 +39,16 @@
 | `scripts/evaluate.py` | 自动化评估工具 |
 | `scripts/evaluate_helpers.py` | 评估辅助函数 |
 | `cache.py` | Redis 缓存层 + 历史报告预热 |
-| `ocr_utils.py` | 合同照片 OCR（qwen-vl-plus） |
+| `ocr_utils.py` | 合同照片 OCR（qwen3.6-flash） |
 | `pages/01_法律问答.py` | Streamlit 法律问答子页面 |
 
 ## 技术栈
 - 模型：阿里云百炼 qwen-plus（temperature=0.0）
 - API：OpenAI SDK → `https://dashscope.aliyuncs.com/compatible-mode/v1`
 - API Key：`.env` 中 `DASHSCOPE_API_KEY`
-- OCR：qwen-vl-plus 多模态模型
+- OCR：qwen3.6-flash 多模态模型
 - RAG：ChromaDB 向量检索 + 关键词全文扫描 + RRF 融合
+- 持久化：MySQL（合同/报告/风险点）+ Redis（缓存）
 - 部署：Docker + docker-compose
 - 质量：pre-commit (ruff format + lint)
 
@@ -60,6 +62,9 @@
 - **MCP 协议**：5 个查询工具暴露给外部 AI
 - **FastAPI REST**：`/api/v1/review` 同步 + `/api/v1/review/async` 异步审查接口
 - **Redis 缓存**：Web + CLI + API 三入口共享（SHA256 合同内容+类型 → report），命中后跳过 LLM 审查。Redis 不可用时自动降级
+- **MySQL 持久化**：审查完成后自动保存合同+报告+风险点到 MySQL（`db.py`），支持历史查询
+- **法律问答 MySQL+RAG 双引擎**：ChromaDB 语义检索 + MySQL 关键词全文扫描 + RRF 融合去重
+- **报告三档全覆盖**：高/中/低风险条款均展示 ▸原文 + ▸风险说明 + ▸修改建议
 
 ## 支持的合同类型
 房屋租赁合同、劳动合同、买卖合同、服务合同、合作协议、借款合同、自定义
