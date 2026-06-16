@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 from cache import warmup_from_reports
 from db import ensure_user, save_review
-from logger import init_logger
+from logger import init_logger, logger
 from service import (
     CONTRACT_TYPES,
     StreamingReviewRunner,
@@ -485,7 +485,7 @@ def _init_user(username: str = "Nakko") -> int:
     try:
         return ensure_user(username)
     except Exception as e:
-        st.warning(f"数据库连接失败，审查记录将不会保存：{e}")
+        logger.info(f"数据库连接失败，审查记录将不会保存至 MySQL：{e}")
         return 0
 
 
