@@ -48,8 +48,11 @@ def read_uploaded_contract(uploaded_file, api_key: str) -> tuple[str, str | None
 
     # 图片 → OCR
     if ext in (".jpg", ".jpeg", ".png", ".bmp", ".webp"):
-        if not api_key:
-            return "", "OCR 需要 API Key，请在侧边栏填写或配置到 .env / Streamlit Secrets"
+        if not api_key and not os.getenv("ZHIPU_API_KEY"):
+            return (
+                "",
+                "OCR 需要 API Key（智谱或 DashScope），请在侧边栏填写或配置到 .env / Streamlit Secrets",
+            )
         with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
             tmp.write(uploaded_file.read())
             tmp_path = tmp.name

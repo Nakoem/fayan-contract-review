@@ -641,7 +641,11 @@ st.markdown(
 # 读取上传文件（纯文本直接读，图片走 OCR）
 # ═══════════════════════════════════════════════════════
 if uploaded_file:
-    contract_text, ocr_error = read_uploaded_contract(uploaded_file, api_key)
+    if Path(uploaded_file.name).suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp", ".webp"):
+        with st.spinner("正在识别合同照片（免费视觉模型限 1 并发，人多时请稍候）..."):
+            contract_text, ocr_error = read_uploaded_contract(uploaded_file, api_key)
+    else:
+        contract_text, ocr_error = read_uploaded_contract(uploaded_file, api_key)
     if ocr_error:
         st.error(ocr_error)
         contract_text = ""
