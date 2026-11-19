@@ -49,6 +49,7 @@ SCRIPT_ORDER = [
     "llm.js",
     "pipeline.js",
     "storage.js",
+    "ledger.js",
     "file_parser.js",
     "app.js",
 ]
@@ -197,6 +198,7 @@ def check() -> int:
         ("含 PDF 解析器", 'id="pdfjs-main"' in html and 'id="pdfjs-worker"' in html),
         ("含 DOCX 解析器", "mammoth.extractRawText" in html),
         ("含文件解析入口", "WB.parseFile" in html),
+        ("含合同台账", 'id="view-ledger"' in html and "WB.Ledger" in html),
     ]
     for name, passed in checks:
         print(f"[check] {'✓' if passed else '✗'} {name}")

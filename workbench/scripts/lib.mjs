@@ -1,6 +1,7 @@
 /* 测试脚本公共库：Chrome 启动 / CDP 客户端 / 等待 / .env 读取 */
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 
@@ -124,10 +125,23 @@ export async function screenshot(cdp, outPath) {
   return outPath;
 }
 
+function findFreePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.unref();
+    srv.on("error", reject);
+    srv.listen(0, "127.0.0.1", () => {
+      const { port } = srv.address();
+      srv.close(() => resolve(port));
+    });
+  });
+}
+
 /** 启动 headless Chrome，连接 CDP，返回可关闭的句柄 */
 export async function launchBrowser({ url, width = 1280, height = 900, prefix = "wb", profileDir = null }) {
   const chrome = findChrome();
-  const port = 9300 + Math.floor(Math.random() * 400);
+  // 随机端口可能撞上别的 Chrome（如 Playwright 的 9333），用系统空闲端口更稳。
+  const port = await findFreePort();
   const profile = profileDir || fs.mkdtempSync(path.join(os.tmpdir(), prefix + "-"));
   const ownsProfile = !profileDir;
 

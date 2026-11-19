@@ -932,6 +932,183 @@ mark.hl-beam-source {
 .error-detail { max-width: 560px; margin: 0 0 24px; color: var(--muted); font-size: 13px; line-height: 1.8; }
 .error-actions { display: flex; gap: 10px; }
 
+/* ═════════════ 案头 ═════════════ */
+.view-home { padding: 26px 10px 20px; }
+.home-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+.home-head .btn { flex: none; }
+.home-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.home-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--glass-line);
+  background: var(--glass-strong);
+  box-shadow: var(--shadow-soft);
+}
+.home-stat span { font-size: 10px; color: var(--muted); letter-spacing: .08em; }
+.home-stat b { font-size: 28px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.home-stat em { margin-left: 2px; font-style: normal; font-size: 10px; color: var(--muted); }
+.home-stat.high b { color: var(--high); }
+.home-stat b.home-stat-date { font-size: 20px; letter-spacing: -.02em; }
+.home-card {
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid var(--glass-line);
+  background: var(--glass-strong);
+  box-shadow: var(--shadow-soft);
+}
+.home-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.home-card-title { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+.home-card-desc { margin: 0; font-size: 11px; color: var(--muted); }
+.home-tools { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.history-search {
+  width: 210px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .72);
+  color: var(--ink);
+  font-size: 11px;
+  outline: none;
+}
+.history-search:focus { border-color: var(--mint); box-shadow: 0 0 0 3px rgba(63, 143, 111, .10); }
+.history-list { display: flex; flex-direction: column; gap: 8px; }
+.history-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 14px;
+  border: 1px solid rgba(255, 255, 255, .85);
+  border-left: 3px solid var(--mint);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .62);
+  cursor: pointer;
+  transition: background .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.history-item:hover {
+  background: rgba(255, 255, 255, .92);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(40, 80, 65, .06);
+}
+.history-item-main { flex: 1; min-width: 0; }
+.history-item-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.history-item-top h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.history-type {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--mint-soft);
+  color: var(--mint-deep);
+  font-size: 10px;
+}
+.history-meta { margin: 5px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.history-snippet {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.history-actions { flex: none; display: flex; gap: 6px; }
+.history-open, .history-delete {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+.history-open { color: var(--mint-deep); }
+.history-open:hover { background: var(--mint-soft); }
+.history-delete { color: var(--muted); }
+.history-delete:hover { background: rgba(201, 95, 95, .10); color: var(--high); }
+.history-empty { padding: 34px 20px; text-align: center; color: var(--muted); font-size: 12px; }
+.history-empty p { margin: 0 0 14px; }
+.home-roadmap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 14px 4px 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+.home-roadmap span:first-child { color: var(--ink); font-weight: 600; }
+.home-card + .home-card { margin-top: 14px; }
+
+/* 案头待办 */
+.reminder-list { display: flex; flex-direction: column; gap: 6px; }
+.reminder-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, .85);
+  border-left: 3px solid var(--mint);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .58);
+  color: var(--ink);
+  text-align: left;
+  transition: background .15s ease, transform .15s ease;
+}
+.reminder-item:hover { background: rgba(255, 255, 255, .92); transform: translateY(-1px); }
+.reminder-item.overdue { border-left-color: var(--high); }
+.reminder-item.urgent { border-left-color: var(--mid); }
+.reminder-kind {
+  flex: none;
+  min-width: 34px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--mint-soft);
+  color: var(--mint-deep);
+  font-size: 10px;
+  text-align: center;
+}
+.reminder-kind.pay { background: var(--mid-soft); color: var(--mid); }
+.reminder-main { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
+.reminder-main b {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reminder-main em { flex: none; font-style: normal; color: var(--muted); font-size: 10px; }
+.reminder-count { flex: none; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.reminder-item.overdue .reminder-count { color: var(--high); }
+.reminder-item.urgent .reminder-count { color: var(--mid); }
+.reminder-empty { margin: 0; padding: 10px 2px; color: var(--muted); font-size: 11px; }
+.reminder-more { margin: 4px 2px 0; color: var(--muted); font-size: 10px; }
+
 /* ═════════════ 条款库 ═════════════ */
 .clauses-head {
   padding: 26px 10px 16px;
@@ -1003,6 +1180,119 @@ mark.hl-beam-source {
 .clause-card-advice b { font-weight: 600; color: var(--mint-deep); font-size: 10px; letter-spacing: .06em; margin-right: 6px; }
 .clause-empty { padding: 40px; color: var(--muted); text-align: center; }
 
+/* ═════════════ 合同台账 ═════════════ */
+.view-ledger { padding: 26px 10px 20px; }
+.ledger-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+.ledger-head-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex: none; }
+.ledger-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+.ledger-filters { justify-content: flex-start; max-width: none; }
+.ledger-summary { margin: 0 0 12px; color: var(--muted); font-size: 10px; letter-spacing: .02em; }
+.ledger-list { display: flex; flex-direction: column; gap: 10px; }
+.ledger-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 15px 16px;
+  border: 1px solid rgba(255, 255, 255, .85);
+  border-left: 3px solid var(--mint);
+  border-radius: 18px;
+  background: var(--glass-strong);
+  box-shadow: var(--shadow-soft);
+}
+.ledger-row.status-pending { border-left-color: var(--mid); }
+.ledger-row.status-active { border-left-color: var(--mint); }
+.ledger-row.status-archived { border-left-color: rgba(104, 122, 116, .35); }
+.ledger-row.status-ended { border-left-color: var(--high); }
+.ledger-row-main { flex: 1; min-width: 0; }
+.ledger-row-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ledger-row-top h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ledger-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--mint); }
+.status-pending .ledger-dot { background: var(--mid); }
+.status-archived .ledger-dot { background: #A9B6B1; }
+.status-ended .ledger-dot { background: var(--high); }
+.ledger-status { flex: none; padding: 2px 8px; border-radius: 999px; font-size: 10px; }
+.ledger-status.pending { background: var(--mid-soft); color: var(--mid); }
+.ledger-status.active { background: var(--mint-soft); color: var(--mint-deep); }
+.ledger-status.archived { background: rgba(104, 122, 116, .10); color: var(--muted); }
+.ledger-status.ended { background: var(--high-soft); color: var(--high); }
+.ledger-type {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .7);
+  color: var(--muted);
+  font-size: 10px;
+}
+.ledger-meta { margin: 6px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.ledger-note {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ledger-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 9px; }
+.ledger-badge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .72);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ledger-badge.overdue { background: var(--high-soft); border-color: transparent; color: var(--high); }
+.ledger-badge.urgent { background: var(--mid-soft); border-color: transparent; color: var(--mid); }
+.ledger-badge.soon { background: var(--mint-soft-2); border-color: transparent; color: var(--mint-deep); }
+.ledger-badge.muted { color: var(--muted); }
+.ledger-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px; }
+.ledger-actions button {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 4px 6px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.ledger-actions button:hover { background: rgba(255, 255, 255, .9); color: var(--ink); }
+.ledger-actions [data-open-ledger-review] { color: var(--mint-deep); }
+.ledger-actions [data-delete-ledger]:hover { background: rgba(201, 95, 95, .10); color: var(--high); }
+.ledger-empty {
+  padding: 44px 24px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  border-radius: 20px;
+  border: 1px dashed var(--line);
+  background: rgba(255, 255, 255, .32);
+}
+.ledger-empty p { margin: 0 0 10px; }
+.ledger-empty-sub { font-size: 11px; }
+.ledger-empty .btn { margin-top: 6px; }
+
 /* ═════════════ 设置抽屉 ═════════════ */
 .backdrop {
   position: fixed; inset: 0;
@@ -1038,7 +1328,7 @@ mark.hl-beam-source {
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
 .field-label { font-size: 11px; color: var(--muted); letter-spacing: .06em; }
 .field-note { font-size: 10.5px; color: var(--muted); line-height: 1.6; }
-input[type="text"], input[type="password"], select, textarea {
+input[type="text"], input[type="password"], input[type="date"], select, textarea {
   width: 100%;
   padding: 10px 12px;
   border-radius: 12px;
@@ -1046,6 +1336,7 @@ input[type="text"], input[type="password"], select, textarea {
   background: rgba(255, 255, 255, .82);
   box-shadow: inset 0 1px 0 #fff, 0 4px 12px rgba(40, 80, 65, .04);
   font-size: 13px;
+  color-scheme: light;
 }
 textarea { resize: vertical; line-height: 1.7; }
 input:focus, select:focus, textarea:focus { outline: none; border-color: rgba(63, 143, 111, .45); }
@@ -1055,6 +1346,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: rgba(63
 .check-row input { margin-top: 2px; accent-color: var(--mint-deep); }
 .drawer-actions { padding-top: 6px; }
 .drawer-actions .btn { width: 100%; }
+.drawer-actions .btn + .btn { margin-top: 8px; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field-row .field { margin-bottom: 18px; }
 .drawer-tip { color: var(--muted); font-size: 10.5px; line-height: 1.7; margin: 12px 0 0; }
 
 /* ═════════════ Toast ═════════════ */
@@ -1148,50 +1442,677 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: rgba(63
   .copy-btn, .basis-ref { display: none !important; }
   .finding-card { break-inside: avoid; }
 }
+/* ═════════════ 布局 V1.6：侧栏 + 案头 ═════════════
+ * 沿用原来的天空玻璃配色与按钮，只调整外壳结构和案头版式
+ * 审查台 / 合同台账 / 条款库继续使用原样式
+ */
+.body { padding: 14px 18px 0; gap: 14px; }
+
+.sidebar {
+  width: 236px;
+  padding: 18px 14px;
+  gap: 14px;
+  border-radius: 22px;
+  background: var(--glass);
+  backdrop-filter: blur(22px) saturate(1.15);
+  -webkit-backdrop-filter: blur(22px) saturate(1.15);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--shadow-soft);
+}
+.brand { padding: 0 4px; gap: 10px; }
+.brand-mark {
+  width: 34px; height: 34px;
+  padding: 0;
+  border-radius: 11px;
+  background: var(--btn);
+  box-shadow: 0 8px 18px rgba(34, 72, 59, .22);
+}
+.brand-mark svg { display: block; border-radius: 9px; }
+.brand-name { font-size: 16px; font-weight: 600; }
+.brand-sub { display: none; }
+
+.side-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, .8);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .55);
+  color: var(--muted);
+  transition: background .15s ease, border-color .15s ease;
+}
+.side-search:focus-within { background: rgba(255, 255, 255, .9); border-color: rgba(63, 143, 111, .35); }
+.side-search-icon, .side-search-icon svg { width: 15px; height: 15px; display: block; flex: none; }
+.side-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-size: 12px;
+  color: var(--ink);
+}
+.side-search input::placeholder { color: #A3B1AB; }
+.side-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.side-search-clear {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+}
+.side-search-clear:hover { background: rgba(255, 255, 255, .9); color: var(--ink); }
+
+.nav-group { display: flex; flex-direction: column; gap: 3px; }
+.sidebar-spacer { flex: 1; }
+.nav-item {
+  height: 38px;
+  margin: 0;
+  padding: 0 10px;
+  gap: 10px;
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+.nav-item:hover { color: var(--ink); background: rgba(255, 255, 255, .55); }
+.nav-item.active {
+  color: var(--ink);
+  background: rgba(255, 255, 255, .92);
+  border-color: rgba(255, 255, 255, .9);
+  font-weight: 600;
+  box-shadow: 0 6px 18px rgba(40, 80, 65, .08);
+}
+.nav-icon { width: 30px; height: 30px; border-radius: 10px; background: rgba(255, 255, 255, .5); color: var(--mint-deep); }
+.nav-icon svg, .nav-icon.icon svg { width: 17px; height: 17px; }
+.nav-item.active .nav-icon { background: var(--mint-soft); }
+.nav-label {
+  margin: 0 10px -6px;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: .12em;
+  opacity: .75;
+}
+.nav-settings { margin: 0; }
+
+.main { padding: 0 0 8px; }
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  height: 60px;
+  margin: 0 0 14px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 18px;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+.topbar.home-mode {
+  background: var(--glass);
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  border-color: var(--glass-line);
+  box-shadow: var(--shadow-soft);
+}
+.topbar-greeting { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.topbar-right { gap: 10px; margin-left: auto; }
+
+.view-home {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 130px);
+  padding: 0 10px 8px;
+}
+.home-greeting {
+  margin: 0;
+  color: var(--ink);
+  font-size: 25px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+.home-sub { margin: 0; color: var(--muted); font-size: 12px; }
+
+.home-stats { gap: 12px; margin-bottom: 16px; }
+.home-stat { height: 116px; gap: 8px; }
+.home-stat-value { display: flex; align-items: baseline; gap: 4px; }
+.home-stat p { margin: auto 0 0; color: var(--muted); font-size: 10px; }
+
+.home-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  align-items: stretch;
+}
+.home-card {
+  padding: 0;
+  border-radius: 22px;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--shadow-soft);
+}
+.home-card + .home-card { margin-top: 0; }
+.home-card-head {
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0;
+  padding: 18px 18px 12px;
+}
+.home-card-title { margin: 0; font-size: 14px; font-weight: 600; }
+.home-card-desc { margin: 4px 0 0; font-size: 10.5px; color: var(--muted); }
+.home-tools { gap: 8px; }
+.history-search {
+  width: 170px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.home-history-card { display: flex; flex-direction: column; min-height: 380px; }
+.home-history-card .history-list { flex: 1; padding: 0 14px 14px; }
+.history-item {
+  min-height: 72px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 16px;
+}
+.history-item.high { border-left-color: var(--high); }
+.history-item.mid { border-left-color: var(--mid); }
+.history-item.low { border-left-color: var(--mint); }
+.history-item-top h4 { font-size: 13.5px; }
+.history-meta { margin: 6px 0 0; font-size: 10.5px; }
+.history-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; }
+.history-risk { color: var(--mint-deep); font-size: 10.5px; font-weight: 500; white-space: nowrap; }
+.history-risk.high { color: var(--high); }
+.history-risk.mid { color: var(--mid); }
+.history-actions { gap: 4px; }
+.history-open, .history-delete { padding: 3px 6px; }
+
+.home-reminder-card { display: flex; flex-direction: column; }
+.reminder-list { gap: 6px; padding: 0 14px 14px; }
+.reminder-item { gap: 10px; padding: 9px 12px; }
+.reminder-icon {
+  width: 34px; height: 34px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--mint-soft);
+  color: var(--mint-deep);
+}
+.reminder-icon svg { width: 16px; height: 16px; display: block; }
+.reminder-icon.pay { background: var(--mid-soft); color: var(--mid); }
+.reminder-item.overdue .reminder-icon.due { background: var(--high-soft); color: var(--high); }
+.reminder-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+.reminder-main b { max-width: 100%; font-size: 12px; }
+.reminder-main em { flex: none; font-size: 10px; }
+.reminder-count { flex: none; font-size: 10px; }
+.reminder-empty { padding: 8px 14px 14px; }
+.reminder-more { padding: 0 14px; }
+.home-card-foot {
+  margin-top: auto;
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--line);
+}
+.btn-block { width: 100%; }
+
+/* 侧栏全局搜索：台账条目 */
+.search-ledger-group {
+  margin: 0 0 4px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+.search-ledger-title {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: .08em;
+}
+.search-ledger-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, .85);
+  border-left: 3px solid var(--mint);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .58);
+  color: var(--ink);
+  text-align: left;
+  transition: background .15s ease, transform .15s ease;
+}
+.search-ledger-row:hover { background: rgba(255, 255, 255, .92); transform: translateY(-1px); }
+.search-ledger-main { min-width: 0; }
+.search-ledger-main b {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-ledger-main em { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; font-style: normal; }
+.search-ledger-status {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--mint-soft);
+  color: var(--mint-deep);
+  font-size: 10px;
+}
+.search-ledger-empty { margin: 0 0 8px; color: var(--muted); font-size: 11px; }
+
+@media (max-width: 1100px) {
+  .home-grid { grid-template-columns: minmax(0, 1fr); }
+  .home-reminder-card { min-height: 280px; }
+}
+/* ═════════════ 案头双入口 + 合同台账（对照 ardot P1 / P3）═════════════ */
+
+/* 案头：最近审查 / 我的合同 */
+.home-card-head-tabs {
+  align-items: center;
+  padding: 14px 18px 10px;
+}
+.home-tabs { display: flex; align-items: center; gap: 6px; }
+.home-tab {
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+}
+.home-tab:hover { background: rgba(255, 255, 255, .55); color: var(--ink); }
+.home-tab.active {
+  background: rgba(255, 255, 255, .85);
+  border-color: rgba(255, 255, 255, .9);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(40, 80, 65, .06);
+}
+.home-pane { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.home-pane.hidden { display: none; }
+.home-pane-desc { margin: 0 18px 10px; color: var(--muted); font-size: 10.5px; }
+
+.home-contract-list { padding: 0 14px 14px; gap: 8px; }
+.home-contract-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  min-height: 72px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, .85);
+  border-left: 3px solid var(--mint);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .62);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.home-contract-row:hover {
+  background: rgba(255, 255, 255, .92);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(40, 80, 65, .06);
+}
+.home-contract-row.high { border-left-color: var(--high); }
+.home-contract-row.mid { border-left-color: var(--mid); }
+.home-contract-row.low { border-left-color: var(--mint); }
+.home-contract-row.none { border-left-color: rgba(104, 122, 116, .28); }
+.home-contract-main { flex: 1; min-width: 0; }
+.home-contract-title {
+  display: block;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-contract-meta {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-contract-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.history-risk.none { color: var(--muted); }
+
+/* 台账页 */
+.view-ledger { padding: 26px 10px 20px; }
+.ledger-head { align-items: flex-start; margin-bottom: 16px; }
+.ledger-head .view-title { font-size: 25px; }
+.ledger-head .view-desc { font-size: 12px; }
+.ledger-summary { margin: 0; letter-spacing: 0; }
+.ledger-toolbar {
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ledger-filters { gap: 6px; }
+.ledger-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.ledger-type-select { width: 116px; height: 36px; padding: 0 30px 0 12px; font-size: 11.5px; }
+.ledger-search { width: 200px; height: 36px; }
+.ledger-tools .btn { min-height: 36px; padding: 0 16px; }
+
+.ledger-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+  align-items: stretch;
+  min-height: calc(100vh - 300px);
+}
+.ledger-table-card { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.ledger-table-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.ledger-table-head h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.ledger-table-head span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+.ledger-table-header,
+.ledger-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, .9fr) 70px 80px 56px 80px;
+  align-items: center;
+  gap: 8px;
+}
+.ledger-table-header {
+  padding: 8px 18px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: .02em;
+}
+.ledger-list { display: flex; flex-direction: column; flex: 1; gap: 0; }
+.ledger-row {
+  min-height: 64px;
+  padding: 12px 18px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-left: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: background .15s ease;
+}
+.ledger-row:last-child { border-bottom: 0; }
+.ledger-row:hover { background: rgba(255, 255, 255, .38); }
+.ledger-cell { min-width: 0; }
+.ledger-cell-name { display: flex; align-items: center; gap: 9px; }
+.ledger-name-main { min-width: 0; }
+.ledger-cell-name h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ledger-cell-name p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ledger-cell-party,
+.ledger-cell-end { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ledger-cell-amount { color: var(--ink); font-size: 11.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ledger-cell-status { display: flex; justify-content: flex-start; }
+.ledger-cell-actions { display: flex; justify-content: flex-end; }
+.ledger-actions { display: flex; align-items: center; gap: 2px; opacity: 0; transition: opacity .15s ease; }
+.ledger-row:hover .ledger-actions,
+.ledger-row:focus-within .ledger-actions { opacity: 1; }
+.ledger-actions button {
+  width: 18px; height: 18px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+}
+.ledger-actions button:hover { background: rgba(255, 255, 255, .9); color: var(--ink); }
+.ledger-actions button svg { width: 14px; height: 14px; display: block; }
+.ledger-actions [data-open-ledger-review] { color: var(--mint-deep); }
+.ledger-actions [data-delete-ledger]:hover { background: rgba(201, 95, 95, .10); color: var(--high); }
+
+.ledger-dates-card { display: flex; flex-direction: column; padding: 0; }
+.ledger-dates-card .home-card-head { padding: 16px 18px 10px; }
+.ledger-dates-list {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 18px 12px;
+}
+.ledger-dates-list::before {
+  content: "";
+  position: absolute;
+  left: 21px;
+  top: 10px;
+  bottom: 18px;
+  width: 1px;
+  background: var(--line);
+}
+.ledger-date-item {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 8px 0 8px 30px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+.ledger-date-item::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  top: 13px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mint);
+  box-shadow: 0 0 0 3px var(--glass-strong);
+}
+.ledger-date-item b {
+  display: block;
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ledger-date-item em { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; font-style: normal; }
+.ledger-date-item:hover b { color: var(--mint-deep); }
+.ledger-date-item.is-overdue::before { background: var(--high); }
+.ledger-date-item.is-payment::before { background: var(--mid); }
+.ledger-date-item.is-soon::before { background: var(--mid); }
+.ledger-date-item.is-muted::before { background: #A9B6B1; }
+.ledger-date-item.is-muted b { color: var(--muted); }
+.ledger-dates-card .home-card-foot { padding: 12px 18px 16px; border-top: 1px solid var(--line); }
+
+.ledger-empty {
+  padding: 56px 24px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+@media (max-width: 1180px) {
+  .ledger-layout { grid-template-columns: minmax(0, 1fr); }
+  .ledger-dates-card { min-height: 280px; }
+  .ledger-table-header,
+  .ledger-row { grid-template-columns: minmax(0, 1.4fr) minmax(0, .8fr) 64px 72px 52px 72px; }
+}
+
+@media (hover: none) {
+  .ledger-actions { opacity: 1; }
+}
 
 </style>
 </head>
 <body>
 <div class="app">
-  <!-- 顶栏 -->
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true">契</span>
-      <div class="brand-text">
-        <span class="brand-name">合同工作台</span>
-        <span class="brand-sub">签约前，先看一眼</span>
-      </div>
-    </div>
-    <div class="topbar-right">
-      <label class="type-select-wrap">
-        <span class="sr-only">合同类型</span>
-        <select id="contract-type" class="type-select" aria-label="合同类型"></select>
-      </label>
-      <span id="model-status" class="model-status" title="模型配置状态">
-        <i class="dot"></i><span id="model-status-text">未配置</span>
-      </span>
-      <button id="btn-settings" class="icon-btn" type="button" title="设置" aria-label="设置">
-        <span data-icon="settings"></span>
-      </button>
-    </div>
-  </header>
-
   <div class="body">
     <!-- 侧栏 -->
     <nav class="sidebar" aria-label="主导航">
-      <button class="nav-item active" data-view="review" type="button">
-        <span class="nav-icon" data-icon="review"></span><span>审查台</span>
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 30 30" width="30" height="30" aria-hidden="true">
+            <rect width="30" height="30" rx="9" fill="#1C3A32"/>
+            <path fill="#EAF3EF" transform="matrix(1 0 0 1 11 9)" d="M4.5333 0L4.5333 11.4667L8 11.4667Q8.2236 11.4602 8.3771 11.6229Q8.5398 11.7764 8.5333 12Q8.5398 12.2236 8.3771 12.3771Q8.2236 12.5398 8 12.5333L4.0336 12.5333Q4.017 12.5338 4 12.5333Q3.983 12.5338 3.9664 12.5333L0 12.5333Q-0.2236 12.5398 -0.3771 12.3771Q-0.5398 12.2236 -0.5333 12Q-0.5398 11.7764 -0.3771 11.6229Q-0.2236 11.4602 0 11.4667L3.4667 11.4667L3.4667 0Q3.4602 -0.2236 3.6229 -0.3771Q3.7764 -0.5398 4 -0.5333Q4.2236 -0.5398 4.3771 -0.3771Q4.5398 -0.2236 4.5333 0Z"/>
+            <path fill="#EAF3EF" transform="matrix(1 0 0 1 10.3333 11)" d="M-0.2101 1.5098L4.4566 -0.4902L4.6667 -0.5802L9.5434 1.5098Q9.7515 1.5919 9.8285 1.8019Q9.9175 2.0071 9.8235 2.2101Q9.7414 2.4181 9.5314 2.4952Q9.3262 2.5842 9.1232 2.4902L4.6667 0.5802L0.2101 2.4902Q0.0071 2.5842 -0.1981 2.4952Q-0.4081 2.4181 -0.4902 2.2101Q-0.5842 2.0071 -0.4952 1.8019Q-0.4181 1.5919 -0.2101 1.5098Z"/>
+            <path fill="#EAF3EF" transform="matrix(1 0 0 1 9 13)" d="M0.885 0.8481Q1.2364 1.1994 1.7333 1.1994Q2.2303 1.1994 2.5817 0.8481Q2.9332 0.4968 2.9333 -0.0002Q2.927 -0.2238 3.0897 -0.3773Q3.2433 -0.5398 3.4669 -0.5333Q3.6904 -0.5397 3.8439 -0.377Q4.0065 -0.2234 4 0.0002Q3.9997 0.9388 3.3358 1.6025Q2.672 2.2661 1.7333 2.2661Q0.7947 2.2661 0.1308 1.6025Q-0.533 0.9388 -0.5333 0.0002Q-0.5398 -0.2234 -0.3773 -0.377Q-0.2238 -0.5397 -0.0002 -0.5333Q0.2234 -0.5398 0.377 -0.3773Q0.5397 -0.2238 0.5333 -0.0002Q0.5335 0.4968 0.885 0.8481ZM9.0667 0Q9.0667 0.4971 9.4181 0.8485Q9.7696 1.2 10.2667 1.2Q10.7637 1.2 11.1152 0.8485Q11.4667 0.4971 11.4667 0Q11.4602 -0.2236 11.6229 -0.3771Q11.7764 -0.5398 12 -0.5333Q12.2236 -0.5398 12.3771 -0.3771Q12.5398 -0.2236 12.5333 0Q12.5333 0.9389 11.8694 1.6028Q11.2056 2.2667 10.2667 2.2667Q9.3278 2.2667 8.6639 1.6028Q8 0.9389 8 0Q7.9936 -0.2236 8.1562 -0.3771Q8.3098 -0.5398 8.5333 -0.5333Q8.7569 -0.5398 8.9105 -0.3771Q9.0731 -0.2236 9.0667 0Z"/>
+          </svg>
+        </span>
+        <div class="brand-text">
+          <span class="brand-name">合同工作台</span>
+        </div>
+      </div>
+
+      <div class="side-search">
+        <span class="side-search-icon" data-icon="search" aria-hidden="true"></span>
+        <input id="sidebar-search" type="search" placeholder="搜索合同、对方、条款" aria-label="搜索合同、对方、条款" autocomplete="off">
+        <button id="sidebar-search-clear" class="side-search-clear hidden" type="button" aria-label="清空搜索" title="清空搜索">×</button>
+      </div>
+
+      <div class="nav-group">
+        <button class="nav-item" data-view="home" type="button">
+          <span class="nav-icon" data-icon="home"></span><span>案头</span>
+        </button>
+        <button class="nav-item active" data-view="review" type="button">
+          <span class="nav-icon" data-icon="review"></span><span>审查台</span>
+        </button>
+        <button class="nav-item" data-view="ledger" type="button">
+          <span class="nav-icon" data-icon="ledger"></span><span>合同台账</span>
+        </button>
+        <button class="nav-item" data-view="clauses" type="button">
+          <span class="nav-icon" data-icon="clause"></span><span>条款库</span>
+        </button>
+      </div>
+
+      <div class="sidebar-spacer"></div>
+      <p class="nav-label">本地与安全</p>
+      <button id="btn-settings" class="nav-item nav-settings" type="button">
+        <span class="nav-icon" data-icon="settings"></span><span>设置</span>
       </button>
-      <button class="nav-item" data-view="clauses" type="button">
-        <span class="nav-icon" data-icon="clause"></span><span>条款库</span>
-      </button>
+
       <div class="sidebar-foot">
         <p class="privacy-line">合同不出本机</p>
-        <p class="privacy-sub">原文只发给你自己选的模型</p>
+        <p class="privacy-sub">原文只发给你自己选的模型；AI 辅助结果，不构成法律意见。</p>
       </div>
     </nav>
 
     <main class="main">
+      <header id="topbar" class="topbar">
+        <div id="home-greeting-block" class="topbar-greeting hidden">
+          <h2 id="home-greeting" class="home-greeting">早上好</h2>
+          <p id="home-sub" class="home-sub">今天的合同与待办</p>
+        </div>
+        <div class="topbar-right">
+          <button id="btn-home-review" class="btn btn-primary hidden" type="button">审查新合同</button>
+          <label class="type-select-wrap">
+            <span class="sr-only">合同类型</span>
+            <select id="contract-type" class="type-select" aria-label="合同类型"></select>
+          </label>
+          <span id="model-status" class="model-status" title="模型配置状态">
+            <i class="dot"></i><span id="model-status-text">未配置</span>
+          </span>
+        </div>
+      </header>
+      <!-- ═══════════ 案头 ═══════════ -->
+      <section id="view-home" class="view view-home hidden" aria-label="案头">
+        <div id="home-stats" class="home-stats"></div>
+
+        <div class="home-grid">
+          <div class="home-card home-history-card">
+            <div class="home-card-head home-card-head-tabs">
+              <div class="home-tabs" role="tablist" aria-label="案头列表">
+                <button id="home-tab-reviews" class="home-tab active" data-home-tab="reviews" type="button" role="tab" aria-selected="true">最近审查</button>
+                <button id="home-tab-contracts" class="home-tab" data-home-tab="contracts" type="button" role="tab" aria-selected="false">我的合同</button>
+              </div>
+              <div id="home-review-tools" class="home-tools">
+                <input id="history-search" class="history-search" type="search" placeholder="搜索标题、类型或原文" aria-label="搜索审查记录">
+                <button id="btn-history-clear" class="btn btn-ghost btn-mini" type="button">清空</button>
+              </div>
+              <div id="home-contract-tools" class="home-tools hidden">
+                <input id="contracts-search" class="history-search" type="search" placeholder="搜索合同、对方或金额" aria-label="搜索我的合同">
+                <button id="btn-home-ledger-all" class="btn btn-ghost btn-mini" type="button">查看全部</button>
+              </div>
+            </div>
+            <div id="home-reviews-pane" class="home-pane">
+              <p class="home-pane-desc">只存在本机浏览器，不会上传</p>
+              <div id="history-list" class="history-list"></div>
+            </div>
+            <div id="home-contracts-pane" class="home-pane hidden">
+              <p class="home-pane-desc">合同、对方、金额与到期日</p>
+              <div id="home-contracts-list" class="history-list home-contract-list"></div>
+            </div>
+          </div>
+
+          <aside class="home-card home-reminder-card">
+            <div class="home-card-head">
+              <div>
+                <h3 class="home-card-title">待办</h3>
+                <p class="home-card-desc">30 天内的到期与付款</p>
+              </div>
+              <button id="btn-home-ledger" class="btn btn-ghost btn-mini" type="button">去台账</button>
+            </div>
+            <div id="home-reminder-list" class="reminder-list"></div>
+            <div class="home-card-foot">
+              <button id="btn-home-ics" class="btn btn-ghost btn-block" type="button">
+                <span data-icon="calendar"></span>导出提醒到手机日历
+              </button>
+            </div>
+          </aside>
+        </div>
+      </section>
+
       <!-- ═══════════ 审查台 ═══════════ -->
       <section id="view-review" class="view active" aria-label="审查台">
         <!-- 空状态 -->
@@ -1239,6 +2160,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: rgba(63
           <div class="result-toolbar">
             <div class="result-stats" id="result-stats"></div>
             <div class="result-actions">
+              <button id="btn-add-ledger" class="btn btn-ghost" type="button"><span data-icon="ledger"></span>加入台账</button>
               <button id="btn-export" class="btn btn-ghost" type="button"><span data-icon="export"></span>导出 .doc</button>
               <button id="btn-print" class="btn btn-ghost" type="button">打印</button>
               <button id="btn-new" class="btn btn-primary" type="button">审下一份</button>
@@ -1276,6 +2198,58 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: rgba(63
             <button id="btn-retry" class="btn btn-primary" type="button">重试</button>
             <button id="btn-back" class="btn btn-ghost" type="button">返回修改</button>
           </div>
+        </div>
+      </section>
+
+      <!-- ═══════════ 合同台账 ═══════════ -->
+      <section id="view-ledger" class="view hidden" aria-label="合同台账">
+        <div class="ledger-head">
+          <div>
+            <h2 class="view-title">合同台账</h2>
+            <p id="ledger-summary" class="view-desc ledger-summary"></p>
+          </div>
+        </div>
+        <div class="ledger-toolbar">
+          <div id="ledger-filters" class="clause-filters ledger-filters"></div>
+          <div class="ledger-tools">
+            <select id="ledger-type-filter" class="type-select ledger-type-select" aria-label="合同类型筛选"></select>
+            <input id="ledger-search" class="history-search ledger-search" type="search" placeholder="搜索对方主体、合同名" aria-label="搜索合同台账">
+            <button id="btn-ledger-add" class="btn btn-primary" type="button">新建合同</button>
+          </div>
+        </div>
+        <div class="ledger-layout">
+          <div class="home-card ledger-table-card">
+            <div class="ledger-table-head">
+              <div>
+                <h3>全部合同</h3>
+                <span id="ledger-table-count"></span>
+              </div>
+              <button id="btn-ledger-csv" class="btn btn-ghost btn-mini" type="button">导出 CSV</button>
+            </div>
+            <div class="ledger-table-header" aria-hidden="true">
+              <span>合同名称</span>
+              <span>对方主体</span>
+              <span>金额</span>
+              <span>到期日</span>
+              <span>状态</span>
+              <span></span>
+            </div>
+            <div id="ledger-list" class="ledger-list"></div>
+          </div>
+          <aside class="home-card ledger-dates-card">
+            <div class="home-card-head">
+              <div>
+                <h3 class="home-card-title">关键日期</h3>
+                <p id="ledger-dates-sub" class="home-card-desc"></p>
+              </div>
+            </div>
+            <div id="ledger-dates-list" class="ledger-dates-list"></div>
+            <div class="home-card-foot">
+              <button id="btn-ledger-ics" class="btn btn-ghost btn-block" type="button">
+                <span data-icon="calendar"></span>导出提醒到手机日历（.ics）
+              </button>
+            </div>
+          </aside>
         </div>
       </section>
 
@@ -1348,6 +2322,72 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: rgba(63
       <p class="drawer-tip">模型服务商需支持浏览器直连；Key 只保存在本机浏览器。</p>
     </div>
   </div>
+</aside>
+
+<!-- ═══════════ 台账编辑抽屉 ═══════════ -->
+<div id="ledger-backdrop" class="backdrop hidden"></div>
+<aside id="ledger-drawer" class="drawer hidden" aria-label="合同台账编辑">
+  <div class="drawer-head">
+    <div>
+      <p class="eyebrow">本机台账</p>
+      <h2 id="ledger-form-title" class="drawer-title">新增合同</h2>
+    </div>
+    <button id="btn-close-ledger" class="icon-btn" type="button" aria-label="关闭台账编辑">×</button>
+  </div>
+  <form id="ledger-form" class="drawer-body">
+    <input id="ledger-review-id" type="hidden">
+    <label class="field">
+      <span class="field-label">合同名称 *</span>
+      <input id="ledger-title" type="text" maxlength="80" autocomplete="off" required>
+    </label>
+    <div class="field-row">
+      <label class="field">
+        <span class="field-label">合同类型</span>
+        <select id="ledger-type"></select>
+      </label>
+      <label class="field">
+        <span class="field-label">状态</span>
+        <select id="ledger-status"></select>
+      </label>
+    </div>
+    <label class="field">
+      <span class="field-label">对方</span>
+      <input id="ledger-counterparty" type="text" maxlength="80" autocomplete="off" placeholder="公司 / 个人">
+    </label>
+    <label class="field">
+      <span class="field-label">合同金额</span>
+      <input id="ledger-amount" type="text" maxlength="40" autocomplete="off" placeholder="例如 120000 或 12 万">
+    </label>
+    <div class="field-row">
+      <label class="field">
+        <span class="field-label">起始日期</span>
+        <input id="ledger-start" type="date">
+      </label>
+      <label class="field">
+        <span class="field-label">到期日期</span>
+        <input id="ledger-end" type="date">
+      </label>
+    </div>
+    <div class="field-row">
+      <label class="field">
+        <span class="field-label">下次付款日</span>
+        <input id="ledger-payment-date" type="date">
+      </label>
+      <label class="field">
+        <span class="field-label">付款金额</span>
+        <input id="ledger-payment-amount" type="text" maxlength="40" autocomplete="off" placeholder="例如 80000">
+      </label>
+    </div>
+    <label class="field">
+      <span class="field-label">备注</span>
+      <textarea id="ledger-note" rows="3" maxlength="300" placeholder="续签条件、押金、联系人……"></textarea>
+    </label>
+    <div class="drawer-actions ledger-form-actions">
+      <button class="btn btn-primary" type="submit">保存合同</button>
+      <button id="btn-cancel-ledger" class="btn btn-ghost" type="button">取消</button>
+      <p class="drawer-tip">只保存在本机浏览器；到期 / 付款节点会在案头提醒，也可导出到手机日历。</p>
+    </div>
+  </form>
 </aside>
 
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
@@ -3003,7 +4043,7 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
   const WB = (root.WB = root.WB || {});
 
   const DB_NAME = "contract-workbench";
-  const DB_VERSION = 1;
+  const DB_VERSION = 3;
   const LS_KEY = "contract-workbench:";
 
   let dbPromise = null;
@@ -3052,6 +4092,14 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
         const db = req.result;
         if (!db.objectStoreNames.contains("settings")) db.createObjectStore("settings");
         if (!db.objectStoreNames.contains("current")) db.createObjectStore("current");
+        if (!db.objectStoreNames.contains("reviews")) {
+          const store = db.createObjectStore("reviews", { keyPath: "id" });
+          store.createIndex("createdAt", "createdAt");
+        }
+        if (!db.objectStoreNames.contains("ledger")) {
+          const store = db.createObjectStore("ledger", { keyPath: "id" });
+          store.createIndex("endDate", "endDate");
+        }
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error || new Error("IndexedDB open failed"));
@@ -3083,6 +4131,64 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
     );
   }
 
+  function idbPutInline(store, value) {
+    return openDB().then(
+      (db) => new Promise((resolve, reject) => {
+        const tx = db.transaction(store, "readwrite");
+        tx.objectStore(store).put(value);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error("IndexedDB tx aborted"));
+      })
+    );
+  }
+
+  function idbGetAll(store) {
+    return openDB().then(
+      (db) => new Promise((resolve, reject) => {
+        const tx = db.transaction(store, "readonly");
+        const req = tx.objectStore(store).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      })
+    );
+  }
+
+  function idbDelete(store, key) {
+    return openDB().then(
+      (db) => new Promise((resolve, reject) => {
+        const tx = db.transaction(store, "readwrite");
+        tx.objectStore(store).delete(key);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error("IndexedDB tx aborted"));
+      })
+    );
+  }
+
+  function idbClear(store) {
+    return openDB().then(
+      (db) => new Promise((resolve, reject) => {
+        const tx = db.transaction(store, "readwrite");
+        tx.objectStore(store).clear();
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error("IndexedDB tx aborted"));
+      })
+    );
+  }
+
+  // 只有浏览器完全没有 IndexedDB 时，删除 / 清空才走 LS 兜底；
+  // 被旧标签页阻塞或事务失败时旧库还在，报成功会“刷新后复活”。
+  async function canFallbackToLs() {
+    try {
+      await openDB();
+      return false;
+    } catch (e) {
+      return /unavailable/i.test(String((e && e.message) || e));
+    }
+  }
+
   function lsGet(key) {
     try {
       const raw = root.localStorage.getItem(LS_KEY + key);
@@ -3092,6 +4198,11 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
 
   function lsPut(key, value) {
     try { root.localStorage.setItem(LS_KEY + key, JSON.stringify(value)); return true; }
+    catch (e) { return false; }
+  }
+
+  function lsDelete(key) {
+    try { root.localStorage.removeItem(LS_KEY + key); return true; }
     catch (e) { return false; }
   }
 
@@ -3125,6 +4236,333 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
   WB.clearCurrent = async function () {
     try { await idbPut("current", "latest", null); }
     catch (e) { lsPut("current", null); }
+  };
+
+  // ───────────────────────── 通用记录（审查历史 / 台账） ─────────────────────────
+
+  async function saveRecord(store, lsKey, record) {
+    if (!record || !record.id) return null;
+    try {
+      await idbPutInline(store, record);
+      return record;
+    } catch (e) {
+      const list = (lsGet(lsKey) || []).filter((r) => r && r.id !== record.id);
+      list.unshift(record);
+      return lsPut(lsKey, list) ? record : null;
+    }
+  }
+
+  async function listRecords(store, lsKey) {
+    let idbList = [];
+    try { idbList = await idbGetAll(store); }
+    catch (e) { idbList = []; }
+    // localStorage 里可能是旧版本或降级期间写入的记录；同 id 取更新时间较新的。
+    const merged = new Map();
+    const put = (r) => {
+      if (!r || !r.id) return;
+      const prev = merged.get(r.id);
+      const rTime = Number(r.updatedAt || r.createdAt) || 0;
+      const pTime = prev ? Number(prev.updatedAt || prev.createdAt) || 0 : -1;
+      if (!prev || rTime >= pTime) merged.set(r.id, r);
+    };
+    (lsGet(lsKey) || []).forEach(put);
+    (idbList || []).forEach(put);
+    return Array.from(merged.values())
+      .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
+  }
+
+  async function deleteRecord(store, lsKey, id) {
+    if (!id) return false;
+    const rest = (lsGet(lsKey) || []).filter((r) => r && r.id !== id);
+    try {
+      await idbDelete(store, id);
+      lsPut(lsKey, rest);
+      return true;
+    } catch (e) {
+      if (!(await canFallbackToLs())) return false;
+      return lsPut(lsKey, rest);
+    }
+  }
+
+  async function clearRecords(store, lsKey) {
+    try {
+      await idbClear(store);
+      lsDelete(lsKey);
+      return true;
+    } catch (e) {
+      if (!(await canFallbackToLs())) return false;
+      return lsDelete(lsKey);
+    }
+  }
+
+  // ───────────────────────── 审查历史 ─────────────────────────
+
+  WB.saveReview = (review) => saveRecord("reviews", "reviews", review);
+  WB.listReviews = () => listRecords("reviews", "reviews");
+  WB.deleteReview = (id) => deleteRecord("reviews", "reviews", id);
+  WB.clearReviews = () => clearRecords("reviews", "reviews");
+
+  // ───────────────────────── 合同台账 ─────────────────────────
+
+  WB.saveLedgerEntry = (entry) => saveRecord("ledger", "ledger", entry);
+  WB.listLedger = () => listRecords("ledger", "ledger");
+  WB.deleteLedgerEntry = (id) => deleteRecord("ledger", "ledger", id);
+})(globalThis);
+
+</script>
+<script>
+/* 合同工作台 · 台账纯函数（日期 / 提醒 / ICS / CSV）
+ * 不碰 DOM 与存储，方便在 CDP 里单独验收。
+ */
+(function (root) {
+  const WB = (root.WB = root.WB || {});
+
+  const STATUSES = ["待签", "履行中", "已归档", "已终止"];
+  const REMIND_DAYS = 30;
+  const STATUS_CLS = {
+    待签: "pending",
+    履行中: "active",
+    已归档: "archived",
+    已终止: "ended",
+  };
+
+  const pad = (n) => String(n).padStart(2, "0");
+
+  function parseDate(value) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || "").trim());
+    if (!m) return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    const date = new Date(y, mo, d, 12, 0, 0, 0);
+    if (date.getFullYear() !== y || date.getMonth() !== mo || date.getDate() !== d) return null;
+    return date;
+  }
+
+  function startOfDay(now) {
+    const d = now ? new Date(now.getTime()) : new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  /** 返回距今天的天数：负数=已过期，0=今天。日期非法返回 null。 */
+  function daysUntil(value, now) {
+    const date = parseDate(value);
+    if (!date) return null;
+    date.setHours(0, 0, 0, 0);
+    return Math.round((date.getTime() - startOfDay(now).getTime()) / 86400000);
+  }
+
+  function formatDate(value, short) {
+    const d = parseDate(value);
+    if (!d) return "";
+    const y = d.getFullYear();
+    const m = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    return short ? `${m}/${day}` : `${y}/${m}/${day}`;
+  }
+
+  function countdown(kind, days) {
+    if (days == null) return "";
+    const verb = kind === "付款" ? "付款" : "到期";
+    if (days < 0) return `已逾期 ${-days} 天`;
+    if (days === 0) return `今天${verb}`;
+    if (days === 1) return `明天${verb}`;
+    return `${days} 天后${verb}`;
+  }
+
+  function countdownShort(days) {
+    if (days == null) return "";
+    if (days < 0) return `已逾期 ${-days} 天`;
+    if (days === 0) return "今天";
+    if (days === 1) return "明天";
+    return `${days} 天后`;
+  }
+
+  function statusClass(status) {
+    return STATUS_CLS[status] || STATUS_CLS["履行中"];
+  }
+
+  /** 汇总未来 N 天内（含已逾期）的到期与付款节点。 */
+  function reminders(entries, now, withinDays) {
+    const limit = withinDays == null ? REMIND_DAYS : withinDays;
+    const out = [];
+    (entries || []).forEach((entry) => {
+      if (!entry || entry.status === "已归档" || entry.status === "已终止") return;
+      const due = daysUntil(entry.endDate, now);
+      if (due != null && due <= limit) {
+        out.push({ entry, kind: "到期", date: entry.endDate, days: due, amount: "" });
+      }
+      const pay = daysUntil(entry.paymentDate, now);
+      if (pay != null && pay <= limit) {
+        out.push({ entry, kind: "付款", date: entry.paymentDate, days: pay, amount: entry.paymentAmount || "" });
+      }
+    });
+    return out.sort(
+      (a, b) =>
+        a.days - b.days ||
+        String(a.date).localeCompare(String(b.date)) ||
+        a.kind.localeCompare(b.kind, "zh")
+    );
+  }
+
+  function createId() {
+    return "ct_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+  }
+
+  function icsEscape(value) {
+    return String(value == null ? "" : value)
+      .replace(/\\/g, "\\\\")
+      .replace(/\r?\n/g, "\\n")
+      .replace(/;/g, "\\;")
+      .replace(/,/g, "\\,");
+  }
+
+  function icsDate(value) {
+    const d = parseDate(value);
+    if (!d) return "";
+    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  }
+
+  function icsNextDay(value) {
+    const d = parseDate(value);
+    if (!d) return "";
+    d.setDate(d.getDate() + 1);
+    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  }
+
+  function utcStamp(now) {
+    const d = now || new Date();
+    return (
+      `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}` +
+      `T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`
+    );
+  }
+
+  function entryDescription(entry, kind, date) {
+    const parts = [`节点：${kind} ${formatDate(date)}`, `类型：${entry.contractType || "未分类"}`];
+    if (entry.counterparty) parts.push(`对方：${entry.counterparty}`);
+    if (entry.amount) parts.push(`合同金额：${entry.amount}`);
+    if (kind === "付款" && entry.paymentAmount) parts.push(`本次付款：${entry.paymentAmount}`);
+    if (entry.note) parts.push(`备注：${entry.note}`);
+    return parts.join("\n");
+  }
+
+  function eventFor(entry, kind, date, alarmDays) {
+    if (!parseDate(date)) return "";
+    const suffix = kind === "付款" ? "pay" : "due";
+    const uidSeed = String(entry.id || "contract").replace(/[^A-Za-z0-9_-]/g, "");
+    const summary =
+      kind === "付款"
+        ? `付款节点：${entry.title || "未命名合同"}${entry.paymentAmount ? " · " + entry.paymentAmount : ""}`
+        : `合同到期：${entry.title || "未命名合同"}`;
+    const lines = [
+      "BEGIN:VEVENT",
+      `UID:${uidSeed}-${suffix}@contract-workbench.local`,
+      `DTSTAMP:${utcStamp()}`,
+      `DTSTART;VALUE=DATE:${icsDate(date)}`,
+      `DTEND;VALUE=DATE:${icsNextDay(date)}`,
+      `SUMMARY:${icsEscape(summary)}`,
+      `DESCRIPTION:${icsEscape(entryDescription(entry, kind, date))}`,
+    ];
+    if (alarmDays != null) {
+      lines.push(
+        "BEGIN:VALARM",
+        `TRIGGER:-P${alarmDays}D`,
+        "ACTION:DISPLAY",
+        `DESCRIPTION:${icsEscape(summary)}`,
+        "END:VALARM"
+      );
+    }
+    lines.push("END:VEVENT");
+    return lines.join("\r\n");
+  }
+
+  /** 接受单条或数组；没有可导出的日期时返回空字符串。 */
+  function buildICS(input) {
+    const entries = Array.isArray(input) ? input : [input];
+    const events = [];
+    entries.forEach((entry) => {
+      if (!entry) return;
+      if (entry.endDate) {
+        const ev = eventFor(entry, "到期", entry.endDate, 7);
+        if (ev) events.push(ev);
+      }
+      if (entry.paymentDate) {
+        const ev = eventFor(entry, "付款", entry.paymentDate, 1);
+        if (ev) events.push(ev);
+      }
+    });
+    if (!events.length) return "";
+    return [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Contract Workbench//CN",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+      ...events,
+      "END:VCALENDAR",
+      "",
+    ].join("\r\n");
+  }
+
+  const CSV_HEADERS = [
+    "合同名称",
+    "合同类型",
+    "对方",
+    "合同金额",
+    "开始日期",
+    "到期日期",
+    "状态",
+    "下次付款日",
+    "付款金额",
+    "备注",
+  ];
+
+  function csvCell(value) {
+    let s = String(value == null ? "" : value);
+    // 防 Excel 公式注入：= + - @ 开头（允许前导空白）的单元格按文本处理。
+    if (/^\s*[=+\-@]/.test(s)) s = "'" + s;
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+
+  function buildCSV(entries) {
+    const rows = [CSV_HEADERS.join(",")];
+    (entries || []).forEach((entry) => {
+      if (!entry) return;
+      rows.push(
+        [
+          entry.title,
+          entry.contractType,
+          entry.counterparty,
+          entry.amount,
+          entry.startDate,
+          entry.endDate,
+          entry.status,
+          entry.paymentDate,
+          entry.paymentAmount,
+          entry.note,
+        ]
+          .map(csvCell)
+          .join(",")
+      );
+    });
+    return rows.join("\r\n") + "\r\n";
+  }
+
+  WB.Ledger = {
+    STATUSES,
+    REMIND_DAYS,
+    parseDate,
+    daysUntil,
+    formatDate,
+    countdown,
+    countdownShort,
+    statusClass,
+    reminders,
+    createId,
+    buildICS,
+    buildCSV,
   };
 })(globalThis);
 
@@ -3356,11 +4794,19 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
   const esc = WB.escapeHtml;
 
   const ICONS = {
+    home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>',
     review: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><circle cx="11" cy="13" r="3"/><path d="M13.2 15.2 16 18"/>',
+    ledger: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10M15 10v10"/>',
     clause: '<path d="M6 3h12v18l-6-4-6 4z"/>',
     settings: '<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="17" r="2"/>',
     export: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 20h16"/>',
     upload: '<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/>',
+    calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/>',
+    clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    wallet: '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6.5A2.5 2.5 0 0 1 4 16.5z"/><path d="M4 8.5h16"/><circle cx="16" cy="13.5" r="1.2"/>',
+    edit: '<path d="M4 20h4l10-10-4-4L4 16z"/><path d="m13.5 5.5 4 4"/>',
+    trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/><path d="M10 11v5M14 11v5"/>',
   };
 
   const STEPS = [
@@ -3403,6 +4849,14 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
     reportTab: "list",
     hintTimer: null,
     recommendTimer: null,
+    history: [],
+    historyQuery: "",
+    homeTab: "reviews",
+    ledger: [],
+    ledgerStatus: "全部",
+    ledgerType: "全部类型",
+    editingLedgerId: null,
+    lastReviewId: null,
   };
 
   const ui = {};
@@ -3415,8 +4869,12 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
     cacheUI();
     injectIcons();
     state.settings = await WB.loadSettings();
+    const [history, ledger] = await Promise.all([WB.listReviews(), WB.listLedger()]);
+    state.history = history;
+    state.ledger = ledger;
     populateTypes();
     populateProviders();
+    populateLedgerOptions();
     renderSamples();
     renderClauseFilters();
     renderClauses();
@@ -3425,6 +4883,7 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
 
     const saved = await WB.loadCurrent();
     if (saved && saved.result && saved.contractText) {
+      state.lastReviewId = saved.reviewId || null;
       ui.input.value = saved.contractText;
       updateCharCount();
       if (saved.contractType) setType(saved.contractType, false);
@@ -3462,6 +4921,54 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
     ui.reportView = $("#report-view");
     ui.clauseFilters = $("#clause-filters");
     ui.clauseList = $("#clause-list");
+    ui.topbar = $("#topbar");
+    ui.homeStats = $("#home-stats");
+    ui.homeGreetingBlock = $("#home-greeting-block");
+    ui.homeGreeting = $("#home-greeting");
+    ui.homeSub = $("#home-sub");
+    ui.sidebarSearch = $("#sidebar-search");
+    ui.sidebarSearchClear = $("#sidebar-search-clear");
+    ui.homeIcs = $("#btn-home-ics");
+    ui.homeTabs = $$(".home-tab");
+    ui.homeReviewTools = $("#home-review-tools");
+    ui.homeContractTools = $("#home-contract-tools");
+    ui.homeReviewsPane = $("#home-reviews-pane");
+    ui.homeContractsPane = $("#home-contracts-pane");
+    ui.homeContractsList = $("#home-contracts-list");
+    ui.homeLedgerAll = $("#btn-home-ledger-all");
+    ui.contractsSearch = $("#contracts-search");
+    ui.historyList = $("#history-list");
+    ui.historySearch = $("#history-search");
+    ui.historyClear = $("#btn-history-clear");
+    ui.homeReview = $("#btn-home-review");
+    ui.homeLedger = $("#btn-home-ledger");
+    ui.homeReminders = $("#home-reminder-list");
+    ui.ledgerList = $("#ledger-list");
+    ui.ledgerFilters = $("#ledger-filters");
+    ui.ledgerSearch = $("#ledger-search");
+    ui.ledgerTypeFilter = $("#ledger-type-filter");
+    ui.ledgerSummary = $("#ledger-summary");
+    ui.ledgerTableCount = $("#ledger-table-count");
+    ui.ledgerDatesSub = $("#ledger-dates-sub");
+    ui.ledgerDatesList = $("#ledger-dates-list");
+    ui.ledgerAdd = $("#btn-ledger-add");
+    ui.ledgerIcs = $("#btn-ledger-ics");
+    ui.ledgerCsv = $("#btn-ledger-csv");
+    ui.ledgerDrawer = $("#ledger-drawer");
+    ui.ledgerBackdrop = $("#ledger-backdrop");
+    ui.ledgerForm = $("#ledger-form");
+    ui.ledgerFormTitle = $("#ledger-form-title");
+    ui.ledgerTitle = $("#ledger-title");
+    ui.ledgerType = $("#ledger-type");
+    ui.ledgerStatus = $("#ledger-status");
+    ui.ledgerCounterparty = $("#ledger-counterparty");
+    ui.ledgerAmount = $("#ledger-amount");
+    ui.ledgerStart = $("#ledger-start");
+    ui.ledgerEnd = $("#ledger-end");
+    ui.ledgerPaymentDate = $("#ledger-payment-date");
+    ui.ledgerPaymentAmount = $("#ledger-payment-amount");
+    ui.ledgerNote = $("#ledger-note");
+    ui.ledgerReviewId = $("#ledger-review-id");
     ui.drawer = $("#settings-drawer");
     ui.backdrop = $("#settings-backdrop");
     ui.toast = $("#toast");
@@ -3469,11 +4976,17 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
     ui.errorDetail = $("#error-detail");
   }
 
+  function iconSvg(name) {
+    const paths = ICONS[name];
+    if (!paths) return "";
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+  }
+
   function injectIcons() {
     $$("[data-icon]").forEach((el) => {
-      const svg = ICONS[el.dataset.icon];
+      const svg = iconSvg(el.dataset.icon);
       if (!svg) return;
-      el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${svg}</svg>`;
+      el.innerHTML = svg;
       el.classList.add("icon");
     });
   }
@@ -3492,6 +5005,23 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
     ui.typeSelect.value = type;
     state.settings.contractType = type;
     if (persist !== false) WB.saveSettings(state.settings).catch(() => {});
+  }
+
+  function populateLedgerOptions() {
+    const types = WB.CONTRACT_TYPES.concat(["其他"]);
+    ui.ledgerType.innerHTML = types
+      .map((t) => `<option value="${esc(t)}">${esc(t)}</option>`)
+      .join("");
+    ui.ledgerStatus.innerHTML = WB.Ledger.STATUSES
+      .map((s) => `<option value="${esc(s)}">${esc(s)}</option>`)
+      .join("");
+    if (ui.ledgerTypeFilter) {
+      ui.ledgerTypeFilter.innerHTML = ["全部类型"]
+        .concat(types)
+        .map((t) => `<option value="${esc(t)}">${esc(t)}</option>`)
+        .join("");
+      ui.ledgerTypeFilter.value = state.ledgerType;
+    }
   }
 
   function populateProviders() {
@@ -3548,7 +5078,10 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
 
   function bindEvents() {
     $$(".nav-item").forEach((btn) => {
-      btn.addEventListener("click", () => switchView(btn.dataset.view));
+      btn.addEventListener("click", () => {
+        if (!btn.dataset.view) return;
+        switchView(btn.dataset.view);
+      });
     });
 
     ui.input.addEventListener("input", () => {
@@ -3629,6 +5162,130 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
       renderClauses();
     });
 
+    ui.homeReview.addEventListener("click", nextReview);
+    ui.homeTabs.forEach((btn) => {
+      btn.addEventListener("click", () => setHomeTab(btn.dataset.homeTab));
+    });
+    ui.historySearch.addEventListener("input", () => {
+      applyHomeQuery(ui.historySearch.value);
+    });
+    if (ui.sidebarSearch) {
+      ui.sidebarSearch.addEventListener("input", () => {
+        setHomeTab("reviews");
+        applyHomeQuery(ui.sidebarSearch.value);
+        if ($("#view-home").classList.contains("hidden")) switchView("home");
+      });
+    }
+    if (ui.contractsSearch) {
+      ui.contractsSearch.addEventListener("input", () => {
+        applyHomeQuery(ui.contractsSearch.value);
+      });
+    }
+    if (ui.sidebarSearchClear) {
+      ui.sidebarSearchClear.addEventListener("click", () => {
+        applyHomeQuery("");
+        if (ui.sidebarSearch) ui.sidebarSearch.focus();
+      });
+    }
+    ui.historyList.addEventListener("click", (e) => {
+      if (e.target.closest("[data-new-review]")) {
+        nextReview();
+        return;
+      }
+      const del = e.target.closest("[data-delete-review]");
+      if (del) {
+        deleteHistory(del.dataset.deleteReview);
+        return;
+      }
+      const ledgerHit = e.target.closest("[data-search-ledger]");
+      if (ledgerHit) {
+        openLedgerForm(ledgerHit.dataset.searchLedger);
+        return;
+      }
+      const item = e.target.closest("[data-open-review]");
+      if (item) openHistory(item.dataset.openReview);
+    });
+    ui.historyClear.addEventListener("click", clearHistory);
+    if (ui.homeContractsList) {
+      ui.homeContractsList.addEventListener("click", (e) => {
+        if (e.target.closest("[data-home-ledger-add]")) {
+          switchView("ledger");
+          openLedgerForm(null);
+          return;
+        }
+        const row = e.target.closest("[data-home-ledger]");
+        if (row) openLedgerForm(row.dataset.homeLedger);
+      });
+    }
+    if (ui.homeLedgerAll) {
+      ui.homeLedgerAll.addEventListener("click", () => switchView("ledger"));
+    }
+
+    ui.homeLedger.addEventListener("click", () => switchView("ledger"));
+    if (ui.homeIcs) ui.homeIcs.addEventListener("click", () => exportLedgerIcs());
+    ui.homeReminders.addEventListener("click", (e) => {
+      const item = e.target.closest("[data-reminder-entry]");
+      if (item) openLedgerForm(item.dataset.reminderEntry);
+    });
+
+    ui.ledgerAdd.addEventListener("click", () => openLedgerForm(null));
+    ui.ledgerIcs.addEventListener("click", () => exportLedgerIcs());
+    ui.ledgerCsv.addEventListener("click", exportLedgerCsv);
+    ui.ledgerSearch.addEventListener("input", () => {
+      applyHomeQuery(ui.ledgerSearch.value);
+    });
+    if (ui.ledgerTypeFilter) {
+      ui.ledgerTypeFilter.addEventListener("change", () => {
+        state.ledgerType = ui.ledgerTypeFilter.value;
+        renderLedger();
+      });
+    }
+    if (ui.ledgerDatesList) {
+      ui.ledgerDatesList.addEventListener("click", (e) => {
+        const item = e.target.closest("[data-edit-ledger]");
+        if (item) openLedgerForm(item.dataset.editLedger);
+      });
+    }
+    ui.ledgerFilters.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-status]");
+      if (!btn) return;
+      state.ledgerStatus = btn.dataset.status;
+      renderLedger();
+    });
+    ui.ledgerList.addEventListener("click", (e) => {
+      if (e.target.closest("[data-ledger-add]")) {
+        openLedgerForm(null);
+        return;
+      }
+      const del = e.target.closest("[data-delete-ledger]");
+      if (del) {
+        deleteLedger(del.dataset.deleteLedger);
+        return;
+      }
+      const ics = e.target.closest("[data-ics-ledger]");
+      if (ics) {
+        exportLedgerIcs(ics.dataset.icsLedger);
+        return;
+      }
+      const edit = e.target.closest("[data-edit-ledger]");
+      if (edit) {
+        openLedgerForm(edit.dataset.editLedger);
+        return;
+      }
+      const review = e.target.closest("[data-open-ledger-review]");
+      if (review) {
+        openHistory(review.dataset.openLedgerReview);
+        return;
+      }
+      const row = e.target.closest("[data-ledger-row]");
+      if (row) openLedgerForm(row.dataset.ledgerRow);
+    });
+    ui.ledgerBackdrop.addEventListener("click", closeLedgerForm);
+    $("#btn-close-ledger").addEventListener("click", closeLedgerForm);
+    $("#btn-cancel-ledger").addEventListener("click", closeLedgerForm);
+    ui.ledgerForm.addEventListener("submit", saveLedgerFromForm);
+    $("#btn-add-ledger").addEventListener("click", addCurrentToLedger);
+
     $("#btn-settings").addEventListener("click", openSettings);
     $("#btn-close-settings").addEventListener("click", closeSettings);
     ui.backdrop.addEventListener("click", closeSettings);
@@ -3637,7 +5294,12 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
     $("#btn-save-settings").addEventListener("click", saveSettings);
 
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && !ui.drawer.classList.contains("hidden")) closeSettings();
+      if (e.key !== "Escape") return;
+      if (!ui.ledgerDrawer.classList.contains("hidden")) {
+        closeLedgerForm();
+        return;
+      }
+      if (!ui.drawer.classList.contains("hidden")) closeSettings();
     });
     window.addEventListener("resize", scheduleBeamRedraw);
 
@@ -3660,7 +5322,739 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
   function switchView(view) {
     $$(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
     $$(".view").forEach((v) => v.classList.toggle("hidden", v.id !== "view-" + view));
+    if (ui.topbar) ui.topbar.classList.toggle("home-mode", view === "home");
+    if (ui.homeGreetingBlock) ui.homeGreetingBlock.classList.toggle("hidden", view !== "home");
+    if (ui.homeReview) ui.homeReview.classList.toggle("hidden", view !== "home");
     if (view === "clauses") renderClauses();
+    if (view === "home") renderHome();
+    if (view === "ledger") renderLedger();
+  }
+
+  // ═════════════ 案头 / 审查历史 ═════════════
+
+  function reviewTitle(text, contractType) {
+    const lines = String(text || "")
+      .split(/\n/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const hit = lines.find(
+      (line) =>
+        line.length >= 4 &&
+        line.length <= 40 &&
+        !/^(甲方|乙方|身份证|电话|地址|联系人|统一社会信用代码)/.test(line)
+    );
+    return (hit || contractType || "未命名合同").slice(0, 40);
+  }
+
+  function historyPreview(text) {
+    // 先留足缓冲区再脱敏，避免证件/手机号刚好被 96 字截断而漏出半截。
+    const raw = String(text || "").slice(0, 4096);
+    try {
+      return WB.maskText(raw, (state.settings && state.settings.hiddenNames) || []).text.slice(0, 96);
+    } catch (e) {
+      return "（预览已隐藏）";
+    }
+  }
+
+  function maskedText(value) {
+    try {
+      return WB.maskText(String(value == null ? "" : value), (state.settings && state.settings.hiddenNames) || []).text;
+    } catch (e) {
+      return "（内容已隐藏）";
+    }
+  }
+
+  function maskedHistoryTitle(item) {
+    return maskedText((item && item.title) || "未命名合同") || "未命名合同";
+  }
+
+  function formatHistoryDate(ts, short) {
+    const d = new Date(Number(ts) || Date.now());
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleString(
+      "zh-CN",
+      short
+        ? { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }
+        : { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }
+    );
+  }
+
+  function greetingFor(date) {
+    const hour = date.getHours();
+    if (hour < 6) return "夜深了";
+    if (hour < 12) return "早上好";
+    if (hour < 14) return "中午好";
+    if (hour < 18) return "下午好";
+    return "晚上好";
+  }
+
+  function homeDateLine(date) {
+    const week = "日一二三四五六"[date.getDay()];
+    return `${date.getMonth() + 1} 月 ${date.getDate()} 日 周${week}`;
+  }
+
+  function renderHome() {
+    const items = state.history || [];
+    const total = items.length;
+    const high = items.reduce(
+      (sum, item) => sum + Number((item.result && item.result.counts && item.result.counts.high) || 0),
+      0
+    );
+    const highContracts = items.filter(
+      (item) => Number((item.result && item.result.counts && item.result.counts.high) || 0) > 0
+    ).length;
+    const last = items[0] ? formatHistoryDate(items[0].createdAt, true) : "尚无记录";
+    const due = WB.Ledger.reminders(state.ledger || [], new Date());
+    const overdue = due.filter((r) => r.days < 0).length;
+
+    if (ui.homeGreeting) ui.homeGreeting.textContent = greetingFor(new Date());
+    if (ui.homeSub) {
+      ui.homeSub.textContent = `${homeDateLine(new Date())} · ${due.length} 项待办 · 高风险 ${highContracts} 份`;
+    }
+
+    ui.homeStats.innerHTML = `
+      <div class="home-stat">
+        <span>已审合同</span>
+        <div class="home-stat-value"><b>${total}</b><em>份</em></div>
+        <p>最近 ${esc(last)}</p>
+      </div>
+      <div class="home-stat high">
+        <span>高风险合计</span>
+        <div class="home-stat-value"><b>${high}</b><em>条</em></div>
+        <p>涉及 ${highContracts} 份合同</p>
+      </div>
+      <div class="home-stat">
+        <span>30 天内待办</span>
+        <div class="home-stat-value"><b>${due.length}</b><em>项</em></div>
+        <p>${overdue ? `${overdue} 项已逾期` : "到期与付款节点"}</p>
+      </div>`;
+    syncHomeSearch();
+    renderReminders();
+    renderHistory();
+    renderHomeContracts();
+    applyHomeTab();
+  }
+
+  function applyHomeTab() {
+    if (!ui.homeReviewsPane || !ui.homeContractsPane) return;
+    const tab = state.homeTab === "contracts" ? "contracts" : "reviews";
+    ui.homeTabs.forEach((btn) => {
+      const on = btn.dataset.homeTab === tab;
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    ui.homeReviewsPane.classList.toggle("hidden", tab !== "reviews");
+    ui.homeContractsPane.classList.toggle("hidden", tab !== "contracts");
+    ui.homeReviewTools.classList.toggle("hidden", tab !== "reviews");
+    ui.homeContractTools.classList.toggle("hidden", tab !== "contracts");
+  }
+
+  function setHomeTab(tab) {
+    state.homeTab = tab === "contracts" ? "contracts" : "reviews";
+    applyHomeTab();
+    if (state.homeTab === "contracts") renderHomeContracts();
+  }
+
+  function syncHomeSearch() {
+    [ui.sidebarSearch, ui.historySearch, ui.contractsSearch, ui.ledgerSearch].forEach((el) => {
+      if (el && el.value !== state.historyQuery) el.value = state.historyQuery;
+    });
+    if (ui.sidebarSearchClear) {
+      ui.sidebarSearchClear.classList.toggle("hidden", !state.historyQuery);
+    }
+  }
+
+  function applyHomeQuery(value) {
+    state.historyQuery = String(value == null ? "" : value);
+    syncHomeSearch();
+    renderHistory();
+    renderHomeContracts();
+    renderLedger();
+  }
+
+  function formatLedgerAmount(value) {
+    const raw = String(value == null ? "" : value).trim();
+    if (!raw) return "";
+    const n = Number(raw.replace(/,/g, ""));
+    if (isFinite(n) && /^[0-9.,]+$/.test(raw)) return "¥" + n.toLocaleString("zh-CN");
+    return raw;
+  }
+
+  function ledgerDisplayDate(value) {
+    const s = WB.Ledger.formatDate(value);
+    return s ? s.replace(/\//g, ".") : "";
+  }
+
+  function ledgerEntryTitle(entry) {
+    const type = String((entry && entry.contractType) || "").replace(/合同$/, "");
+    const title = maskedHistoryTitle(entry);
+    return type && title.indexOf(type) !== 0 ? `${type} · ${title}` : title;
+  }
+
+  function ledgerRisk(entry) {
+    const review = entry && entry.reviewId
+      ? (state.history || []).find((r) => r.id === entry.reviewId)
+      : null;
+    const c = review && review.result && review.result.counts;
+    const [h, m, l] = [Number(c && c.high) || 0, Number(c && c.mid) || 0, Number(c && c.low) || 0];
+    if (!c) return { level: "none", text: "未审查" };
+    if (!h && !m && !l) return { level: "none", text: "无风险" };
+    return {
+      level: h > 0 ? "high" : m > 0 ? "mid" : "low",
+      text: [h ? `高 ${h}` : "", m ? `中 ${m}` : "", l ? `低 ${l}` : ""].filter(Boolean).join(" · "),
+    };
+  }
+
+  function renderHomeContracts() {
+    if (!ui.homeContractsList) return;
+    const all = (state.ledger || []).slice().sort(ledgerSort);
+    const q = state.historyQuery.trim().toLowerCase();
+    const entries = q
+      ? all.filter((entry) =>
+          [
+            entry.title,
+            entry.contractType,
+            entry.counterparty,
+            entry.amount,
+            entry.paymentAmount,
+            entry.note,
+            entry.status,
+            entry.startDate,
+            entry.endDate,
+            entry.paymentDate,
+          ]
+            .join("\n")
+            .toLowerCase()
+            .indexOf(q) >= 0
+        )
+      : all;
+    if (ui.homeLedgerAll) ui.homeLedgerAll.textContent = `查看全部 ${all.length} 份`;
+    if (!entries.length) {
+      const empty = q
+        ? `<p>没有匹配「${esc(state.historyQuery)}」的合同</p>`
+        : '<p>台账还是空的</p><button class="btn btn-primary" type="button" data-home-ledger-add>新增第一份合同</button>';
+      ui.homeContractsList.innerHTML = `<div class="history-empty">${empty}</div>`;
+      return;
+    }
+    ui.homeContractsList.innerHTML = entries
+      .map((entry) => {
+        const status = entry.status || "履行中";
+        const risk = ledgerRisk(entry);
+        const range =
+          entry.startDate || entry.endDate
+            ? `${entry.startDate ? ledgerDisplayDate(entry.startDate) : "—"} – ${entry.endDate ? ledgerDisplayDate(entry.endDate) : "—"}`
+            : "";
+        const meta = [
+          entry.counterparty ? maskedText(entry.counterparty) : "",
+          formatLedgerAmount(entry.amount),
+          range,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return `<button class="home-contract-row ${risk.level}" type="button" data-home-ledger="${esc(entry.id)}">
+          <span class="home-contract-main">
+            <b class="home-contract-title">${esc(ledgerEntryTitle(entry))}</b>
+            <span class="home-contract-meta">${esc(meta || "还没有补充金额或日期")}</span>
+          </span>
+          <span class="home-contract-side">
+            <span class="history-risk ${risk.level}">${esc(risk.text)}</span>
+            <span class="ledger-status ${WB.Ledger.statusClass(status)}">${esc(status)}</span>
+          </span>
+        </button>`;
+      })
+      .join("");
+  }
+
+  function renderReminders() {
+    if (!(state.ledger || []).length) {
+      ui.homeReminders.innerHTML = '<p class="reminder-empty">台账还是空的，新增合同后这里会出现到期与付款提醒。</p>';
+      return;
+    }
+    const items = WB.Ledger.reminders(state.ledger || [], new Date());
+    if (!items.length) {
+      ui.homeReminders.innerHTML = '<p class="reminder-empty">未来 30 天没有到期或付款节点。</p>';
+      return;
+    }
+    const visible = items.slice(0, 6);
+    ui.homeReminders.innerHTML = visible
+      .map((r) => {
+        const cls = r.days < 0 ? "overdue" : r.days <= 7 ? "urgent" : "";
+        const amount = r.kind === "付款" && r.amount ? ` · ${esc(r.amount)}` : "";
+        const kind = r.kind === "付款" ? "pay" : "due";
+        return `<button class="reminder-item ${cls}" type="button" data-reminder-entry="${esc(r.entry.id)}">
+          <span class="reminder-icon ${kind}">${iconSvg(r.kind === "付款" ? "wallet" : "clock")}</span>
+          <span class="reminder-main"><b>${esc(maskedHistoryTitle(r.entry))}</b><em>${esc(WB.Ledger.formatDate(r.date))}${amount}</em></span>
+          <span class="reminder-count">${esc(WB.Ledger.countdownShort(r.days))}</span>
+        </button>`;
+      })
+      .join("") +
+      (items.length > visible.length
+        ? `<p class="reminder-more">还有 ${items.length - visible.length} 条，去台账查看</p>`
+        : "");
+  }
+
+  function renderHistory() {
+    const q = state.historyQuery.trim().toLowerCase();
+    const items = (state.history || []).filter((item) => {
+      if (!q) return true;
+      return [item.title, item.contractType, item.contractText]
+        .join("\n")
+        .toLowerCase()
+        .indexOf(q) >= 0;
+    });
+    const ledgerHits = q
+      ? (state.ledger || [])
+          .filter((entry) =>
+            [
+              entry.title,
+              entry.contractType,
+              entry.counterparty,
+              entry.amount,
+              entry.paymentAmount,
+              entry.note,
+              entry.status,
+              entry.startDate,
+              entry.endDate,
+              entry.paymentDate,
+            ]
+              .join("\n")
+              .toLowerCase()
+              .indexOf(q) >= 0
+          )
+          .sort(ledgerSort)
+      : [];
+
+
+    if (!items.length && !ledgerHits.length) {
+      const empty = q
+        ? `<p>没有匹配「${esc(state.historyQuery)}」的审查记录或台账条目</p>`
+        : "<p>还没有审查记录</p><button class=\"btn btn-primary\" type=\"button\" data-new-review>去审查第一份合同</button>";
+      ui.historyList.innerHTML = `<div class="history-empty">${empty}</div>`;
+      return;
+    }
+
+    let html = items
+      .map((item) => {
+        const c = (item.result && item.result.counts) || {};
+        const [h, m, l] = [Number(c.high) || 0, Number(c.mid) || 0, Number(c.low) || 0];
+        const level = h > 0 ? "high" : m > 0 ? "mid" : "low";
+        const score = item.result && item.result.score;
+        const meta = [formatHistoryDate(item.createdAt), score == null ? "" : `综合评分 ${score}`]
+          .filter(Boolean)
+          .join(" · ");
+        const risk = h || m || l
+          ? [h ? `高 ${h}` : "", m ? `中 ${m}` : "", l ? `低 ${l}` : ""].filter(Boolean).join(" · ")
+          : "无风险";
+        return `<article class="history-item ${level}" data-open-review="${esc(item.id)}" title="${esc(historyPreview(item.contractText))}">
+          <div class="history-item-main">
+            <div class="history-item-top">
+              <h4>${esc(maskedHistoryTitle(item))}</h4>
+              <span class="history-type">${esc(item.contractType || "")}</span>
+            </div>
+            <p class="history-meta">${esc(meta)}</p>
+          </div>
+          <div class="history-side">
+            <span class="history-risk ${level}">${esc(risk)}</span>
+            <div class="history-actions">
+              <button class="history-open" type="button" data-open-review="${esc(item.id)}">查看</button>
+              <button class="history-delete" type="button" data-delete-review="${esc(item.id)}">删除</button>
+            </div>
+          </div>
+        </article>`;
+      })
+      .join("");
+
+    if (ledgerHits.length) {
+      html += `<div class="search-ledger-group">
+        <p class="search-ledger-title">台账匹配 · ${ledgerHits.length}</p>
+        ${ledgerHits
+          .map((entry) => {
+            const meta = maskedText(
+              [
+                entry.counterparty,
+                entry.contractType,
+                entry.endDate ? `到期 ${WB.Ledger.formatDate(entry.endDate, true)}` : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")
+            );
+            return `<button class="search-ledger-row" type="button" data-search-ledger="${esc(entry.id)}">
+              <span class="search-ledger-main">
+                <b>${esc(maskedHistoryTitle(entry))}</b>
+                <em>${esc(meta || "台账条目")}</em>
+              </span>
+              <span class="search-ledger-status">${esc(entry.status || "履行中")}</span>
+            </button>`;
+          })
+          .join("")}
+      </div>`;
+    }
+
+    ui.historyList.innerHTML = html;
+  }
+
+  function openHistory(id) {
+    const item = (state.history || []).find((r) => r.id === id);
+    if (!item || !item.result) {
+      toast("这条审查记录已不存在", "error");
+      state.history = (state.history || []).filter((r) => r.id !== id);
+      WB.deleteReview(id).catch(() => {});
+      renderHome();
+      return;
+    }
+    state.lastReviewId = item.id;
+    ui.input.value = item.contractText || "";
+    updateCharCount();
+    if (item.contractType) setType(item.contractType, false);
+    showResult(item.result, item.contractText || "");
+    WB.saveCurrent({
+      contractText: item.contractText || "",
+      contractType: item.contractType || ui.typeSelect.value,
+      result: item.result,
+      savedAt: item.createdAt,
+      reviewId: item.id,
+    }).catch(() => {});
+    toast("已打开历史审查");
+  }
+
+  async function deleteHistory(id) {
+    const item = (state.history || []).find((r) => r.id === id);
+    if (!item) return;
+    if (!window.confirm(`删除「${maskedHistoryTitle(item)}」？`)) return;
+    const ok = await WB.deleteReview(id);
+    if (!ok) {
+      toast("删除失败，请重试", "error");
+      return;
+    }
+    state.history = (state.history || []).filter((r) => r.id !== id);
+    renderHome();
+    toast("已删除这条审查记录");
+  }
+
+  async function clearHistory() {
+    if (!(state.history || []).length) {
+      toast("还没有审查记录");
+      return;
+    }
+    if (!window.confirm("清空全部审查历史？此操作无法撤销。")) return;
+    const ok = await WB.clearReviews();
+    if (!ok) {
+      toast("清空失败，请重试", "error");
+      return;
+    }
+    state.history = [];
+    state.historyQuery = "";
+    if (ui.historySearch) ui.historySearch.value = "";
+    if (ui.sidebarSearch) ui.sidebarSearch.value = "";
+    if (ui.contractsSearch) ui.contractsSearch.value = "";
+    if (ui.ledgerSearch) ui.ledgerSearch.value = "";
+    renderHome();
+    toast("审查历史已清空");
+  }
+
+  // ═════════════ 合同台账 ═════════════
+
+  function ledgerSort(a, b) {
+    const ae = a.endDate || "9999-12-31";
+    const be = b.endDate || "9999-12-31";
+    return ae.localeCompare(be) || (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0);
+  }
+
+  function ledgerFiltered() {
+    const q = state.historyQuery.trim().toLowerCase();
+    return (state.ledger || [])
+      .filter((entry) => {
+        if (state.ledgerStatus !== "全部" && (entry.status || "履行中") !== state.ledgerStatus) return false;
+        if (state.ledgerType !== "全部类型" && (entry.contractType || "其他") !== state.ledgerType) return false;
+        if (!q) return true;
+        return [
+          entry.title,
+          entry.contractType,
+          entry.counterparty,
+          entry.amount,
+          entry.paymentAmount,
+          entry.note,
+          entry.status,
+          entry.startDate,
+          entry.endDate,
+          entry.paymentDate,
+        ]
+          .join("\n")
+          .toLowerCase()
+          .indexOf(q) >= 0;
+      })
+      .sort(ledgerSort);
+  }
+
+  function renderLedgerFilters() {
+    const options = ["全部"].concat(WB.Ledger.STATUSES);
+    if (options.indexOf(state.ledgerStatus) < 0) state.ledgerStatus = "全部";
+    ui.ledgerFilters.innerHTML = options
+      .map((status) => {
+        const count = status === "全部"
+          ? (state.ledger || []).length
+          : (state.ledger || []).filter((e) => (e.status || "履行中") === status).length;
+        return `<button class="filter-chip${state.ledgerStatus === status ? " active" : ""}" type="button" data-status="${esc(status)}">${esc(status)} ${count}</button>`;
+      })
+      .join("");
+  }
+
+  function ledgerRowHTML(entry) {
+    const status = entry.status || "履行中";
+    const cls = WB.Ledger.statusClass(status);
+    const linked = entry.reviewId && (state.history || []).some((r) => r.id === entry.reviewId);
+    const range =
+      entry.startDate || entry.endDate
+        ? `${entry.startDate ? ledgerDisplayDate(entry.startDate) : "—"} – ${entry.endDate ? ledgerDisplayDate(entry.endDate) : "—"}`
+        : "";
+    const meta = [range, entry.note].filter(Boolean).join(" · ");
+    return `<article class="ledger-row status-${cls}" data-ledger-row="${esc(entry.id)}">
+      <div class="ledger-cell ledger-cell-name">
+        <div class="ledger-name-main">
+          <h3>${esc(ledgerEntryTitle(entry))}</h3>
+          <p>${esc(meta || entry.contractType || "还没有补充日期")}</p>
+        </div>
+      </div>
+      <div class="ledger-cell ledger-cell-party">${esc(entry.counterparty || "—")}</div>
+      <div class="ledger-cell ledger-cell-amount">${esc(formatLedgerAmount(entry.amount) || "—")}</div>
+      <div class="ledger-cell ledger-cell-end">${esc(entry.endDate ? ledgerDisplayDate(entry.endDate) : "—")}</div>
+      <div class="ledger-cell ledger-cell-status"><span class="ledger-status ${cls}">${esc(status)}</span></div>
+      <div class="ledger-cell ledger-cell-actions">
+        <div class="ledger-actions">
+          ${linked ? `<button type="button" data-open-ledger-review="${esc(entry.reviewId)}" title="查看审查" aria-label="查看审查">${iconSvg("review")}</button>` : ""}
+          <button type="button" data-ics-ledger="${esc(entry.id)}" title="导出提醒" aria-label="导出提醒">${iconSvg("calendar")}</button>
+          <button type="button" data-edit-ledger="${esc(entry.id)}" title="编辑合同" aria-label="编辑合同">${iconSvg("edit")}</button>
+          <button type="button" data-delete-ledger="${esc(entry.id)}" title="删除合同" aria-label="删除合同">${iconSvg("trash")}</button>
+        </div>
+      </div>
+    </article>`;
+  }
+
+  function renderLedgerDates(entries) {
+    if (!ui.ledgerDatesList) return;
+    const now = new Date();
+    const events = [];
+    (entries || []).forEach((entry) => {
+      const status = entry.status || "履行中";
+      const inactive = status === "已归档" || status === "已终止";
+      [
+        ["到期", entry.endDate],
+        ["付款", entry.paymentDate],
+      ].forEach(([kind, date]) => {
+        const days = WB.Ledger.daysUntil(date, now);
+        if (days == null || days < -30 || days > 365) return;
+        events.push({ entry, kind, date, days, inactive, status });
+      });
+    });
+    events.sort((a, b) => a.days - b.days || String(a.date).localeCompare(String(b.date)));
+    const visible = events.slice(0, 8);
+    if (!visible.length) {
+      ui.ledgerDatesList.innerHTML = '<p class="reminder-empty">未来一年还没有到期或付款节点。</p>';
+      return;
+    }
+    ui.ledgerDatesList.innerHTML = visible
+      .map((e) => {
+        const tone = e.inactive
+          ? "is-muted"
+          : e.days < 0
+            ? "is-overdue"
+            : e.kind === "付款"
+              ? "is-payment"
+              : e.days <= 7
+                ? "is-soon"
+                : "is-normal";
+        const note = e.inactive
+          ? `${e.status} · 无需提醒`
+          : `${e.kind === "付款" ? "付款节点" : "合同到期"} · ${WB.Ledger.countdown(e.kind, e.days)}`;
+        return `<button class="ledger-date-item ${tone}" type="button" data-edit-ledger="${esc(e.entry.id)}">
+          <b>${esc(ledgerDisplayDate(e.date))} · ${esc(maskedHistoryTitle(e.entry))}</b>
+          <em>${esc(note)}</em>
+        </button>`;
+      })
+      .join("");
+  }
+
+  function renderLedger() {
+    if (!ui.ledgerList) return;
+    syncHomeSearch();
+    const all = state.ledger || [];
+    renderLedgerFilters();
+    const items = ledgerFiltered();
+    const dueReminders = WB.Ledger.reminders(all, new Date());
+    const highContracts = all.filter((entry) => ledgerRisk(entry).level === "high").length;
+    const typeCount = new Set(all.map((entry) => entry.contractType || "其他")).size;
+    if (ui.ledgerSummary) {
+      ui.ledgerSummary.textContent = `${all.length} 份合同 · ${typeCount} 类 · 高风险 ${highContracts} 份 · 合同原文全部存在本机`;
+    }
+    if (ui.ledgerTableCount) ui.ledgerTableCount.textContent = `共 ${items.length} 份 · 按到期日排序`;
+    if (ui.ledgerDatesSub) ui.ledgerDatesSub.textContent = `最近 30 天 ${dueReminders.length} 项`;
+    renderLedgerDates(all);
+
+    if (!items.length) {
+      const filtered = state.historyQuery.trim() || state.ledgerStatus !== "全部" || state.ledgerType !== "全部类型";
+      const empty = filtered
+        ? "<p>没有匹配的合同</p>"
+        : '<p>台账还是空的</p><p class="ledger-empty-sub">新增一份合同，或审查完成后在结果页点「加入台账」。</p><button class="btn btn-primary" type="button" data-ledger-add>新增第一份合同</button>';
+      ui.ledgerList.innerHTML = `<div class="ledger-empty">${empty}</div>`;
+      return;
+    }
+    ui.ledgerList.innerHTML = items.map(ledgerRowHTML).join("");
+  }
+
+  function openLedgerForm(id, prefill) {
+    const item = id ? (state.ledger || []).find((e) => e.id === id) : null;
+    if (id && !item) {
+      toast("这条台账记录已不存在", "error");
+      return;
+    }
+    const data = item || prefill || {};
+    state.editingLedgerId = item ? item.id : null;
+    closeSettings();
+    ui.ledgerForm.reset();
+    ui.ledgerFormTitle.textContent = item ? "编辑合同" : "新增合同";
+    ui.ledgerTitle.value = data.title || "";
+    ui.ledgerType.value = WB.CONTRACT_TYPES.includes(data.contractType)
+      ? data.contractType
+      : data.contractType
+        ? "其他"
+        : WB.CONTRACT_TYPES.includes(ui.typeSelect.value)
+          ? ui.typeSelect.value
+          : WB.CONTRACT_TYPES[0];
+    ui.ledgerStatus.value = WB.Ledger.STATUSES.includes(data.status) ? data.status : "履行中";
+    ui.ledgerCounterparty.value = data.counterparty || "";
+    ui.ledgerAmount.value = data.amount || "";
+    ui.ledgerStart.value = data.startDate || "";
+    ui.ledgerEnd.value = data.endDate || "";
+    ui.ledgerPaymentDate.value = data.paymentDate || "";
+    ui.ledgerPaymentAmount.value = data.paymentAmount || "";
+    ui.ledgerNote.value = data.note || "";
+    ui.ledgerReviewId.value = data.reviewId || "";
+    ui.ledgerBackdrop.classList.remove("hidden");
+    ui.ledgerDrawer.classList.remove("hidden");
+    setTimeout(() => ui.ledgerTitle.focus(), 30);
+  }
+
+  function closeLedgerForm() {
+    ui.ledgerDrawer.classList.add("hidden");
+    ui.ledgerBackdrop.classList.add("hidden");
+    state.editingLedgerId = null;
+  }
+
+  async function saveLedgerFromForm(event) {
+    event.preventDefault();
+    const title = ui.ledgerTitle.value.trim();
+    if (!title) {
+      toast("先填合同名称", "error");
+      ui.ledgerTitle.focus();
+      return;
+    }
+    const startDate = ui.ledgerStart.value;
+    const endDate = ui.ledgerEnd.value;
+    if (startDate && endDate && endDate < startDate) {
+      toast("到期日不能早于起始日", "error");
+      return;
+    }
+
+    const existing = state.editingLedgerId
+      ? (state.ledger || []).find((e) => e.id === state.editingLedgerId)
+      : null;
+    const now = Date.now();
+    const entry = {
+      id: existing ? existing.id : WB.Ledger.createId(),
+      createdAt: existing ? existing.createdAt : now,
+      updatedAt: now,
+      title,
+      contractType: ui.ledgerType.value,
+      counterparty: ui.ledgerCounterparty.value.trim(),
+      amount: ui.ledgerAmount.value.trim(),
+      startDate,
+      endDate,
+      paymentDate: ui.ledgerPaymentDate.value,
+      paymentAmount: ui.ledgerPaymentAmount.value.trim(),
+      status: ui.ledgerStatus.value,
+      note: ui.ledgerNote.value.trim(),
+      reviewId: ui.ledgerReviewId.value || (existing && existing.reviewId) || "",
+    };
+
+    const saved = await WB.saveLedgerEntry(entry);
+    if (!saved) {
+      toast("台账保存失败，请重试", "error");
+      return;
+    }
+    const index = (state.ledger || []).findIndex((e) => e.id === entry.id);
+    if (index >= 0) state.ledger[index] = entry;
+    else state.ledger.unshift(entry);
+    closeLedgerForm();
+    renderLedger();
+    renderHome();
+    toast(existing ? "台账已更新" : "已加入台账");
+  }
+
+  async function deleteLedger(id) {
+    const item = (state.ledger || []).find((e) => e.id === id);
+    if (!item) return;
+    if (!window.confirm(`从台账删除「${maskedHistoryTitle(item)}」？`)) return;
+    const ok = await WB.deleteLedgerEntry(id);
+    if (!ok) {
+      toast("删除失败，请重试", "error");
+      return;
+    }
+    state.ledger = (state.ledger || []).filter((e) => e.id !== id);
+    renderLedger();
+    renderHome();
+    toast("已从台账删除");
+  }
+
+  function exportLedgerCsv() {
+    const entries = state.ledger || [];
+    if (!entries.length) {
+      toast("台账还是空的");
+      return;
+    }
+    const csv = WB.Ledger.buildCSV(entries.slice().sort(ledgerSort));
+    downloadText("﻿" + csv, `合同台账-${dateStamp()}.csv`, "text/csv;charset=utf-8");
+    toast("台账已导出 CSV");
+  }
+
+  function exportLedgerIcs(id) {
+    const entries = id
+      ? (state.ledger || []).filter((e) => e.id === id)
+      : (state.ledger || []).filter((e) => e.status !== "已归档" && e.status !== "已终止");
+    if (!entries.length) {
+      toast(id ? "台账还是空的" : "没有需要提醒的合同");
+      return;
+    }
+    const ics = WB.Ledger.buildICS(entries);
+    if (!ics) {
+      toast("还没有可导出的到期或付款日期", "error");
+      return;
+    }
+    const name = id
+      ? `${safeFilename(entries[0].title)}-提醒.ics`
+      : `合同提醒-${dateStamp()}.ics`;
+    downloadText(ics, name, "text/calendar;charset=utf-8");
+    toast("提醒已导出，可导入手机日历");
+  }
+
+  function addCurrentToLedger() {
+    if (!state.lastResult) {
+      toast("先完成一次审查", "error");
+      return;
+    }
+    const existing = state.lastReviewId
+      ? (state.ledger || []).find((e) => e.reviewId === state.lastReviewId)
+      : null;
+    if (existing) {
+      openLedgerForm(existing.id);
+      toast("这份合同已在台账里");
+      return;
+    }
+    openLedgerForm(null, {
+      title: reviewTitle(state.lastContractText, ui.typeSelect.value),
+      contractType: ui.typeSelect.value,
+      status: "待签",
+      reviewId: state.lastReviewId || "",
+    });
   }
 
   function hideStates() {
@@ -3751,13 +6145,35 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
       state.lastContractText = text;
       state.lastResult = result;
       showResult(result, text);
+
+      const savedAt = Date.now();
+      const record = {
+        id: "rv_" + savedAt,
+        createdAt: savedAt,
+        contractType: ui.typeSelect.value,
+        title: reviewTitle(text, ui.typeSelect.value),
+        contractText: text,
+        result,
+      };
+      state.lastReviewId = record.id;
       await WB.saveCurrent({
         contractText: text,
         contractType: ui.typeSelect.value,
         result,
-        savedAt: Date.now(),
+        savedAt,
+        reviewId: record.id,
       });
-      toast("审查完成");
+      const savedReview = await WB.saveReview(record);
+      if (savedReview) {
+        state.history = [savedReview].concat(
+          (state.history || []).filter((r) => r.id !== savedReview.id)
+        );
+        renderHome();
+        renderLedger();
+        toast("审查完成");
+      } else {
+        toast("审查完成，但历史记录保存失败", "error");
+      }
     } catch (err) {
       state.running = false;
       if (err && err.code === "aborted") {
@@ -3776,6 +6192,7 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
   function nextReview() {
     state.lastResult = null;
     state.lastContractText = "";
+    state.lastReviewId = null;
     ui.input.value = "";
     ui.typeHint.textContent = "";
     updateCharCount();
@@ -4069,6 +6486,7 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
   // ═════════════ 设置 ═════════════
 
   function openSettings() {
+    closeLedgerForm();
     populateProviderOptions();
     fillSettingsForm();
     ui.drawer.classList.remove("hidden");
@@ -4156,26 +6574,36 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
     ui.modelStatus.classList.remove("ok", "warn");
     if (!hasKey) {
       ui.modelStatusText.textContent = "未配置模型";
+      ui.modelStatus.title = "未配置模型";
       return;
     }
-    ui.modelStatusText.textContent = `${p.label} · ${s.model}`;
+    ui.modelStatusText.textContent = s.model;
+    ui.modelStatus.title = `${p.label} · ${s.model}`;
     ui.modelStatus.classList.add("ok");
   }
 
   // ═════════════ 导出 / 复制 ═════════════
 
-  function exportDoc() {
-    if (!state.lastResult) return;
-    const html = WB.buildDocHtml(state.lastResult.reportHtml || "", state.lastResult.contractType || "");
-    const blob = new Blob(["﻿", html], { type: "application/msword" });
+  function downloadText(text, filename, type) {
+    const blob = new Blob([text], { type });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `合同审查报告-${dateStamp()}.doc`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  function safeFilename(name) {
+    return String(name || "合同").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60) || "合同";
+  }
+
+  function exportDoc() {
+    if (!state.lastResult) return;
+    const html = WB.buildDocHtml(state.lastResult.reportHtml || "", state.lastResult.contractType || "");
+    downloadText("﻿" + html, `合同审查报告-${dateStamp()}.doc`, "application/msword");
     toast("报告已导出");
   }
 

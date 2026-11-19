@@ -9,45 +9,121 @@
 </head>
 <body>
 <div class="app">
-  <!-- 顶栏 -->
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true">契</span>
-      <div class="brand-text">
-        <span class="brand-name">合同工作台</span>
-        <span class="brand-sub">签约前，先看一眼</span>
-      </div>
-    </div>
-    <div class="topbar-right">
-      <label class="type-select-wrap">
-        <span class="sr-only">合同类型</span>
-        <select id="contract-type" class="type-select" aria-label="合同类型"></select>
-      </label>
-      <span id="model-status" class="model-status" title="模型配置状态">
-        <i class="dot"></i><span id="model-status-text">未配置</span>
-      </span>
-      <button id="btn-settings" class="icon-btn" type="button" title="设置" aria-label="设置">
-        <span data-icon="settings"></span>
-      </button>
-    </div>
-  </header>
-
   <div class="body">
     <!-- 侧栏 -->
     <nav class="sidebar" aria-label="主导航">
-      <button class="nav-item active" data-view="review" type="button">
-        <span class="nav-icon" data-icon="review"></span><span>审查台</span>
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 30 30" width="30" height="30" aria-hidden="true">
+            <rect width="30" height="30" rx="9" fill="#1C3A32"/>
+            <path fill="#EAF3EF" transform="matrix(1 0 0 1 11 9)" d="M4.5333 0L4.5333 11.4667L8 11.4667Q8.2236 11.4602 8.3771 11.6229Q8.5398 11.7764 8.5333 12Q8.5398 12.2236 8.3771 12.3771Q8.2236 12.5398 8 12.5333L4.0336 12.5333Q4.017 12.5338 4 12.5333Q3.983 12.5338 3.9664 12.5333L0 12.5333Q-0.2236 12.5398 -0.3771 12.3771Q-0.5398 12.2236 -0.5333 12Q-0.5398 11.7764 -0.3771 11.6229Q-0.2236 11.4602 0 11.4667L3.4667 11.4667L3.4667 0Q3.4602 -0.2236 3.6229 -0.3771Q3.7764 -0.5398 4 -0.5333Q4.2236 -0.5398 4.3771 -0.3771Q4.5398 -0.2236 4.5333 0Z"/>
+            <path fill="#EAF3EF" transform="matrix(1 0 0 1 10.3333 11)" d="M-0.2101 1.5098L4.4566 -0.4902L4.6667 -0.5802L9.5434 1.5098Q9.7515 1.5919 9.8285 1.8019Q9.9175 2.0071 9.8235 2.2101Q9.7414 2.4181 9.5314 2.4952Q9.3262 2.5842 9.1232 2.4902L4.6667 0.5802L0.2101 2.4902Q0.0071 2.5842 -0.1981 2.4952Q-0.4081 2.4181 -0.4902 2.2101Q-0.5842 2.0071 -0.4952 1.8019Q-0.4181 1.5919 -0.2101 1.5098Z"/>
+            <path fill="#EAF3EF" transform="matrix(1 0 0 1 9 13)" d="M0.885 0.8481Q1.2364 1.1994 1.7333 1.1994Q2.2303 1.1994 2.5817 0.8481Q2.9332 0.4968 2.9333 -0.0002Q2.927 -0.2238 3.0897 -0.3773Q3.2433 -0.5398 3.4669 -0.5333Q3.6904 -0.5397 3.8439 -0.377Q4.0065 -0.2234 4 0.0002Q3.9997 0.9388 3.3358 1.6025Q2.672 2.2661 1.7333 2.2661Q0.7947 2.2661 0.1308 1.6025Q-0.533 0.9388 -0.5333 0.0002Q-0.5398 -0.2234 -0.3773 -0.377Q-0.2238 -0.5397 -0.0002 -0.5333Q0.2234 -0.5398 0.377 -0.3773Q0.5397 -0.2238 0.5333 -0.0002Q0.5335 0.4968 0.885 0.8481ZM9.0667 0Q9.0667 0.4971 9.4181 0.8485Q9.7696 1.2 10.2667 1.2Q10.7637 1.2 11.1152 0.8485Q11.4667 0.4971 11.4667 0Q11.4602 -0.2236 11.6229 -0.3771Q11.7764 -0.5398 12 -0.5333Q12.2236 -0.5398 12.3771 -0.3771Q12.5398 -0.2236 12.5333 0Q12.5333 0.9389 11.8694 1.6028Q11.2056 2.2667 10.2667 2.2667Q9.3278 2.2667 8.6639 1.6028Q8 0.9389 8 0Q7.9936 -0.2236 8.1562 -0.3771Q8.3098 -0.5398 8.5333 -0.5333Q8.7569 -0.5398 8.9105 -0.3771Q9.0731 -0.2236 9.0667 0Z"/>
+          </svg>
+        </span>
+        <div class="brand-text">
+          <span class="brand-name">合同工作台</span>
+        </div>
+      </div>
+
+      <div class="side-search">
+        <span class="side-search-icon" data-icon="search" aria-hidden="true"></span>
+        <input id="sidebar-search" type="search" placeholder="搜索合同、对方、条款" aria-label="搜索合同、对方、条款" autocomplete="off">
+        <button id="sidebar-search-clear" class="side-search-clear hidden" type="button" aria-label="清空搜索" title="清空搜索">×</button>
+      </div>
+
+      <div class="nav-group">
+        <button class="nav-item" data-view="home" type="button">
+          <span class="nav-icon" data-icon="home"></span><span>案头</span>
+        </button>
+        <button class="nav-item active" data-view="review" type="button">
+          <span class="nav-icon" data-icon="review"></span><span>审查台</span>
+        </button>
+        <button class="nav-item" data-view="ledger" type="button">
+          <span class="nav-icon" data-icon="ledger"></span><span>合同台账</span>
+        </button>
+        <button class="nav-item" data-view="clauses" type="button">
+          <span class="nav-icon" data-icon="clause"></span><span>条款库</span>
+        </button>
+      </div>
+
+      <div class="sidebar-spacer"></div>
+      <p class="nav-label">本地与安全</p>
+      <button id="btn-settings" class="nav-item nav-settings" type="button">
+        <span class="nav-icon" data-icon="settings"></span><span>设置</span>
       </button>
-      <button class="nav-item" data-view="clauses" type="button">
-        <span class="nav-icon" data-icon="clause"></span><span>条款库</span>
-      </button>
+
       <div class="sidebar-foot">
         <p class="privacy-line">合同不出本机</p>
-        <p class="privacy-sub">原文只发给你自己选的模型</p>
+        <p class="privacy-sub">原文只发给你自己选的模型；AI 辅助结果，不构成法律意见。</p>
       </div>
     </nav>
 
     <main class="main">
+      <header id="topbar" class="topbar">
+        <div id="home-greeting-block" class="topbar-greeting hidden">
+          <h2 id="home-greeting" class="home-greeting">早上好</h2>
+          <p id="home-sub" class="home-sub">今天的合同与待办</p>
+        </div>
+        <div class="topbar-right">
+          <button id="btn-home-review" class="btn btn-primary hidden" type="button">审查新合同</button>
+          <label class="type-select-wrap">
+            <span class="sr-only">合同类型</span>
+            <select id="contract-type" class="type-select" aria-label="合同类型"></select>
+          </label>
+          <span id="model-status" class="model-status" title="模型配置状态">
+            <i class="dot"></i><span id="model-status-text">未配置</span>
+          </span>
+        </div>
+      </header>
+      <!-- ═══════════ 案头 ═══════════ -->
+      <section id="view-home" class="view view-home hidden" aria-label="案头">
+        <div id="home-stats" class="home-stats"></div>
+
+        <div class="home-grid">
+          <div class="home-card home-history-card">
+            <div class="home-card-head home-card-head-tabs">
+              <div class="home-tabs" role="tablist" aria-label="案头列表">
+                <button id="home-tab-reviews" class="home-tab active" data-home-tab="reviews" type="button" role="tab" aria-selected="true">最近审查</button>
+                <button id="home-tab-contracts" class="home-tab" data-home-tab="contracts" type="button" role="tab" aria-selected="false">我的合同</button>
+              </div>
+              <div id="home-review-tools" class="home-tools">
+                <input id="history-search" class="history-search" type="search" placeholder="搜索标题、类型或原文" aria-label="搜索审查记录">
+                <button id="btn-history-clear" class="btn btn-ghost btn-mini" type="button">清空</button>
+              </div>
+              <div id="home-contract-tools" class="home-tools hidden">
+                <input id="contracts-search" class="history-search" type="search" placeholder="搜索合同、对方或金额" aria-label="搜索我的合同">
+                <button id="btn-home-ledger-all" class="btn btn-ghost btn-mini" type="button">查看全部</button>
+              </div>
+            </div>
+            <div id="home-reviews-pane" class="home-pane">
+              <p class="home-pane-desc">只存在本机浏览器，不会上传</p>
+              <div id="history-list" class="history-list"></div>
+            </div>
+            <div id="home-contracts-pane" class="home-pane hidden">
+              <p class="home-pane-desc">合同、对方、金额与到期日</p>
+              <div id="home-contracts-list" class="history-list home-contract-list"></div>
+            </div>
+          </div>
+
+          <aside class="home-card home-reminder-card">
+            <div class="home-card-head">
+              <div>
+                <h3 class="home-card-title">待办</h3>
+                <p class="home-card-desc">30 天内的到期与付款</p>
+              </div>
+              <button id="btn-home-ledger" class="btn btn-ghost btn-mini" type="button">去台账</button>
+            </div>
+            <div id="home-reminder-list" class="reminder-list"></div>
+            <div class="home-card-foot">
+              <button id="btn-home-ics" class="btn btn-ghost btn-block" type="button">
+                <span data-icon="calendar"></span>导出提醒到手机日历
+              </button>
+            </div>
+          </aside>
+        </div>
+      </section>
+
       <!-- ═══════════ 审查台 ═══════════ -->
       <section id="view-review" class="view active" aria-label="审查台">
         <!-- 空状态 -->
@@ -95,6 +171,7 @@
           <div class="result-toolbar">
             <div class="result-stats" id="result-stats"></div>
             <div class="result-actions">
+              <button id="btn-add-ledger" class="btn btn-ghost" type="button"><span data-icon="ledger"></span>加入台账</button>
               <button id="btn-export" class="btn btn-ghost" type="button"><span data-icon="export"></span>导出 .doc</button>
               <button id="btn-print" class="btn btn-ghost" type="button">打印</button>
               <button id="btn-new" class="btn btn-primary" type="button">审下一份</button>
@@ -132,6 +209,58 @@
             <button id="btn-retry" class="btn btn-primary" type="button">重试</button>
             <button id="btn-back" class="btn btn-ghost" type="button">返回修改</button>
           </div>
+        </div>
+      </section>
+
+      <!-- ═══════════ 合同台账 ═══════════ -->
+      <section id="view-ledger" class="view hidden" aria-label="合同台账">
+        <div class="ledger-head">
+          <div>
+            <h2 class="view-title">合同台账</h2>
+            <p id="ledger-summary" class="view-desc ledger-summary"></p>
+          </div>
+        </div>
+        <div class="ledger-toolbar">
+          <div id="ledger-filters" class="clause-filters ledger-filters"></div>
+          <div class="ledger-tools">
+            <select id="ledger-type-filter" class="type-select ledger-type-select" aria-label="合同类型筛选"></select>
+            <input id="ledger-search" class="history-search ledger-search" type="search" placeholder="搜索对方主体、合同名" aria-label="搜索合同台账">
+            <button id="btn-ledger-add" class="btn btn-primary" type="button">新建合同</button>
+          </div>
+        </div>
+        <div class="ledger-layout">
+          <div class="home-card ledger-table-card">
+            <div class="ledger-table-head">
+              <div>
+                <h3>全部合同</h3>
+                <span id="ledger-table-count"></span>
+              </div>
+              <button id="btn-ledger-csv" class="btn btn-ghost btn-mini" type="button">导出 CSV</button>
+            </div>
+            <div class="ledger-table-header" aria-hidden="true">
+              <span>合同名称</span>
+              <span>对方主体</span>
+              <span>金额</span>
+              <span>到期日</span>
+              <span>状态</span>
+              <span></span>
+            </div>
+            <div id="ledger-list" class="ledger-list"></div>
+          </div>
+          <aside class="home-card ledger-dates-card">
+            <div class="home-card-head">
+              <div>
+                <h3 class="home-card-title">关键日期</h3>
+                <p id="ledger-dates-sub" class="home-card-desc"></p>
+              </div>
+            </div>
+            <div id="ledger-dates-list" class="ledger-dates-list"></div>
+            <div class="home-card-foot">
+              <button id="btn-ledger-ics" class="btn btn-ghost btn-block" type="button">
+                <span data-icon="calendar"></span>导出提醒到手机日历（.ics）
+              </button>
+            </div>
+          </aside>
         </div>
       </section>
 
@@ -204,6 +333,72 @@
       <p class="drawer-tip">模型服务商需支持浏览器直连；Key 只保存在本机浏览器。</p>
     </div>
   </div>
+</aside>
+
+<!-- ═══════════ 台账编辑抽屉 ═══════════ -->
+<div id="ledger-backdrop" class="backdrop hidden"></div>
+<aside id="ledger-drawer" class="drawer hidden" aria-label="合同台账编辑">
+  <div class="drawer-head">
+    <div>
+      <p class="eyebrow">本机台账</p>
+      <h2 id="ledger-form-title" class="drawer-title">新增合同</h2>
+    </div>
+    <button id="btn-close-ledger" class="icon-btn" type="button" aria-label="关闭台账编辑">×</button>
+  </div>
+  <form id="ledger-form" class="drawer-body">
+    <input id="ledger-review-id" type="hidden">
+    <label class="field">
+      <span class="field-label">合同名称 *</span>
+      <input id="ledger-title" type="text" maxlength="80" autocomplete="off" required>
+    </label>
+    <div class="field-row">
+      <label class="field">
+        <span class="field-label">合同类型</span>
+        <select id="ledger-type"></select>
+      </label>
+      <label class="field">
+        <span class="field-label">状态</span>
+        <select id="ledger-status"></select>
+      </label>
+    </div>
+    <label class="field">
+      <span class="field-label">对方</span>
+      <input id="ledger-counterparty" type="text" maxlength="80" autocomplete="off" placeholder="公司 / 个人">
+    </label>
+    <label class="field">
+      <span class="field-label">合同金额</span>
+      <input id="ledger-amount" type="text" maxlength="40" autocomplete="off" placeholder="例如 120000 或 12 万">
+    </label>
+    <div class="field-row">
+      <label class="field">
+        <span class="field-label">起始日期</span>
+        <input id="ledger-start" type="date">
+      </label>
+      <label class="field">
+        <span class="field-label">到期日期</span>
+        <input id="ledger-end" type="date">
+      </label>
+    </div>
+    <div class="field-row">
+      <label class="field">
+        <span class="field-label">下次付款日</span>
+        <input id="ledger-payment-date" type="date">
+      </label>
+      <label class="field">
+        <span class="field-label">付款金额</span>
+        <input id="ledger-payment-amount" type="text" maxlength="40" autocomplete="off" placeholder="例如 80000">
+      </label>
+    </div>
+    <label class="field">
+      <span class="field-label">备注</span>
+      <textarea id="ledger-note" rows="3" maxlength="300" placeholder="续签条件、押金、联系人……"></textarea>
+    </label>
+    <div class="drawer-actions ledger-form-actions">
+      <button class="btn btn-primary" type="submit">保存合同</button>
+      <button id="btn-cancel-ledger" class="btn btn-ghost" type="button">取消</button>
+      <p class="drawer-tip">只保存在本机浏览器；到期 / 付款节点会在案头提醒，也可导出到手机日历。</p>
+    </div>
+  </form>
 </aside>
 
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>

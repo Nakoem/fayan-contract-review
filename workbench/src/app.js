@@ -6,11 +6,19 @@
   const esc = WB.escapeHtml;
 
   const ICONS = {
+    home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>',
     review: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><circle cx="11" cy="13" r="3"/><path d="M13.2 15.2 16 18"/>',
+    ledger: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10M15 10v10"/>',
     clause: '<path d="M6 3h12v18l-6-4-6 4z"/>',
     settings: '<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="17" r="2"/>',
     export: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 20h16"/>',
     upload: '<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/>',
+    calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/>',
+    clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    wallet: '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6.5A2.5 2.5 0 0 1 4 16.5z"/><path d="M4 8.5h16"/><circle cx="16" cy="13.5" r="1.2"/>',
+    edit: '<path d="M4 20h4l10-10-4-4L4 16z"/><path d="m13.5 5.5 4 4"/>',
+    trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/><path d="M10 11v5M14 11v5"/>',
   };
 
   const STEPS = [
@@ -53,6 +61,14 @@
     reportTab: "list",
     hintTimer: null,
     recommendTimer: null,
+    history: [],
+    historyQuery: "",
+    homeTab: "reviews",
+    ledger: [],
+    ledgerStatus: "全部",
+    ledgerType: "全部类型",
+    editingLedgerId: null,
+    lastReviewId: null,
   };
 
   const ui = {};
@@ -65,8 +81,12 @@
     cacheUI();
     injectIcons();
     state.settings = await WB.loadSettings();
+    const [history, ledger] = await Promise.all([WB.listReviews(), WB.listLedger()]);
+    state.history = history;
+    state.ledger = ledger;
     populateTypes();
     populateProviders();
+    populateLedgerOptions();
     renderSamples();
     renderClauseFilters();
     renderClauses();
@@ -75,6 +95,7 @@
 
     const saved = await WB.loadCurrent();
     if (saved && saved.result && saved.contractText) {
+      state.lastReviewId = saved.reviewId || null;
       ui.input.value = saved.contractText;
       updateCharCount();
       if (saved.contractType) setType(saved.contractType, false);
@@ -112,6 +133,54 @@
     ui.reportView = $("#report-view");
     ui.clauseFilters = $("#clause-filters");
     ui.clauseList = $("#clause-list");
+    ui.topbar = $("#topbar");
+    ui.homeStats = $("#home-stats");
+    ui.homeGreetingBlock = $("#home-greeting-block");
+    ui.homeGreeting = $("#home-greeting");
+    ui.homeSub = $("#home-sub");
+    ui.sidebarSearch = $("#sidebar-search");
+    ui.sidebarSearchClear = $("#sidebar-search-clear");
+    ui.homeIcs = $("#btn-home-ics");
+    ui.homeTabs = $$(".home-tab");
+    ui.homeReviewTools = $("#home-review-tools");
+    ui.homeContractTools = $("#home-contract-tools");
+    ui.homeReviewsPane = $("#home-reviews-pane");
+    ui.homeContractsPane = $("#home-contracts-pane");
+    ui.homeContractsList = $("#home-contracts-list");
+    ui.homeLedgerAll = $("#btn-home-ledger-all");
+    ui.contractsSearch = $("#contracts-search");
+    ui.historyList = $("#history-list");
+    ui.historySearch = $("#history-search");
+    ui.historyClear = $("#btn-history-clear");
+    ui.homeReview = $("#btn-home-review");
+    ui.homeLedger = $("#btn-home-ledger");
+    ui.homeReminders = $("#home-reminder-list");
+    ui.ledgerList = $("#ledger-list");
+    ui.ledgerFilters = $("#ledger-filters");
+    ui.ledgerSearch = $("#ledger-search");
+    ui.ledgerTypeFilter = $("#ledger-type-filter");
+    ui.ledgerSummary = $("#ledger-summary");
+    ui.ledgerTableCount = $("#ledger-table-count");
+    ui.ledgerDatesSub = $("#ledger-dates-sub");
+    ui.ledgerDatesList = $("#ledger-dates-list");
+    ui.ledgerAdd = $("#btn-ledger-add");
+    ui.ledgerIcs = $("#btn-ledger-ics");
+    ui.ledgerCsv = $("#btn-ledger-csv");
+    ui.ledgerDrawer = $("#ledger-drawer");
+    ui.ledgerBackdrop = $("#ledger-backdrop");
+    ui.ledgerForm = $("#ledger-form");
+    ui.ledgerFormTitle = $("#ledger-form-title");
+    ui.ledgerTitle = $("#ledger-title");
+    ui.ledgerType = $("#ledger-type");
+    ui.ledgerStatus = $("#ledger-status");
+    ui.ledgerCounterparty = $("#ledger-counterparty");
+    ui.ledgerAmount = $("#ledger-amount");
+    ui.ledgerStart = $("#ledger-start");
+    ui.ledgerEnd = $("#ledger-end");
+    ui.ledgerPaymentDate = $("#ledger-payment-date");
+    ui.ledgerPaymentAmount = $("#ledger-payment-amount");
+    ui.ledgerNote = $("#ledger-note");
+    ui.ledgerReviewId = $("#ledger-review-id");
     ui.drawer = $("#settings-drawer");
     ui.backdrop = $("#settings-backdrop");
     ui.toast = $("#toast");
@@ -119,11 +188,17 @@
     ui.errorDetail = $("#error-detail");
   }
 
+  function iconSvg(name) {
+    const paths = ICONS[name];
+    if (!paths) return "";
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+  }
+
   function injectIcons() {
     $$("[data-icon]").forEach((el) => {
-      const svg = ICONS[el.dataset.icon];
+      const svg = iconSvg(el.dataset.icon);
       if (!svg) return;
-      el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${svg}</svg>`;
+      el.innerHTML = svg;
       el.classList.add("icon");
     });
   }
@@ -142,6 +217,23 @@
     ui.typeSelect.value = type;
     state.settings.contractType = type;
     if (persist !== false) WB.saveSettings(state.settings).catch(() => {});
+  }
+
+  function populateLedgerOptions() {
+    const types = WB.CONTRACT_TYPES.concat(["其他"]);
+    ui.ledgerType.innerHTML = types
+      .map((t) => `<option value="${esc(t)}">${esc(t)}</option>`)
+      .join("");
+    ui.ledgerStatus.innerHTML = WB.Ledger.STATUSES
+      .map((s) => `<option value="${esc(s)}">${esc(s)}</option>`)
+      .join("");
+    if (ui.ledgerTypeFilter) {
+      ui.ledgerTypeFilter.innerHTML = ["全部类型"]
+        .concat(types)
+        .map((t) => `<option value="${esc(t)}">${esc(t)}</option>`)
+        .join("");
+      ui.ledgerTypeFilter.value = state.ledgerType;
+    }
   }
 
   function populateProviders() {
@@ -198,7 +290,10 @@
 
   function bindEvents() {
     $$(".nav-item").forEach((btn) => {
-      btn.addEventListener("click", () => switchView(btn.dataset.view));
+      btn.addEventListener("click", () => {
+        if (!btn.dataset.view) return;
+        switchView(btn.dataset.view);
+      });
     });
 
     ui.input.addEventListener("input", () => {
@@ -279,6 +374,130 @@
       renderClauses();
     });
 
+    ui.homeReview.addEventListener("click", nextReview);
+    ui.homeTabs.forEach((btn) => {
+      btn.addEventListener("click", () => setHomeTab(btn.dataset.homeTab));
+    });
+    ui.historySearch.addEventListener("input", () => {
+      applyHomeQuery(ui.historySearch.value);
+    });
+    if (ui.sidebarSearch) {
+      ui.sidebarSearch.addEventListener("input", () => {
+        setHomeTab("reviews");
+        applyHomeQuery(ui.sidebarSearch.value);
+        if ($("#view-home").classList.contains("hidden")) switchView("home");
+      });
+    }
+    if (ui.contractsSearch) {
+      ui.contractsSearch.addEventListener("input", () => {
+        applyHomeQuery(ui.contractsSearch.value);
+      });
+    }
+    if (ui.sidebarSearchClear) {
+      ui.sidebarSearchClear.addEventListener("click", () => {
+        applyHomeQuery("");
+        if (ui.sidebarSearch) ui.sidebarSearch.focus();
+      });
+    }
+    ui.historyList.addEventListener("click", (e) => {
+      if (e.target.closest("[data-new-review]")) {
+        nextReview();
+        return;
+      }
+      const del = e.target.closest("[data-delete-review]");
+      if (del) {
+        deleteHistory(del.dataset.deleteReview);
+        return;
+      }
+      const ledgerHit = e.target.closest("[data-search-ledger]");
+      if (ledgerHit) {
+        openLedgerForm(ledgerHit.dataset.searchLedger);
+        return;
+      }
+      const item = e.target.closest("[data-open-review]");
+      if (item) openHistory(item.dataset.openReview);
+    });
+    ui.historyClear.addEventListener("click", clearHistory);
+    if (ui.homeContractsList) {
+      ui.homeContractsList.addEventListener("click", (e) => {
+        if (e.target.closest("[data-home-ledger-add]")) {
+          switchView("ledger");
+          openLedgerForm(null);
+          return;
+        }
+        const row = e.target.closest("[data-home-ledger]");
+        if (row) openLedgerForm(row.dataset.homeLedger);
+      });
+    }
+    if (ui.homeLedgerAll) {
+      ui.homeLedgerAll.addEventListener("click", () => switchView("ledger"));
+    }
+
+    ui.homeLedger.addEventListener("click", () => switchView("ledger"));
+    if (ui.homeIcs) ui.homeIcs.addEventListener("click", () => exportLedgerIcs());
+    ui.homeReminders.addEventListener("click", (e) => {
+      const item = e.target.closest("[data-reminder-entry]");
+      if (item) openLedgerForm(item.dataset.reminderEntry);
+    });
+
+    ui.ledgerAdd.addEventListener("click", () => openLedgerForm(null));
+    ui.ledgerIcs.addEventListener("click", () => exportLedgerIcs());
+    ui.ledgerCsv.addEventListener("click", exportLedgerCsv);
+    ui.ledgerSearch.addEventListener("input", () => {
+      applyHomeQuery(ui.ledgerSearch.value);
+    });
+    if (ui.ledgerTypeFilter) {
+      ui.ledgerTypeFilter.addEventListener("change", () => {
+        state.ledgerType = ui.ledgerTypeFilter.value;
+        renderLedger();
+      });
+    }
+    if (ui.ledgerDatesList) {
+      ui.ledgerDatesList.addEventListener("click", (e) => {
+        const item = e.target.closest("[data-edit-ledger]");
+        if (item) openLedgerForm(item.dataset.editLedger);
+      });
+    }
+    ui.ledgerFilters.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-status]");
+      if (!btn) return;
+      state.ledgerStatus = btn.dataset.status;
+      renderLedger();
+    });
+    ui.ledgerList.addEventListener("click", (e) => {
+      if (e.target.closest("[data-ledger-add]")) {
+        openLedgerForm(null);
+        return;
+      }
+      const del = e.target.closest("[data-delete-ledger]");
+      if (del) {
+        deleteLedger(del.dataset.deleteLedger);
+        return;
+      }
+      const ics = e.target.closest("[data-ics-ledger]");
+      if (ics) {
+        exportLedgerIcs(ics.dataset.icsLedger);
+        return;
+      }
+      const edit = e.target.closest("[data-edit-ledger]");
+      if (edit) {
+        openLedgerForm(edit.dataset.editLedger);
+        return;
+      }
+      const review = e.target.closest("[data-open-ledger-review]");
+      if (review) {
+        openHistory(review.dataset.openLedgerReview);
+        return;
+      }
+      const row = e.target.closest("[data-ledger-row]");
+      if (row) openLedgerForm(row.dataset.ledgerRow);
+    });
+    ui.ledgerBackdrop.addEventListener("click", closeLedgerForm);
+    $("#btn-close-ledger").addEventListener("click", closeLedgerForm);
+    $("#btn-cancel-ledger").addEventListener("click", closeLedgerForm);
+    ui.ledgerForm.addEventListener("submit", saveLedgerFromForm);
+    $("#btn-add-ledger").addEventListener("click", addCurrentToLedger);
+
     $("#btn-settings").addEventListener("click", openSettings);
     $("#btn-close-settings").addEventListener("click", closeSettings);
     ui.backdrop.addEventListener("click", closeSettings);
@@ -287,7 +506,12 @@
     $("#btn-save-settings").addEventListener("click", saveSettings);
 
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && !ui.drawer.classList.contains("hidden")) closeSettings();
+      if (e.key !== "Escape") return;
+      if (!ui.ledgerDrawer.classList.contains("hidden")) {
+        closeLedgerForm();
+        return;
+      }
+      if (!ui.drawer.classList.contains("hidden")) closeSettings();
     });
     window.addEventListener("resize", scheduleBeamRedraw);
 
@@ -310,7 +534,739 @@
   function switchView(view) {
     $$(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
     $$(".view").forEach((v) => v.classList.toggle("hidden", v.id !== "view-" + view));
+    if (ui.topbar) ui.topbar.classList.toggle("home-mode", view === "home");
+    if (ui.homeGreetingBlock) ui.homeGreetingBlock.classList.toggle("hidden", view !== "home");
+    if (ui.homeReview) ui.homeReview.classList.toggle("hidden", view !== "home");
     if (view === "clauses") renderClauses();
+    if (view === "home") renderHome();
+    if (view === "ledger") renderLedger();
+  }
+
+  // ═════════════ 案头 / 审查历史 ═════════════
+
+  function reviewTitle(text, contractType) {
+    const lines = String(text || "")
+      .split(/\n/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const hit = lines.find(
+      (line) =>
+        line.length >= 4 &&
+        line.length <= 40 &&
+        !/^(甲方|乙方|身份证|电话|地址|联系人|统一社会信用代码)/.test(line)
+    );
+    return (hit || contractType || "未命名合同").slice(0, 40);
+  }
+
+  function historyPreview(text) {
+    // 先留足缓冲区再脱敏，避免证件/手机号刚好被 96 字截断而漏出半截。
+    const raw = String(text || "").slice(0, 4096);
+    try {
+      return WB.maskText(raw, (state.settings && state.settings.hiddenNames) || []).text.slice(0, 96);
+    } catch (e) {
+      return "（预览已隐藏）";
+    }
+  }
+
+  function maskedText(value) {
+    try {
+      return WB.maskText(String(value == null ? "" : value), (state.settings && state.settings.hiddenNames) || []).text;
+    } catch (e) {
+      return "（内容已隐藏）";
+    }
+  }
+
+  function maskedHistoryTitle(item) {
+    return maskedText((item && item.title) || "未命名合同") || "未命名合同";
+  }
+
+  function formatHistoryDate(ts, short) {
+    const d = new Date(Number(ts) || Date.now());
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleString(
+      "zh-CN",
+      short
+        ? { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }
+        : { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }
+    );
+  }
+
+  function greetingFor(date) {
+    const hour = date.getHours();
+    if (hour < 6) return "夜深了";
+    if (hour < 12) return "早上好";
+    if (hour < 14) return "中午好";
+    if (hour < 18) return "下午好";
+    return "晚上好";
+  }
+
+  function homeDateLine(date) {
+    const week = "日一二三四五六"[date.getDay()];
+    return `${date.getMonth() + 1} 月 ${date.getDate()} 日 周${week}`;
+  }
+
+  function renderHome() {
+    const items = state.history || [];
+    const total = items.length;
+    const high = items.reduce(
+      (sum, item) => sum + Number((item.result && item.result.counts && item.result.counts.high) || 0),
+      0
+    );
+    const highContracts = items.filter(
+      (item) => Number((item.result && item.result.counts && item.result.counts.high) || 0) > 0
+    ).length;
+    const last = items[0] ? formatHistoryDate(items[0].createdAt, true) : "尚无记录";
+    const due = WB.Ledger.reminders(state.ledger || [], new Date());
+    const overdue = due.filter((r) => r.days < 0).length;
+
+    if (ui.homeGreeting) ui.homeGreeting.textContent = greetingFor(new Date());
+    if (ui.homeSub) {
+      ui.homeSub.textContent = `${homeDateLine(new Date())} · ${due.length} 项待办 · 高风险 ${highContracts} 份`;
+    }
+
+    ui.homeStats.innerHTML = `
+      <div class="home-stat">
+        <span>已审合同</span>
+        <div class="home-stat-value"><b>${total}</b><em>份</em></div>
+        <p>最近 ${esc(last)}</p>
+      </div>
+      <div class="home-stat high">
+        <span>高风险合计</span>
+        <div class="home-stat-value"><b>${high}</b><em>条</em></div>
+        <p>涉及 ${highContracts} 份合同</p>
+      </div>
+      <div class="home-stat">
+        <span>30 天内待办</span>
+        <div class="home-stat-value"><b>${due.length}</b><em>项</em></div>
+        <p>${overdue ? `${overdue} 项已逾期` : "到期与付款节点"}</p>
+      </div>`;
+    syncHomeSearch();
+    renderReminders();
+    renderHistory();
+    renderHomeContracts();
+    applyHomeTab();
+  }
+
+  function applyHomeTab() {
+    if (!ui.homeReviewsPane || !ui.homeContractsPane) return;
+    const tab = state.homeTab === "contracts" ? "contracts" : "reviews";
+    ui.homeTabs.forEach((btn) => {
+      const on = btn.dataset.homeTab === tab;
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    ui.homeReviewsPane.classList.toggle("hidden", tab !== "reviews");
+    ui.homeContractsPane.classList.toggle("hidden", tab !== "contracts");
+    ui.homeReviewTools.classList.toggle("hidden", tab !== "reviews");
+    ui.homeContractTools.classList.toggle("hidden", tab !== "contracts");
+  }
+
+  function setHomeTab(tab) {
+    state.homeTab = tab === "contracts" ? "contracts" : "reviews";
+    applyHomeTab();
+    if (state.homeTab === "contracts") renderHomeContracts();
+  }
+
+  function syncHomeSearch() {
+    [ui.sidebarSearch, ui.historySearch, ui.contractsSearch, ui.ledgerSearch].forEach((el) => {
+      if (el && el.value !== state.historyQuery) el.value = state.historyQuery;
+    });
+    if (ui.sidebarSearchClear) {
+      ui.sidebarSearchClear.classList.toggle("hidden", !state.historyQuery);
+    }
+  }
+
+  function applyHomeQuery(value) {
+    state.historyQuery = String(value == null ? "" : value);
+    syncHomeSearch();
+    renderHistory();
+    renderHomeContracts();
+    renderLedger();
+  }
+
+  function formatLedgerAmount(value) {
+    const raw = String(value == null ? "" : value).trim();
+    if (!raw) return "";
+    const n = Number(raw.replace(/,/g, ""));
+    if (isFinite(n) && /^[0-9.,]+$/.test(raw)) return "¥" + n.toLocaleString("zh-CN");
+    return raw;
+  }
+
+  function ledgerDisplayDate(value) {
+    const s = WB.Ledger.formatDate(value);
+    return s ? s.replace(/\//g, ".") : "";
+  }
+
+  function ledgerEntryTitle(entry) {
+    const type = String((entry && entry.contractType) || "").replace(/合同$/, "");
+    const title = maskedHistoryTitle(entry);
+    return type && title.indexOf(type) !== 0 ? `${type} · ${title}` : title;
+  }
+
+  function ledgerRisk(entry) {
+    const review = entry && entry.reviewId
+      ? (state.history || []).find((r) => r.id === entry.reviewId)
+      : null;
+    const c = review && review.result && review.result.counts;
+    const [h, m, l] = [Number(c && c.high) || 0, Number(c && c.mid) || 0, Number(c && c.low) || 0];
+    if (!c) return { level: "none", text: "未审查" };
+    if (!h && !m && !l) return { level: "none", text: "无风险" };
+    return {
+      level: h > 0 ? "high" : m > 0 ? "mid" : "low",
+      text: [h ? `高 ${h}` : "", m ? `中 ${m}` : "", l ? `低 ${l}` : ""].filter(Boolean).join(" · "),
+    };
+  }
+
+  function renderHomeContracts() {
+    if (!ui.homeContractsList) return;
+    const all = (state.ledger || []).slice().sort(ledgerSort);
+    const q = state.historyQuery.trim().toLowerCase();
+    const entries = q
+      ? all.filter((entry) =>
+          [
+            entry.title,
+            entry.contractType,
+            entry.counterparty,
+            entry.amount,
+            entry.paymentAmount,
+            entry.note,
+            entry.status,
+            entry.startDate,
+            entry.endDate,
+            entry.paymentDate,
+          ]
+            .join("\n")
+            .toLowerCase()
+            .indexOf(q) >= 0
+        )
+      : all;
+    if (ui.homeLedgerAll) ui.homeLedgerAll.textContent = `查看全部 ${all.length} 份`;
+    if (!entries.length) {
+      const empty = q
+        ? `<p>没有匹配「${esc(state.historyQuery)}」的合同</p>`
+        : '<p>台账还是空的</p><button class="btn btn-primary" type="button" data-home-ledger-add>新增第一份合同</button>';
+      ui.homeContractsList.innerHTML = `<div class="history-empty">${empty}</div>`;
+      return;
+    }
+    ui.homeContractsList.innerHTML = entries
+      .map((entry) => {
+        const status = entry.status || "履行中";
+        const risk = ledgerRisk(entry);
+        const range =
+          entry.startDate || entry.endDate
+            ? `${entry.startDate ? ledgerDisplayDate(entry.startDate) : "—"} – ${entry.endDate ? ledgerDisplayDate(entry.endDate) : "—"}`
+            : "";
+        const meta = [
+          entry.counterparty ? maskedText(entry.counterparty) : "",
+          formatLedgerAmount(entry.amount),
+          range,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return `<button class="home-contract-row ${risk.level}" type="button" data-home-ledger="${esc(entry.id)}">
+          <span class="home-contract-main">
+            <b class="home-contract-title">${esc(ledgerEntryTitle(entry))}</b>
+            <span class="home-contract-meta">${esc(meta || "还没有补充金额或日期")}</span>
+          </span>
+          <span class="home-contract-side">
+            <span class="history-risk ${risk.level}">${esc(risk.text)}</span>
+            <span class="ledger-status ${WB.Ledger.statusClass(status)}">${esc(status)}</span>
+          </span>
+        </button>`;
+      })
+      .join("");
+  }
+
+  function renderReminders() {
+    if (!(state.ledger || []).length) {
+      ui.homeReminders.innerHTML = '<p class="reminder-empty">台账还是空的，新增合同后这里会出现到期与付款提醒。</p>';
+      return;
+    }
+    const items = WB.Ledger.reminders(state.ledger || [], new Date());
+    if (!items.length) {
+      ui.homeReminders.innerHTML = '<p class="reminder-empty">未来 30 天没有到期或付款节点。</p>';
+      return;
+    }
+    const visible = items.slice(0, 6);
+    ui.homeReminders.innerHTML = visible
+      .map((r) => {
+        const cls = r.days < 0 ? "overdue" : r.days <= 7 ? "urgent" : "";
+        const amount = r.kind === "付款" && r.amount ? ` · ${esc(r.amount)}` : "";
+        const kind = r.kind === "付款" ? "pay" : "due";
+        return `<button class="reminder-item ${cls}" type="button" data-reminder-entry="${esc(r.entry.id)}">
+          <span class="reminder-icon ${kind}">${iconSvg(r.kind === "付款" ? "wallet" : "clock")}</span>
+          <span class="reminder-main"><b>${esc(maskedHistoryTitle(r.entry))}</b><em>${esc(WB.Ledger.formatDate(r.date))}${amount}</em></span>
+          <span class="reminder-count">${esc(WB.Ledger.countdownShort(r.days))}</span>
+        </button>`;
+      })
+      .join("") +
+      (items.length > visible.length
+        ? `<p class="reminder-more">还有 ${items.length - visible.length} 条，去台账查看</p>`
+        : "");
+  }
+
+  function renderHistory() {
+    const q = state.historyQuery.trim().toLowerCase();
+    const items = (state.history || []).filter((item) => {
+      if (!q) return true;
+      return [item.title, item.contractType, item.contractText]
+        .join("\n")
+        .toLowerCase()
+        .indexOf(q) >= 0;
+    });
+    const ledgerHits = q
+      ? (state.ledger || [])
+          .filter((entry) =>
+            [
+              entry.title,
+              entry.contractType,
+              entry.counterparty,
+              entry.amount,
+              entry.paymentAmount,
+              entry.note,
+              entry.status,
+              entry.startDate,
+              entry.endDate,
+              entry.paymentDate,
+            ]
+              .join("\n")
+              .toLowerCase()
+              .indexOf(q) >= 0
+          )
+          .sort(ledgerSort)
+      : [];
+
+
+    if (!items.length && !ledgerHits.length) {
+      const empty = q
+        ? `<p>没有匹配「${esc(state.historyQuery)}」的审查记录或台账条目</p>`
+        : "<p>还没有审查记录</p><button class=\"btn btn-primary\" type=\"button\" data-new-review>去审查第一份合同</button>";
+      ui.historyList.innerHTML = `<div class="history-empty">${empty}</div>`;
+      return;
+    }
+
+    let html = items
+      .map((item) => {
+        const c = (item.result && item.result.counts) || {};
+        const [h, m, l] = [Number(c.high) || 0, Number(c.mid) || 0, Number(c.low) || 0];
+        const level = h > 0 ? "high" : m > 0 ? "mid" : "low";
+        const score = item.result && item.result.score;
+        const meta = [formatHistoryDate(item.createdAt), score == null ? "" : `综合评分 ${score}`]
+          .filter(Boolean)
+          .join(" · ");
+        const risk = h || m || l
+          ? [h ? `高 ${h}` : "", m ? `中 ${m}` : "", l ? `低 ${l}` : ""].filter(Boolean).join(" · ")
+          : "无风险";
+        return `<article class="history-item ${level}" data-open-review="${esc(item.id)}" title="${esc(historyPreview(item.contractText))}">
+          <div class="history-item-main">
+            <div class="history-item-top">
+              <h4>${esc(maskedHistoryTitle(item))}</h4>
+              <span class="history-type">${esc(item.contractType || "")}</span>
+            </div>
+            <p class="history-meta">${esc(meta)}</p>
+          </div>
+          <div class="history-side">
+            <span class="history-risk ${level}">${esc(risk)}</span>
+            <div class="history-actions">
+              <button class="history-open" type="button" data-open-review="${esc(item.id)}">查看</button>
+              <button class="history-delete" type="button" data-delete-review="${esc(item.id)}">删除</button>
+            </div>
+          </div>
+        </article>`;
+      })
+      .join("");
+
+    if (ledgerHits.length) {
+      html += `<div class="search-ledger-group">
+        <p class="search-ledger-title">台账匹配 · ${ledgerHits.length}</p>
+        ${ledgerHits
+          .map((entry) => {
+            const meta = maskedText(
+              [
+                entry.counterparty,
+                entry.contractType,
+                entry.endDate ? `到期 ${WB.Ledger.formatDate(entry.endDate, true)}` : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")
+            );
+            return `<button class="search-ledger-row" type="button" data-search-ledger="${esc(entry.id)}">
+              <span class="search-ledger-main">
+                <b>${esc(maskedHistoryTitle(entry))}</b>
+                <em>${esc(meta || "台账条目")}</em>
+              </span>
+              <span class="search-ledger-status">${esc(entry.status || "履行中")}</span>
+            </button>`;
+          })
+          .join("")}
+      </div>`;
+    }
+
+    ui.historyList.innerHTML = html;
+  }
+
+  function openHistory(id) {
+    const item = (state.history || []).find((r) => r.id === id);
+    if (!item || !item.result) {
+      toast("这条审查记录已不存在", "error");
+      state.history = (state.history || []).filter((r) => r.id !== id);
+      WB.deleteReview(id).catch(() => {});
+      renderHome();
+      return;
+    }
+    state.lastReviewId = item.id;
+    ui.input.value = item.contractText || "";
+    updateCharCount();
+    if (item.contractType) setType(item.contractType, false);
+    showResult(item.result, item.contractText || "");
+    WB.saveCurrent({
+      contractText: item.contractText || "",
+      contractType: item.contractType || ui.typeSelect.value,
+      result: item.result,
+      savedAt: item.createdAt,
+      reviewId: item.id,
+    }).catch(() => {});
+    toast("已打开历史审查");
+  }
+
+  async function deleteHistory(id) {
+    const item = (state.history || []).find((r) => r.id === id);
+    if (!item) return;
+    if (!window.confirm(`删除「${maskedHistoryTitle(item)}」？`)) return;
+    const ok = await WB.deleteReview(id);
+    if (!ok) {
+      toast("删除失败，请重试", "error");
+      return;
+    }
+    state.history = (state.history || []).filter((r) => r.id !== id);
+    renderHome();
+    toast("已删除这条审查记录");
+  }
+
+  async function clearHistory() {
+    if (!(state.history || []).length) {
+      toast("还没有审查记录");
+      return;
+    }
+    if (!window.confirm("清空全部审查历史？此操作无法撤销。")) return;
+    const ok = await WB.clearReviews();
+    if (!ok) {
+      toast("清空失败，请重试", "error");
+      return;
+    }
+    state.history = [];
+    state.historyQuery = "";
+    if (ui.historySearch) ui.historySearch.value = "";
+    if (ui.sidebarSearch) ui.sidebarSearch.value = "";
+    if (ui.contractsSearch) ui.contractsSearch.value = "";
+    if (ui.ledgerSearch) ui.ledgerSearch.value = "";
+    renderHome();
+    toast("审查历史已清空");
+  }
+
+  // ═════════════ 合同台账 ═════════════
+
+  function ledgerSort(a, b) {
+    const ae = a.endDate || "9999-12-31";
+    const be = b.endDate || "9999-12-31";
+    return ae.localeCompare(be) || (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0);
+  }
+
+  function ledgerFiltered() {
+    const q = state.historyQuery.trim().toLowerCase();
+    return (state.ledger || [])
+      .filter((entry) => {
+        if (state.ledgerStatus !== "全部" && (entry.status || "履行中") !== state.ledgerStatus) return false;
+        if (state.ledgerType !== "全部类型" && (entry.contractType || "其他") !== state.ledgerType) return false;
+        if (!q) return true;
+        return [
+          entry.title,
+          entry.contractType,
+          entry.counterparty,
+          entry.amount,
+          entry.paymentAmount,
+          entry.note,
+          entry.status,
+          entry.startDate,
+          entry.endDate,
+          entry.paymentDate,
+        ]
+          .join("\n")
+          .toLowerCase()
+          .indexOf(q) >= 0;
+      })
+      .sort(ledgerSort);
+  }
+
+  function renderLedgerFilters() {
+    const options = ["全部"].concat(WB.Ledger.STATUSES);
+    if (options.indexOf(state.ledgerStatus) < 0) state.ledgerStatus = "全部";
+    ui.ledgerFilters.innerHTML = options
+      .map((status) => {
+        const count = status === "全部"
+          ? (state.ledger || []).length
+          : (state.ledger || []).filter((e) => (e.status || "履行中") === status).length;
+        return `<button class="filter-chip${state.ledgerStatus === status ? " active" : ""}" type="button" data-status="${esc(status)}">${esc(status)} ${count}</button>`;
+      })
+      .join("");
+  }
+
+  function ledgerRowHTML(entry) {
+    const status = entry.status || "履行中";
+    const cls = WB.Ledger.statusClass(status);
+    const linked = entry.reviewId && (state.history || []).some((r) => r.id === entry.reviewId);
+    const range =
+      entry.startDate || entry.endDate
+        ? `${entry.startDate ? ledgerDisplayDate(entry.startDate) : "—"} – ${entry.endDate ? ledgerDisplayDate(entry.endDate) : "—"}`
+        : "";
+    const meta = [range, entry.note].filter(Boolean).join(" · ");
+    return `<article class="ledger-row status-${cls}" data-ledger-row="${esc(entry.id)}">
+      <div class="ledger-cell ledger-cell-name">
+        <div class="ledger-name-main">
+          <h3>${esc(ledgerEntryTitle(entry))}</h3>
+          <p>${esc(meta || entry.contractType || "还没有补充日期")}</p>
+        </div>
+      </div>
+      <div class="ledger-cell ledger-cell-party">${esc(entry.counterparty || "—")}</div>
+      <div class="ledger-cell ledger-cell-amount">${esc(formatLedgerAmount(entry.amount) || "—")}</div>
+      <div class="ledger-cell ledger-cell-end">${esc(entry.endDate ? ledgerDisplayDate(entry.endDate) : "—")}</div>
+      <div class="ledger-cell ledger-cell-status"><span class="ledger-status ${cls}">${esc(status)}</span></div>
+      <div class="ledger-cell ledger-cell-actions">
+        <div class="ledger-actions">
+          ${linked ? `<button type="button" data-open-ledger-review="${esc(entry.reviewId)}" title="查看审查" aria-label="查看审查">${iconSvg("review")}</button>` : ""}
+          <button type="button" data-ics-ledger="${esc(entry.id)}" title="导出提醒" aria-label="导出提醒">${iconSvg("calendar")}</button>
+          <button type="button" data-edit-ledger="${esc(entry.id)}" title="编辑合同" aria-label="编辑合同">${iconSvg("edit")}</button>
+          <button type="button" data-delete-ledger="${esc(entry.id)}" title="删除合同" aria-label="删除合同">${iconSvg("trash")}</button>
+        </div>
+      </div>
+    </article>`;
+  }
+
+  function renderLedgerDates(entries) {
+    if (!ui.ledgerDatesList) return;
+    const now = new Date();
+    const events = [];
+    (entries || []).forEach((entry) => {
+      const status = entry.status || "履行中";
+      const inactive = status === "已归档" || status === "已终止";
+      [
+        ["到期", entry.endDate],
+        ["付款", entry.paymentDate],
+      ].forEach(([kind, date]) => {
+        const days = WB.Ledger.daysUntil(date, now);
+        if (days == null || days < -30 || days > 365) return;
+        events.push({ entry, kind, date, days, inactive, status });
+      });
+    });
+    events.sort((a, b) => a.days - b.days || String(a.date).localeCompare(String(b.date)));
+    const visible = events.slice(0, 8);
+    if (!visible.length) {
+      ui.ledgerDatesList.innerHTML = '<p class="reminder-empty">未来一年还没有到期或付款节点。</p>';
+      return;
+    }
+    ui.ledgerDatesList.innerHTML = visible
+      .map((e) => {
+        const tone = e.inactive
+          ? "is-muted"
+          : e.days < 0
+            ? "is-overdue"
+            : e.kind === "付款"
+              ? "is-payment"
+              : e.days <= 7
+                ? "is-soon"
+                : "is-normal";
+        const note = e.inactive
+          ? `${e.status} · 无需提醒`
+          : `${e.kind === "付款" ? "付款节点" : "合同到期"} · ${WB.Ledger.countdown(e.kind, e.days)}`;
+        return `<button class="ledger-date-item ${tone}" type="button" data-edit-ledger="${esc(e.entry.id)}">
+          <b>${esc(ledgerDisplayDate(e.date))} · ${esc(maskedHistoryTitle(e.entry))}</b>
+          <em>${esc(note)}</em>
+        </button>`;
+      })
+      .join("");
+  }
+
+  function renderLedger() {
+    if (!ui.ledgerList) return;
+    syncHomeSearch();
+    const all = state.ledger || [];
+    renderLedgerFilters();
+    const items = ledgerFiltered();
+    const dueReminders = WB.Ledger.reminders(all, new Date());
+    const highContracts = all.filter((entry) => ledgerRisk(entry).level === "high").length;
+    const typeCount = new Set(all.map((entry) => entry.contractType || "其他")).size;
+    if (ui.ledgerSummary) {
+      ui.ledgerSummary.textContent = `${all.length} 份合同 · ${typeCount} 类 · 高风险 ${highContracts} 份 · 合同原文全部存在本机`;
+    }
+    if (ui.ledgerTableCount) ui.ledgerTableCount.textContent = `共 ${items.length} 份 · 按到期日排序`;
+    if (ui.ledgerDatesSub) ui.ledgerDatesSub.textContent = `最近 30 天 ${dueReminders.length} 项`;
+    renderLedgerDates(all);
+
+    if (!items.length) {
+      const filtered = state.historyQuery.trim() || state.ledgerStatus !== "全部" || state.ledgerType !== "全部类型";
+      const empty = filtered
+        ? "<p>没有匹配的合同</p>"
+        : '<p>台账还是空的</p><p class="ledger-empty-sub">新增一份合同，或审查完成后在结果页点「加入台账」。</p><button class="btn btn-primary" type="button" data-ledger-add>新增第一份合同</button>';
+      ui.ledgerList.innerHTML = `<div class="ledger-empty">${empty}</div>`;
+      return;
+    }
+    ui.ledgerList.innerHTML = items.map(ledgerRowHTML).join("");
+  }
+
+  function openLedgerForm(id, prefill) {
+    const item = id ? (state.ledger || []).find((e) => e.id === id) : null;
+    if (id && !item) {
+      toast("这条台账记录已不存在", "error");
+      return;
+    }
+    const data = item || prefill || {};
+    state.editingLedgerId = item ? item.id : null;
+    closeSettings();
+    ui.ledgerForm.reset();
+    ui.ledgerFormTitle.textContent = item ? "编辑合同" : "新增合同";
+    ui.ledgerTitle.value = data.title || "";
+    ui.ledgerType.value = WB.CONTRACT_TYPES.includes(data.contractType)
+      ? data.contractType
+      : data.contractType
+        ? "其他"
+        : WB.CONTRACT_TYPES.includes(ui.typeSelect.value)
+          ? ui.typeSelect.value
+          : WB.CONTRACT_TYPES[0];
+    ui.ledgerStatus.value = WB.Ledger.STATUSES.includes(data.status) ? data.status : "履行中";
+    ui.ledgerCounterparty.value = data.counterparty || "";
+    ui.ledgerAmount.value = data.amount || "";
+    ui.ledgerStart.value = data.startDate || "";
+    ui.ledgerEnd.value = data.endDate || "";
+    ui.ledgerPaymentDate.value = data.paymentDate || "";
+    ui.ledgerPaymentAmount.value = data.paymentAmount || "";
+    ui.ledgerNote.value = data.note || "";
+    ui.ledgerReviewId.value = data.reviewId || "";
+    ui.ledgerBackdrop.classList.remove("hidden");
+    ui.ledgerDrawer.classList.remove("hidden");
+    setTimeout(() => ui.ledgerTitle.focus(), 30);
+  }
+
+  function closeLedgerForm() {
+    ui.ledgerDrawer.classList.add("hidden");
+    ui.ledgerBackdrop.classList.add("hidden");
+    state.editingLedgerId = null;
+  }
+
+  async function saveLedgerFromForm(event) {
+    event.preventDefault();
+    const title = ui.ledgerTitle.value.trim();
+    if (!title) {
+      toast("先填合同名称", "error");
+      ui.ledgerTitle.focus();
+      return;
+    }
+    const startDate = ui.ledgerStart.value;
+    const endDate = ui.ledgerEnd.value;
+    if (startDate && endDate && endDate < startDate) {
+      toast("到期日不能早于起始日", "error");
+      return;
+    }
+
+    const existing = state.editingLedgerId
+      ? (state.ledger || []).find((e) => e.id === state.editingLedgerId)
+      : null;
+    const now = Date.now();
+    const entry = {
+      id: existing ? existing.id : WB.Ledger.createId(),
+      createdAt: existing ? existing.createdAt : now,
+      updatedAt: now,
+      title,
+      contractType: ui.ledgerType.value,
+      counterparty: ui.ledgerCounterparty.value.trim(),
+      amount: ui.ledgerAmount.value.trim(),
+      startDate,
+      endDate,
+      paymentDate: ui.ledgerPaymentDate.value,
+      paymentAmount: ui.ledgerPaymentAmount.value.trim(),
+      status: ui.ledgerStatus.value,
+      note: ui.ledgerNote.value.trim(),
+      reviewId: ui.ledgerReviewId.value || (existing && existing.reviewId) || "",
+    };
+
+    const saved = await WB.saveLedgerEntry(entry);
+    if (!saved) {
+      toast("台账保存失败，请重试", "error");
+      return;
+    }
+    const index = (state.ledger || []).findIndex((e) => e.id === entry.id);
+    if (index >= 0) state.ledger[index] = entry;
+    else state.ledger.unshift(entry);
+    closeLedgerForm();
+    renderLedger();
+    renderHome();
+    toast(existing ? "台账已更新" : "已加入台账");
+  }
+
+  async function deleteLedger(id) {
+    const item = (state.ledger || []).find((e) => e.id === id);
+    if (!item) return;
+    if (!window.confirm(`从台账删除「${maskedHistoryTitle(item)}」？`)) return;
+    const ok = await WB.deleteLedgerEntry(id);
+    if (!ok) {
+      toast("删除失败，请重试", "error");
+      return;
+    }
+    state.ledger = (state.ledger || []).filter((e) => e.id !== id);
+    renderLedger();
+    renderHome();
+    toast("已从台账删除");
+  }
+
+  function exportLedgerCsv() {
+    const entries = state.ledger || [];
+    if (!entries.length) {
+      toast("台账还是空的");
+      return;
+    }
+    const csv = WB.Ledger.buildCSV(entries.slice().sort(ledgerSort));
+    downloadText("﻿" + csv, `合同台账-${dateStamp()}.csv`, "text/csv;charset=utf-8");
+    toast("台账已导出 CSV");
+  }
+
+  function exportLedgerIcs(id) {
+    const entries = id
+      ? (state.ledger || []).filter((e) => e.id === id)
+      : (state.ledger || []).filter((e) => e.status !== "已归档" && e.status !== "已终止");
+    if (!entries.length) {
+      toast(id ? "台账还是空的" : "没有需要提醒的合同");
+      return;
+    }
+    const ics = WB.Ledger.buildICS(entries);
+    if (!ics) {
+      toast("还没有可导出的到期或付款日期", "error");
+      return;
+    }
+    const name = id
+      ? `${safeFilename(entries[0].title)}-提醒.ics`
+      : `合同提醒-${dateStamp()}.ics`;
+    downloadText(ics, name, "text/calendar;charset=utf-8");
+    toast("提醒已导出，可导入手机日历");
+  }
+
+  function addCurrentToLedger() {
+    if (!state.lastResult) {
+      toast("先完成一次审查", "error");
+      return;
+    }
+    const existing = state.lastReviewId
+      ? (state.ledger || []).find((e) => e.reviewId === state.lastReviewId)
+      : null;
+    if (existing) {
+      openLedgerForm(existing.id);
+      toast("这份合同已在台账里");
+      return;
+    }
+    openLedgerForm(null, {
+      title: reviewTitle(state.lastContractText, ui.typeSelect.value),
+      contractType: ui.typeSelect.value,
+      status: "待签",
+      reviewId: state.lastReviewId || "",
+    });
   }
 
   function hideStates() {
@@ -401,13 +1357,35 @@
       state.lastContractText = text;
       state.lastResult = result;
       showResult(result, text);
+
+      const savedAt = Date.now();
+      const record = {
+        id: "rv_" + savedAt,
+        createdAt: savedAt,
+        contractType: ui.typeSelect.value,
+        title: reviewTitle(text, ui.typeSelect.value),
+        contractText: text,
+        result,
+      };
+      state.lastReviewId = record.id;
       await WB.saveCurrent({
         contractText: text,
         contractType: ui.typeSelect.value,
         result,
-        savedAt: Date.now(),
+        savedAt,
+        reviewId: record.id,
       });
-      toast("审查完成");
+      const savedReview = await WB.saveReview(record);
+      if (savedReview) {
+        state.history = [savedReview].concat(
+          (state.history || []).filter((r) => r.id !== savedReview.id)
+        );
+        renderHome();
+        renderLedger();
+        toast("审查完成");
+      } else {
+        toast("审查完成，但历史记录保存失败", "error");
+      }
     } catch (err) {
       state.running = false;
       if (err && err.code === "aborted") {
@@ -426,6 +1404,7 @@
   function nextReview() {
     state.lastResult = null;
     state.lastContractText = "";
+    state.lastReviewId = null;
     ui.input.value = "";
     ui.typeHint.textContent = "";
     updateCharCount();
@@ -719,6 +1698,7 @@
   // ═════════════ 设置 ═════════════
 
   function openSettings() {
+    closeLedgerForm();
     populateProviderOptions();
     fillSettingsForm();
     ui.drawer.classList.remove("hidden");
@@ -806,26 +1786,36 @@
     ui.modelStatus.classList.remove("ok", "warn");
     if (!hasKey) {
       ui.modelStatusText.textContent = "未配置模型";
+      ui.modelStatus.title = "未配置模型";
       return;
     }
-    ui.modelStatusText.textContent = `${p.label} · ${s.model}`;
+    ui.modelStatusText.textContent = s.model;
+    ui.modelStatus.title = `${p.label} · ${s.model}`;
     ui.modelStatus.classList.add("ok");
   }
 
   // ═════════════ 导出 / 复制 ═════════════
 
-  function exportDoc() {
-    if (!state.lastResult) return;
-    const html = WB.buildDocHtml(state.lastResult.reportHtml || "", state.lastResult.contractType || "");
-    const blob = new Blob(["﻿", html], { type: "application/msword" });
+  function downloadText(text, filename, type) {
+    const blob = new Blob([text], { type });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `合同审查报告-${dateStamp()}.doc`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  function safeFilename(name) {
+    return String(name || "合同").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60) || "合同";
+  }
+
+  function exportDoc() {
+    if (!state.lastResult) return;
+    const html = WB.buildDocHtml(state.lastResult.reportHtml || "", state.lastResult.contractType || "");
+    downloadText("﻿" + html, `合同审查报告-${dateStamp()}.doc`, "application/msword");
     toast("报告已导出");
   }
 
