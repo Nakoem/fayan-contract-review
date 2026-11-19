@@ -57,3 +57,8 @@ checkpoints.db-wal
 .pytest_cache/
 .ruff_cache/
 benchmark_reports/
+
+# 合同工作台生成物
+workbench/src/data/samples.js
+workbench/src/data/knowledge.js
+workbench/screenshots/

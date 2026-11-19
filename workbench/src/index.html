@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src https://api.deepseek.com https://dashscope.aliyuncs.com https://open.bigmodel.cn http://127.0.0.1:* http://localhost:* http://[::1]:*;">
+<title>合同工作台 · 签约前先看一眼</title>
+<!-- BUILD:STYLES -->
+</head>
+<body>
+<div class="app">
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">契</span>
+      <div class="brand-text">
+        <span class="brand-name">合同工作台</span>
+        <span class="brand-sub">签约前，先看一眼</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <label class="type-select-wrap">
+        <span class="sr-only">合同类型</span>
+        <select id="contract-type" class="type-select" aria-label="合同类型"></select>
+      </label>
+      <span id="model-status" class="model-status" title="模型配置状态">
+        <i class="dot"></i><span id="model-status-text">未配置</span>
+      </span>
+      <button id="btn-settings" class="icon-btn" type="button" title="设置" aria-label="设置">
+        <span data-icon="settings"></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="body">
+    <!-- 侧栏 -->
+    <nav class="sidebar" aria-label="主导航">
+      <button class="nav-item active" data-view="review" type="button">
+        <span class="nav-icon" data-icon="review"></span><span>审查台</span>
+      </button>
+      <button class="nav-item" data-view="clauses" type="button">
+        <span class="nav-icon" data-icon="clause"></span><span>条款库</span>
+      </button>
+      <div class="sidebar-foot">
+        <p class="privacy-line">合同不出本机</p>
+        <p class="privacy-sub">原文只发给你自己选的模型</p>
+      </div>
+    </nav>
+
+    <main class="main">
+      <!-- ═══════════ 审查台 ═══════════ -->
+      <section id="view-review" class="view active" aria-label="审查台">
+        <!-- 空状态 -->
+        <div id="review-empty" class="empty-state">
+          <div class="empty-inner">
+            <p class="eyebrow">签约之前</p>
+            <h1 class="empty-title">把合同贴进来，<br>看看有没有坑。</h1>
+            <p class="empty-desc">粘贴合同全文，或载入一份示例。审查会调用你配置的模型；其余数据留在本地。</p>
+            <textarea id="contract-input" class="contract-input" placeholder="在此粘贴合同全文……" spellcheck="false" aria-label="合同全文"></textarea>
+            <div class="input-meta">
+              <span id="char-count" class="char-count">0 字</span>
+              <span id="type-hint" class="type-hint"></span>
+            </div>
+            <div class="sample-row" id="sample-row" aria-label="示例合同"></div>
+            <div class="empty-actions">
+              <button id="btn-start" class="btn btn-primary" type="button">开始审查</button>
+              <button id="btn-clear" class="btn btn-ghost" type="button">清空</button>
+            </div>
+            <p class="privacy-note">默认开启脱敏 · 正式签署前请由执业律师复核</p>
+          </div>
+        </div>
+
+        <!-- 运行状态 -->
+        <div id="review-running" class="running-state hidden">
+          <div class="running-head">
+            <p class="eyebrow">正在审查</p>
+            <h2 id="running-title" class="running-title">正在读取合同……</h2>
+            <p id="running-detail" class="running-detail">整个过程通常需要 30–90 秒</p>
+          </div>
+          <div id="pipeline" class="pipeline" aria-label="审查流水线"></div>
+          <div class="running-actions">
+            <button id="btn-cancel" class="btn btn-ghost" type="button">取消审查</button>
+          </div>
+        </div>
+
+        <!-- 结果状态 -->
+        <div id="review-result" class="result-state hidden">
+          <div class="result-toolbar">
+            <div class="result-stats" id="result-stats"></div>
+            <div class="result-actions">
+              <button id="btn-export" class="btn btn-ghost" type="button"><span data-icon="export"></span>导出 .doc</button>
+              <button id="btn-print" class="btn btn-ghost" type="button">打印</button>
+              <button id="btn-new" class="btn btn-primary" type="button">审下一份</button>
+            </div>
+          </div>
+          <div class="workspace">
+            <div class="contract-panel">
+              <div class="panel-head">
+                <span>合同正文</span>
+                <span class="panel-hint">标色处为风险条款</span>
+              </div>
+              <div id="contract-view" class="contract-view" tabindex="0"></div>
+            </div>
+            <div class="risk-panel">
+              <div class="panel-head panel-head-tabs">
+                <div class="panel-tabs" role="tablist" aria-label="结果视图">
+                  <button class="panel-tab active" data-tab="list" type="button" role="tab" aria-selected="true">风险清单</button>
+                  <button class="panel-tab" data-tab="report" type="button" role="tab" aria-selected="false">完整报告</button>
+                </div>
+                <span class="panel-hint" id="risk-count"></span>
+              </div>
+              <div id="risk-list" class="risk-list" role="tabpanel"></div>
+              <div id="report-view" class="report-view hidden" role="tabpanel"></div>
+            </div>
+          </div>
+          <div id="pipeline-result" class="pipeline pipeline-done" aria-hidden="true"></div>
+        </div>
+
+        <!-- 错误状态 -->
+        <div id="review-error" class="error-state hidden">
+          <p class="eyebrow">审查中断</p>
+          <h2 id="error-title" class="error-title">出了点问题</h2>
+          <p id="error-detail" class="error-detail"></p>
+          <div class="error-actions">
+            <button id="btn-retry" class="btn btn-primary" type="button">重试</button>
+            <button id="btn-back" class="btn btn-ghost" type="button">返回修改</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════ 条款库 ═══════════ -->
+      <section id="view-clauses" class="view hidden" aria-label="条款库">
+        <div class="clauses-head">
+          <div>
+            <p class="eyebrow">离线可用</p>
+            <h2 class="view-title">高危条款库</h2>
+            <p class="view-desc">这些条款，签之前多看一眼。每条都带法条依据与替代写法。</p>
+          </div>
+          <div id="clause-filters" class="clause-filters"></div>
+        </div>
+        <div id="clause-list" class="clause-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="statusbar">
+    <span>合同工作台 · MVP</span>
+    <span class="statusbar-disclaimer">AI 辅助结果，不构成法律意见</span>
+  </footer>
+</div>
+
+<!-- ═══════════ 设置抽屉 ═══════════ -->
+<div id="settings-backdrop" class="backdrop hidden"></div>
+<aside id="settings-drawer" class="drawer hidden" aria-label="设置">
+  <div class="drawer-head">
+    <div>
+      <p class="eyebrow">模型与隐私</p>
+      <h2 class="drawer-title">设置</h2>
+    </div>
+    <button id="btn-close-settings" class="icon-btn" type="button" aria-label="关闭设置">×</button>
+  </div>
+  <div class="drawer-body">
+    <label class="field">
+      <span class="field-label">模型服务商</span>
+      <select id="set-provider"></select>
+      <span id="set-provider-note" class="field-note"></span>
+    </label>
+
+    <label class="field">
+      <span class="field-label">API Key</span>
+      <div class="key-row">
+        <input id="set-apikey" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴你的 API Key">
+        <button id="btn-toggle-key" class="btn btn-mini" type="button">显示</button>
+      </div>
+      <span class="field-note">只保存在本浏览器 IndexedDB，不会上传到任何服务器</span>
+    </label>
+
+    <label class="field">
+      <span class="field-label">模型名</span>
+      <input id="set-model" type="text" autocomplete="off" spellcheck="false">
+      <span class="field-note">预设只是默认值，可按服务商文档修改</span>
+    </label>
+
+    <label class="check-row">
+      <input id="set-masking" type="checkbox" checked>
+      <span>发送前脱敏（证件号 / 手机号 / 银行卡 / 邮箱）</span>
+    </label>
+
+    <label class="field">
+      <span class="field-label">需隐藏的公司名 / 人名</span>
+      <textarea id="set-names" rows="3" spellcheck="false" placeholder="每行一个，例如：&#10;张三&#10;上海某某科技有限公司"></textarea>
+      <span class="field-note">脱敏开启时，这些名称会先替换为【主体N】再发给模型</span>
+    </label>
+
+    <div class="drawer-actions">
+      <button id="btn-save-settings" class="btn btn-primary" type="button">保存设置</button>
+      <p class="drawer-tip">智谱服务商可填模型名与 Key，但浏览器直连会被 CORS 拦截，需要本地代理。</p>
+    </div>
+  </div>
+</aside>
+
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<!-- BUILD:SCRIPTS -->
+</body>
+</html>
