@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src https://api.deepseek.com https://dashscope.aliyuncs.com https://open.bigmodel.cn http://127.0.0.1:* http://localhost:* http://[::1]:*;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: data:; script-src 'unsafe-inline' blob:; worker-src 'self' blob:; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src https://api.deepseek.com https://dashscope.aliyuncs.com http://127.0.0.1:* http://localhost:* http://[::1]:*;">
 <title>合同工作台 · 签约前先看一眼</title>
 <!-- BUILD:STYLES -->
 </head>
@@ -55,11 +55,18 @@
           <div class="empty-inner">
             <p class="eyebrow">签约之前</p>
             <h1 class="empty-title">把合同贴进来，<br>看看有没有坑。</h1>
-            <p class="empty-desc">粘贴合同全文，或载入一份示例。审查会调用你配置的模型；其余数据留在本地。</p>
-            <textarea id="contract-input" class="contract-input" placeholder="在此粘贴合同全文……" spellcheck="false" aria-label="合同全文"></textarea>
+            <p class="empty-desc">粘贴合同全文，或上传 PDF / Word。审查会调用你配置的模型；文件只在本机解析。</p>
+            <textarea id="contract-input" class="contract-input" placeholder="在此粘贴合同全文，或把 PDF / Word 拖进来……" spellcheck="false" aria-label="合同全文"></textarea>
             <div class="input-meta">
               <span id="char-count" class="char-count">0 字</span>
               <span id="type-hint" class="type-hint"></span>
+            </div>
+            <div class="file-row">
+              <button id="btn-file" class="file-btn" type="button">
+                <span class="file-icon" data-icon="upload" aria-hidden="true"></span>上传 PDF / Word
+              </button>
+              <input id="file-input" class="sr-only" type="file" accept=".pdf,.docx,.txt,.md" tabindex="-1">
+              <span id="file-status" class="file-status">支持文字层 PDF / DOCX / TXT，文件只在本机解析</span>
             </div>
             <div class="sample-row" id="sample-row" aria-label="示例合同"></div>
             <div class="empty-actions">
@@ -194,13 +201,14 @@
 
     <div class="drawer-actions">
       <button id="btn-save-settings" class="btn btn-primary" type="button">保存设置</button>
-      <p class="drawer-tip">智谱服务商可填模型名与 Key，但浏览器直连会被 CORS 拦截，需要本地代理。</p>
+      <p class="drawer-tip">模型服务商需支持浏览器直连；Key 只保存在本机浏览器。</p>
     </div>
   </div>
 </aside>
 
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
+<!-- BUILD:VENDOR -->
 <!-- BUILD:SCRIPTS -->
 </body>
 </html>

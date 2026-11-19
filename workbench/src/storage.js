@@ -11,12 +11,12 @@
   let dbPromise = null;
 
   WB.defaultSettings = function () {
-    const p = WB.PROVIDERS.deepseek;
+    const p = WB.PROVIDERS.dashscope;
     return {
-      provider: "deepseek",
+      provider: "dashscope",
       baseUrl: p.baseUrl,
       model: p.model,
-      apiKeys: { deepseek: "", dashscope: "", zhipu: "" },
+      apiKeys: { deepseek: "", dashscope: "" },
       masking: true,
       hiddenNames: [],
       contractType: "房屋租赁合同",

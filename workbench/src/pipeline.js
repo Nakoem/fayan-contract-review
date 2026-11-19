@@ -108,6 +108,29 @@
 
   // ───────────────────────── 规则匹配 ─────────────────────────
 
+  // 确定性条款拆分兜底：模型偷懒把整份合同当成一条时，按「第X条」本地切开
+  WB.splitClauses = function (text) {
+    const src = String(text || "");
+    const re = /(^|\n)\s*(第[一二三四五六七八九十百千零〇\d]+条[^\n]*)/g;
+    const matches = [];
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      const start = m.index + m[0].indexOf(m[2]);
+      matches.push({ start, title: m[2].trim() });
+    }
+    if (matches.length < 2) return [];
+
+    const parts = [];
+    const prefix = src.slice(0, matches[0].start).trim();
+    if (prefix) parts.push({ title: "合同首部", text: prefix });
+    matches.forEach((mt, i) => {
+      const end = i + 1 < matches.length ? matches[i + 1].start : src.length;
+      const body = src.slice(mt.start, end).trim();
+      if (body) parts.push({ title: mt.title, text: body });
+    });
+    return parts.map((c, i) => ({ index: i + 1, title: c.title, text: c.text }));
+  };
+
   WB.matchRules = function (contractType, clauses) {
     const allText = (clauses || []).map((c) => c.text || "").join("\n");
     return (WB.RULES || []).filter((rule) => {
@@ -182,7 +205,7 @@
     if (!index.docs.length) return [];
 
     const picked = [];
-    const seen = {};
+    const byKey = {};
     (matchedRules || []).forEach((rule) => {
       const query = [rule.name, rule.condition, (rule.keywords || []).join(" ")].join(" ");
       const qTokens = tokenize(query);
@@ -195,14 +218,27 @@
 
       scored.forEach((x) => {
         const key = x.doc.topic + "|" + normText(x.doc.text).slice(0, 40);
-        if (seen[key]) return;
-        seen[key] = 1;
-        picked.push({ topic: x.doc.topic, text: x.doc.text.slice(0, 700), score: x.score });
+        if (byKey[key]) {
+          if (byKey[key].ruleIds.indexOf(rule.id) < 0) byKey[key].ruleIds.push(rule.id);
+          return;
+        }
+        const item = {
+          topic: x.doc.topic,
+          text: x.doc.text.slice(0, 700),
+          score: x.score,
+          ruleIds: [rule.id],
+        };
+        byKey[key] = item;
+        picked.push(item);
       });
     });
 
     picked.sort((a, b2) => b2.score - a.score);
-    return picked.slice(0, limit || 8).map((x) => ({ topic: x.topic, text: x.text }));
+    return picked.slice(0, limit || 8).map((x) => ({
+      topic: x.topic,
+      text: x.text,
+      ruleIds: x.ruleIds,
+    }));
   };
 
   // ───────────────────────── 本地校验 ─────────────────────────
@@ -211,6 +247,39 @@
     const issues = [];
     const rulesById = {};
     (rules || []).forEach((r) => { rulesById[r.id] = r; });
+
+    // 模型偶尔把 clause_index 写错一位：优先相信原文匹配，声明索引只作兜底。
+    const clauseNorms = (clauses || [])
+      .map((c) => ({ index: Number(c.index) || 0, norm: normText(c.text) }))
+      .filter((c) => c.index && c.norm);
+
+    function resolveClauseIndex(text, declared) {
+      const idx = Number(declared) || 0;
+      const n = normText(text);
+      if (!n || n === "（合同未约定）") return idx;
+      const matches = (a, b) => a && b && (
+        a === b ||
+        (b.length >= 12 && a.indexOf(b) >= 0) ||
+        (a.length >= 12 && b.indexOf(a) >= 0)
+      );
+      const declaredClause = clauseNorms.filter((c) => c.index === idx)[0];
+      if (declaredClause && matches(declaredClause.norm, n)) return idx;
+
+      let containsBest = null;
+      let containedBest = null;
+      for (let i = 0; i < clauseNorms.length; i++) {
+        const c = clauseNorms[i];
+        if (c.norm === n) return c.index;
+        if (n.length >= 12 && c.norm.indexOf(n) >= 0) {
+          if (!containsBest || c.norm.length < containsBest.norm.length) containsBest = c;
+        }
+        if (c.norm.length >= 12 && n.indexOf(c.norm) >= 0) {
+          if (!containedBest || c.norm.length > containedBest.norm.length) containedBest = c;
+        }
+      }
+      const hit = containsBest || containedBest;
+      return hit ? hit.index : idx;
+    }
 
     const cleaned = [];
     const seenFindings = {};
@@ -259,7 +328,7 @@
       const item = {
         rule_id: f.rule_id,
         rule_name: (rulesById[f.rule_id] && rulesById[f.rule_id].name) || f.rule_name || f.rule_id,
-        clause_index: Number(f.clause_index) || 0,
+        clause_index: resolveClauseIndex(clauseText, f.clause_index),
         clause_text: clauseText,
         fairness, clarity, exposure,
         risk_reason: String(f.risk_reason || "").trim(),
@@ -270,10 +339,33 @@
       cleaned.push(item);
     });
 
-    // 覆盖率：每条提取条款必须有归属
+    // 同一 clause_index 已有 finding 时，不再重复归入低风险；
+    // 低风险列表内部也按 clause_index / 文本去重，避免报告重复展示。
+    const findingIndexes = {};
+    cleaned.forEach((f) => { if (f.clause_index) findingIndexes[f.clause_index] = 1; });
+    const seenLow = {};
+    const low = (lowRiskClauses || [])
+      .filter((c) => c && String(c.clause_text || "").trim())
+      .map((c) => {
+        const clauseText = String(c.clause_text).trim();
+        return {
+          clause_index: resolveClauseIndex(clauseText, c.clause_index),
+          clause_text: clauseText,
+          reason: String(c.reason || "未发现明显风险").trim(),
+        };
+      })
+      .filter((c) => {
+        if (c.clause_index && findingIndexes[c.clause_index]) return false;
+        const key = c.clause_index ? "i" + c.clause_index : "t" + normText(c.clause_text);
+        if (seenLow[key]) return false;
+        seenLow[key] = 1;
+        return true;
+      });
+
+    // 覆盖率：每条提取条款必须有归属（用纠正后的索引）
     const covered = {};
     cleaned.forEach((f) => { if (f.clause_index) covered[f.clause_index] = 1; });
-    (lowRiskClauses || []).forEach((c) => { if (c && c.clause_index) covered[c.clause_index] = 1; });
+    low.forEach((c) => { if (c.clause_index) covered[c.clause_index] = 1; });
 
     const missing = (clauses || []).filter((c) => !covered[c.index]);
     if (missing.length) {
@@ -283,14 +375,6 @@
         suggestion: "请把所有条款放入 findings 或 lowRiskClauses",
       });
     }
-
-    const low = (lowRiskClauses || [])
-      .filter((c) => c && String(c.clause_text || "").trim())
-      .map((c) => ({
-        clause_index: Number(c.clause_index) || 0,
-        clause_text: String(c.clause_text).trim(),
-        reason: String(c.reason || "未发现明显风险").trim(),
-      }));
 
     return { findings: cleaned, lowRiskClauses: low, missing, issues };
   };
@@ -314,6 +398,14 @@
     return Object.keys(map).map((k) => map[k]);
   }
 
+  function basisRefHTML(f) {
+    if (!f.refs || !f.refs.length) return "";
+    const items = f.refs.map((r) =>
+      `<div class="basis-ref-item"><span class="basis-ref-topic">${WB.escapeHtml(r.topic)}</span><p>${WB.escapeHtml(r.text)}</p></div>`
+    ).join("");
+    return `<details class="basis-ref"><summary>法条参考</summary>${items}</details>`;
+  }
+
   function findingCardHTML(g, reportIndex) {
     const levelCls = g.level === "高" ? "high" : g.level === "中" ? "mid" : "low";
     const markCls = g.level === "高" ? "mark-square" : g.level === "中" ? "mark-diamond" : "mark-ring";
@@ -328,6 +420,7 @@
         <div class="finding-row"><span class="row-label">风险说明</span><p>${WB.escapeHtml(f.risk_reason)}<span class="basis">依据：${WB.escapeHtml(f.basis)}</span></p></div>
         <div class="finding-row"><span class="row-label">修改建议</span><p>${WB.escapeHtml(f.suggestion)}</p></div>
         <button class="copy-btn" type="button" data-copy="${WB.escapeHtml(f.suggestion)}">复制修改条款</button>
+        ${basisRefHTML(f)}
       </div>`;
     }).join("");
 
@@ -392,7 +485,7 @@
       ${sectionHTML("三、需关注的中风险条款", midHTML, "（无）")}
       ${sectionHTML("四、低风险条款（可接受）", lowHTML, "（无）")}
       ${sectionHTML("五、修改优先级建议", priority)}
-      ${sectionHTML("六、签约建议", `<p class="sign-advice ${advice.cls}">${advice.icon} ${advice.text}</p>`)}
+      ${sectionHTML("六、签约建议", `<p class="sign-advice ${advice.cls}">${advice.text}</p>`)}
       <footer class="report-foot">${(WB.REPORT_LABELS && WB.REPORT_LABELS.disclaimer) || "本工具输出为 AI 辅助结果，不构成法律意见。正式签署前请由执业律师复核。"}</footer>
     </div>`;
   };
@@ -509,12 +602,14 @@
       throw new Error("合同超过 5 万字上限，请分拆后再审");
     }
 
+    const providerMeta = WB.PROVIDERS[settings.provider] || {};
     const llmOpts = {
       baseUrl: settings.baseUrl,
       apiKey: settings.apiKey,
       model: settings.model,
       signal,
       timeoutMs: 120000,
+      extraBody: providerMeta.extraBody || null,
     };
 
     // 脱敏
@@ -537,7 +632,7 @@
       "第 1 步「抽取」",
       (j) => Array.isArray(j.clauses) && j.clauses.length > 0
     );
-    const clauses = exJson.clauses
+    let clauses = exJson.clauses
       .filter((c) => c && String(c.text || "").trim())
       .map((c, i) => ({
         // 统一重编号，避免模型返回重复/跳号导致覆盖率校验错乱
@@ -548,6 +643,12 @@
     if (!clauses.length) {
       throw new Error("第 1 步「抽取」没有可用条款（模型返回了空文本）");
     }
+
+    // 兜底：只抽到 1 条时，按「第X条」本地重新切分
+    if (clauses.length < 2) {
+      const fallback = WB.splitClauses(sendText);
+      if (fallback.length >= 2) clauses = fallback;
+    }
     timings.extract = Date.now() - t1;
     progress(1, "done", clauses.length + " 条条款");
 
@@ -555,7 +656,7 @@
     progress(2, "running");
     const t2 = Date.now();
     const matchedRules = WB.matchRules(contractType, clauses);
-    const regSnippets = WB.searchRegulations(matchedRules, 8);
+    const regSnippets = WB.searchRegulations(matchedRules, clauses.length > 18 ? 4 : 8);
     timings.retrieve = Date.now() - t2;
     progress(2, "done", matchedRules.length + " 条候选规则 · " + regSnippets.length + " 段法规");
 
@@ -578,7 +679,9 @@
 
     let review = { passed: true, issues: [] };
     let reEvaluated = false;
-    if (reviewEnabled) {
+    // 长合同：评估已花掉大部分 90 秒预算时跳过 LLM 复核，本地校验仍然执行。
+    const reviewBudgetOk = (Date.now() - startAll) < 35000;
+    if (reviewEnabled && reviewBudgetOk) {
       try {
         review = await callJSON(
           llmOpts,
@@ -592,6 +695,8 @@
       } catch (e) {
         review = { passed: true, issues: [], skipped: String(e.message || e) };
       }
+    } else if (reviewEnabled) {
+      review = { passed: true, issues: [], skipped: "time_budget" };
     }
 
     const reviewErrors = (review.issues || []).filter((i) => i && i.severity === "error");
@@ -618,10 +723,22 @@
         }))
       );
       check.missing = [];
+      check.issues = check.issues.filter((i) => i.type !== "coverage");
     }
 
     timings.review = Date.now() - t4;
-    progress(4, "done", review.passed === false ? "已重评 1 轮" : "通过");
+    progress(4, "done", review.skipped ? "本地校验通过（长合同跳过 LLM 复核）" : review.passed === false ? "已重评 1 轮" : "通过");
+
+    // 给每条 finding 挂上本地检索到的法规原文，报告里可展开。
+    const refsByRule = {};
+    regSnippets.forEach((s) => {
+      (s.ruleIds || []).forEach((id) => {
+        (refsByRule[id] = refsByRule[id] || []).push({ topic: s.topic, text: s.text });
+      });
+    });
+    check.findings.forEach((f) => {
+      f.refs = (refsByRule[f.rule_id] || []).slice(0, 2);
+    });
 
     const localIssues = check.issues.slice();
 
@@ -664,6 +781,7 @@
       advice: WB.signAdvice(counts.high),
       timings,
       review,
+      reviewSkipped: review.skipped || null,
       localIssues,
       reEvaluated,
       masked: masking,

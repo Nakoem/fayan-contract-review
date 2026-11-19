@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { launchBrowser, waitFor, screenshot } from "./lib.mjs";
+import { launchBrowser, waitFor, screenshot, reloadPage, sleep } from "./lib.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WB_DIR = path.resolve(__dirname, "..");
@@ -96,7 +96,7 @@ async function main() {
       console.log(`  截图：${p}`);
     };
 
-    await waitFor(cdp, `document.readyState === "complete" && document.querySelectorAll(".sample-chip").length === 6`);
+    await waitFor(cdp, `document.readyState === "complete" && window.__WB_READY__ === true && document.querySelectorAll(".sample-chip").length === 6`);
 
     ok("页面加载", true, await cdp.eval(`document.title`));
     ok("示例合同 6 份", (await cdp.eval(`document.querySelectorAll(".sample-chip").length`)) === 6);
@@ -117,14 +117,13 @@ async function main() {
       await WB.saveSettings({
         provider: "dashscope",
         baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        model: "qwen-plus",
-        apiKeys: { deepseek: "", dashscope: "test-key", zhipu: "" },
+        model: "qwen3.8-max-0902",
+        apiKeys: { deepseek: "", dashscope: "test-key" },
         masking: true, hiddenNames: [], contractType: "房屋租赁合同"
       });
       return true;
     })()`);
-    await cdp.send("Page.reload", { ignoreCache: true });
-    await waitFor(cdp, `document.readyState === "complete" && document.querySelectorAll(".sample-chip").length === 6`);
+    await reloadPage(cdp);
 
     await cdp.eval(MOCK);
 
@@ -138,7 +137,11 @@ async function main() {
       return true;
     })()`);
 
-    await waitFor(cdp, `!document.querySelector("#review-result").classList.contains("hidden")`, 20000);
+    await waitFor(
+      cdp,
+      `!document.querySelector("#review-result").classList.contains("hidden") && document.querySelectorAll("#risk-list .risk-item").length > 0`,
+      20000
+    );
 
     const stats = await cdp.eval(`document.querySelector("#result-stats").innerText.replace(/\\s+/g, " ")`);
     const riskItems = await cdp.eval(`document.querySelectorAll("#risk-list .risk-item").length`);
@@ -152,14 +155,31 @@ async function main() {
     ok("评分概览", stats.indexOf("综合评分") >= 0, stats);
     await shot("ui-result-list.png");
 
-    await cdp.eval(`document.querySelector("#risk-list .risk-item").click(); true`);
-    const flash = await cdp.eval(`document.querySelectorAll("mark.hl-flash").length`);
-    ok("风险条目跳转", flash >= 1, flash ? "已定位并闪烁" : "未定位");
+    await cdp.eval(`document.querySelector("#risk-list .risk-item.high").click(); true`);
+    const beam = (await waitFor(cdp, `document.querySelectorAll(".hl-beam-rect").length`, 3000).catch(() => 0)) || 0;
+    const active = await cdp.eval(`document.querySelectorAll("#risk-list .risk-item.is-active").length`);
+    ok("高风险原文光束", beam >= 1, `${beam} 段 · 选中态 ${active}`);
+    await sleep(700);
+    await shot("ui-result-beam.png");
+
+    await cdp.send("Emulation.setDeviceMetricsOverride", { width: 1180, height: 900, deviceScaleFactor: 1, mobile: false });
+    await sleep(350);
+    const beamResized = await cdp.eval(`document.querySelectorAll(".hl-beam-rect").length`);
+    ok("窗口变化光束跟随", beamResized >= 1, `${beamResized} 段`);
+    await cdp.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await sleep(200);
+
+    await cdp.eval(`document.querySelector("#risk-list .risk-item.mid").click(); true`);
+    const midFlash = await cdp.eval(`document.querySelectorAll("mark.hl-flash").length`);
+    const beamAfterMid = await cdp.eval(`document.querySelectorAll(".hl-beam-rect").length`);
+    ok("中风险仍闪烁", midFlash >= 1 && beamAfterMid === 0, `闪烁 ${midFlash} · 光束 ${beamAfterMid}`);
 
     await cdp.eval(`document.querySelector('.panel-tab[data-tab="report"]').click(); true`);
     const reportVisible = await cdp.eval(`!document.querySelector("#report-view").classList.contains("hidden")`);
     ok("完整报告标签页", reportVisible);
     await shot("ui-result-report.png");
+    await cdp.eval(`(() => { const v = document.querySelector("#report-view"); if (v) v.scrollTop = v.scrollHeight; return true; })()`);
+    await shot("ui-result-report-bottom.png");
 
     const pdf = await cdp.send("Page.printToPDF", { printBackground: true, preferCSSPageSize: true });
     const pdfPath = path.join(SHOT_DIR, "ui-report.pdf");
@@ -177,12 +197,15 @@ async function main() {
     await cdp.send("Emulation.setEmulatedMedia", { media: "" });
     ok("打印样式只保留报告", printStyles.report === "block" && printStyles.contract === "none" && printStyles.toolbar === "none", JSON.stringify(printStyles));
 
-    await cdp.send("Page.reload", { ignoreCache: true });
-    await waitFor(cdp, `document.readyState === "complete" && document.querySelectorAll(".sample-chip").length === 6`);
+    await reloadPage(cdp);
     const restored = await waitFor(cdp, `!document.querySelector("#review-result").classList.contains("hidden")`, 8000).catch(() => false);
     const savedKey = await cdp.eval(`(async () => { const s = await WB.loadSettings(); return s.apiKeys.dashscope; })()`);
     ok("刷新恢复审查结果", !!restored);
     ok("API Key 持久化", savedKey === "test-key", savedKey ? "已读取" : "未找到");
+
+    await cdp.eval(`document.querySelector("#risk-list .risk-item.high").click(); true`);
+    const restoredBeam = (await waitFor(cdp, `document.querySelectorAll(".hl-beam-rect").length`, 3000).catch(() => 0)) || 0;
+    ok("刷新恢复后光束仍可用", restoredBeam >= 1, `${restoredBeam} 段`);
 
     ok("无控制台异常", cdp.exceptions.length === 0, cdp.exceptions.slice(0, 3).join(" | "));
   } catch (err) {

@@ -16,15 +16,9 @@
       key: "dashscope",
       label: "DashScope（通义）",
       baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-      model: "qwen-plus",
-      note: "与法眼同源 · 浏览器直连可用",
-    },
-    zhipu: {
-      key: "zhipu",
-      label: "智谱",
-      baseUrl: "https://open.bigmodel.cn/api/paas/v4",
-      model: "glm-4.6",
-      note: "浏览器直连被 CORS 拦截，需本地代理",
+      model: "qwen3.8-max-0902",
+      note: "默认 · 浏览器直连可用",
+      extraBody: { enable_thinking: false },
     },
   };
 
@@ -35,31 +29,80 @@
     return e;
   }
 
-  /* 移植 utils.repair_json 的三种策略，另加代码围栏清理 */
+  /* 从文本中提取第一个「平衡」的 JSON 对象/数组。
+   * 处理模型把多个 JSON 拼接在一起、或前后带说明文字的情况。 */
+  function extractFirstJSON(text) {
+    for (let start = 0; start < text.length; start++) {
+      const ch = text[start];
+      if (ch !== "{" && ch !== "[") continue;
+
+      let depth = 0;
+      let inString = false;
+      let escaped = false;
+      for (let i = start; i < text.length; i++) {
+        const c = text[i];
+        if (inString) {
+          if (escaped) escaped = false;
+          else if (c === "\\") escaped = true;
+          else if (c === '"') inString = false;
+          continue;
+        }
+        if (c === '"') { inString = true; continue; }
+        if (c === "{" || c === "[") depth += 1;
+        else if (c === "}" || c === "]") {
+          depth -= 1;
+          if (depth === 0) return text.slice(start, i + 1);
+          if (depth < 0) break;
+        }
+      }
+    }
+    return null;
+  }
+
+  /* 移植 utils.repair_json 的策略，另加代码围栏清理 + 平衡 JSON 提取 */
   WB.repairJSON = function (text) {
     if (!text || !text.trim()) return null;
     let t = text.trim().replace(/^﻿/, "");
     t = t.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 
-    try { JSON.parse(t); return t; } catch (e) { /* continue */ }
+    const tryParse = (s) => {
+      try { JSON.parse(s); return s; } catch (e) { return null; }
+    };
 
-    // 1) 尾逗号
-    let repaired = t.replace(/,\s*([}\]])/g, "$1");
-    try { JSON.parse(repaired); return repaired; } catch (e) { /* continue */ }
+    let ok = tryParse(t);
+    if (ok) return ok;
 
-    // 2) 提取最外层 {...} 或 [...]
+    // 1) 首个平衡 JSON（可处理多 JSON 拼接 / 前后说明文字）
+    const balanced = extractFirstJSON(t);
+    if (balanced) {
+      ok = tryParse(balanced);
+      if (ok) return ok;
+      const fixedBalanced = balanced.replace(/,\s*([}\]])/g, "$1");
+      ok = tryParse(fixedBalanced);
+      if (ok) return ok;
+    }
+
+    // 2) 尾逗号
+    const repaired = t.replace(/,\s*([}\]])/g, "$1");
+    ok = tryParse(repaired);
+    if (ok) return ok;
+
+    // 3) 最外层 {...} / [...]
     const objMatch = repaired.match(/\{[\s\S]*\}/);
     if (objMatch) {
-      try { JSON.parse(objMatch[0]); return objMatch[0]; } catch (e) { /* continue */ }
+      ok = tryParse(objMatch[0]);
+      if (ok) return ok;
     }
     const arrMatch = repaired.match(/\[[\s\S]*\]/);
     if (arrMatch) {
-      try { JSON.parse(arrMatch[0]); return arrMatch[0]; } catch (e) { /* continue */ }
+      ok = tryParse(arrMatch[0]);
+      if (ok) return ok;
     }
 
-    // 3) 单引号 → 双引号
+    // 4) 单引号 → 双引号
     const squoted = repaired.replace(/'/g, '"');
-    try { JSON.parse(squoted); return squoted; } catch (e) { /* continue */ }
+    ok = tryParse(squoted);
+    if (ok) return ok;
 
     return null;
   };
@@ -119,18 +162,19 @@
     timeoutMs = 120000,
     retries = 1,
     signal,
+    extraBody = null,
   }) {
     if (!apiKey) throw makeError("no_key", "未配置 API Key");
     if (!model) throw makeError("no_model", "未配置模型名");
 
     const url = buildUrl(baseUrl);
-    const basePayload = {
+    const basePayload = Object.assign({}, extraBody || {}, {
       model,
       messages,
       temperature: 0,
       max_tokens: maxTokens,
       stream: false,
-    };
+    });
 
     let lastErr = null;
     for (let attempt = 0; attempt <= retries; attempt++) {

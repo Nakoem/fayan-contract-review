@@ -8,7 +8,7 @@
 
 ## 0. 背景与目标
 
-把法眼的内核（审查链路 / 提示词 / 规则 / 六段式报告 / 三维评分）包装成面向个人的单文件产品：**粘贴合同 → 90 秒内出带法条依据的风险报告**。
+把法眼的内核（审查链路 / 提示词 / 规则 / 六段式报告 / 三维评分）包装成面向个人的单文件产品：**粘贴或上传合同 → 90 秒内出带法条依据的风险报告**。
 
 MVP 只回答一个问题：**"有人愿意用这个审合同吗？"** 因此范围严格限定在「审」，不做台账、文书、历史。
 
@@ -19,26 +19,27 @@ MVP 只回答一个问题：**"有人愿意用这个审合同吗？"** 因此范
 ### 做
 
 - 单文件 `dist/index.html`，双击可用，零外链、零 CDN、零外部字体
-- 粘贴文本 / 载入 6 份内置示例合同
+- 粘贴文本 / 上传文字层 PDF、DOCX、TXT / 载入 6 份内置示例合同
 - 6 类合同：房屋租赁 / 劳动 / 买卖 / 服务 / 合作 / 借款
 - 5 步审查流水线（抽取 → 法条 → 评估 → 复核 → 报告）
 - 六段式报告 + 三维评分 + 风险条款正文高亮 + 点条目跳转
+- 风险条目挂载本地检索到的法条参考片段，报告内可展开
 - 规则 JSON 数据化（约 66 条），条款库页面复用同一数组
-- 服务商预设：DeepSeek（默认）/ DashScope / 智谱（标注"需代理"）
+- 服务商预设：DashScope（默认）/ DeepSeek
 - API Key 本地保存、脱敏开关（默认开启）
 - 导出 `.doc` + 浏览器打印
 - 设置持久化；当前审查结果单槽持久化（刷新恢复）
 
 ### 不做（明确排除）
 
-- PDF / Word 解析、台账 / 提醒、文书起草、历史记录 / 多案件、向量检索、规则编辑 UI、立场切换 UI、Ollama 预设、Lucide 图标
+- 扫描版 PDF OCR、旧版 `.doc` 解析、台账 / 提醒、文书起草、历史记录 / 多案件、向量检索、规则编辑 UI、立场切换 UI、Ollama 预设、Lucide 图标
 - 自定义合同类型
 
 ### 与 PRD 的差异（2026-11-19 定稿）
 
 | # | PRD | 实际决定 | 原因 |
 |---|---|---|---|
-| 1 | 三个预设：DeepSeek / 智谱 / Ollama | DeepSeek + DashScope + 智谱（需代理），**不做 Ollama** | 用户拍板；智谱 CORS 实测被拦，预设保留但明确提示需本地代理 |
+| 1 | 三个预设：DeepSeek / 智谱 / Ollama | DashScope（默认）+ DeepSeek，**不做 Ollama，智谱移出 MVP** | 用户拍板；智谱浏览器 CORS 不可用，直接移除 |
 | 2 | "五段式报告" | 沿用 `prompts.py:92-142` 的**六段式**模板 | 手上真实的模板就是六段（概览/高/中/低/优先级/签约建议），不另造 |
 | 3 | 立场切换 P1 | MVP 无 UI，规则 schema 保留 `stance` | 符合 P1 定位，避免 V1.5 返工 |
 | 4 | 条款高亮 P1 | MVP 做**基础版**（原文查找 + 标色 + 滚动定位） | 是审查台核心体验，成本低 |
@@ -57,10 +58,15 @@ MVP 只回答一个问题：**"有人愿意用这个审合同吗？"** 因此范
 | `file://` 视为安全上下文 | ✅ `isSecureContext: true`，`origin: "file://"` | 同上 |
 | DeepSeek API 浏览器直连 | ✅ `access-control-allow-origin: null` | OPTIONS 预检实测 |
 | DashScope API 浏览器直连 | ✅ `access-control-allow-origin: *` | 同上 |
-| 智谱 API 浏览器直连 | ❌ 预检无 CORS 头 | 同上 |
+| 智谱 API 浏览器直连 | ❌ 预检无 CORS 头（已移出 MVP） | 同上 |
 | 风险等级映射确定性 | ✅ 已有规则见 `prompts.py:229-231` | 代码确认 |
 | `regulation.json` 结构 | ✅ 25 个主题 → 文本块 | 代码确认 |
 | Node 24 可用 | ✅ 可用于构建脚本 / 验收脚本 | 环境确认 |
+| PDF.js 6.5.438 从 Blob URL 动态 import | ✅ `file://` + CSP `script-src blob:` 下可用 | 真 Chrome 实测 |
+| PDF worker 从 Blob URL 运行 | ✅ CSP `worker-src blob:` 下可用 | 同上 |
+| 中文文字层 PDF 提取 | ✅ 860 字，保留条款换行 | Chrome 打印的中文 PDF 实测 |
+| Mammoth 1.13.0 解析 DOCX | ✅ 175 字纯文本 | 真 Chrome 实测 |
+| 扫描版 PDF | ❌ 无文字层，V1 明确提示（不做 OCR） | 解析错误分支实测 |
 
 ---
 
@@ -70,7 +76,7 @@ MVP 只回答一个问题：**"有人愿意用这个审合同吗？"** 因此范
 workbench/
 ├─ src/
 │  ├─ index.html          # 页面骨架 + 按顺序引用各脚本
-│  ├─ styles.css          # 纸感专业风 + 打印样式
+│  ├─ styles.css          # 屏幕玻璃风（含报告）+ 打印纸感
 │  ├─ data/
 │  │  ├─ rules.js         # WB.RULES —— 规则 JSON（约 66 条，手写源文件）
 │  │  ├─ samples.js       # WB.SAMPLES —— 构建时由根目录 sample_*.txt 生成（勿手改）
@@ -78,15 +84,22 @@ workbench/
 │  ├─ prompts.js          # WB.buildExtractPrompt / buildEvalPrompt / buildReviewPrompt
 │  ├─ llm.js              # WB.callLLM / 预设 / JSON 修复
 │  ├─ pipeline.js         # WB.runPipeline（无 DOM，可在 Node 中跑）
+│  ├─ file_parser.js      # WB.parseFile —— PDF / DOCX / TXT 本地解析
 │  ├─ storage.js          # WB.loadSettings / saveSettings / current review
 │  └─ app.js              # DOM 渲染与交互
+├─ vendor/                # pdfjs-dist 6.5.438 + mammoth 1.13.0（含 LICENSE）
 ├─ build.py               # 零依赖：内联 → dist/index.html
 ├─ scripts/
 │  ├─ spike.mjs           # M0 真调验收：耗时 / JSON 成功率 / 风险条数
-│  └─ acceptance.mjs      # CDP 端到端验收（5 条标准）
+│  ├─ acceptance.mjs      # CDP 端到端验收（5 条标准，支持 --file 上传）
+│  ├─ parser_check.mjs    # PDF / DOCX / .doc 拒绝
+│  ├─ offline_check.mjs   # 断网可用
+│  └─ restart_check.mjs   # 关浏览器重开持久化
 ├─ tests/
-│  ├─ test_build.py       # 产物检查（体积 / 无外链 / 必备字符串）
-│  └─ test_rules.py       # 规则 schema 校验
+│  ├─ test_build.py       # 产物检查（体积 / 无外链 / 解析器内联）
+│  ├─ test_pipeline_logic.py
+│  ├─ test_rules.py       # 规则 schema 校验
+│  └─ fixtures/           # 解析测试 PDF / DOCX / 3000 字合同
 └─ dist/
    └─ index.html          # 交付物（提交进仓库）
 ```
@@ -106,9 +119,11 @@ workbench/
 
 - `build.py` 读取仓库根目录 `sample_*.txt` 与 `knowledge/*.json`（单一数据源，不复制内容）
 - 构建时先**生成** `src/data/samples.js` / `src/data/knowledge.js`（文件头标注 `AUTO-GENERATED，勿手改`），再内联；开发态可直接打开源页面
-- 内联顺序固定：rules → samples → knowledge → prompts → llm → pipeline → storage → app
-- 输出 `dist/index.html`，体积必须 < 1.5 MB（预计 < 400 KB）
-- 构建后自动跑产物检查
+- 内联顺序固定：rules → samples → knowledge → prompts → llm → pipeline → storage → file_parser → app
+- 第三方解析器：PDF.js 主模块与 worker 以 base64 写入 `<script type="text/plain">`，运行时经 Blob URL 动态 import；Mammoth UMD 源码直接内联
+- CSP：`script-src 'unsafe-inline' blob:`、`worker-src 'self' blob:`，只允许本地生成的 Blob，不放外部域名
+- 输出 `dist/index.html`，体积必须 < 4 MB（V1 实测约 2.9 MB）
+- 构建后自动跑产物检查（含 PDF / DOCX 解析器与 `WB.parseFile` 是否内联）
 
 ---
 
@@ -139,7 +154,8 @@ workbench/
 ### 步 ② 法条（纯本地）
 
 - 规则筛选：`RULES.filter(r => r.enabled && (r.contractType === type || r.contractType === "通用"))`，再用 `r.keywords` 对条款原文做命中
-- 法规检索：把 `regulation.json` 的 25 个主题文本切成段落，建立倒排索引，按规则关键词做 BM25 排序，取 top-3 段落
+- 法规检索：把 `regulation.json` 的 25 个主题文本切成段落，建立倒排索引，按规则关键词做 BM25 排序；条款 >18 条时 top-4，否则 top-8
+- 检索结果同时记录 `ruleIds`，报告阶段反查回每条 finding，渲染为可展开的法条参考
 - 输出给 LLM 的上下文只含命中的规则与法条片段，**不塞全量法规库**
 
 ### 步 ③ 评估
@@ -177,11 +193,15 @@ workbench/
 轻量 LLM 复核（`max_tokens: 800`）：只检查语义层面的漏判/误判，输出 `{passed, issues[]}`。
 若存在 `severity: "error"` 且本轮未重评过 → 带 issues 重跑一次步 ③，最多 1 轮，然后无论结果如何继续。
 
+- **长合同时间预算**：步 ③ 结束时已用 > 35 秒时跳过轻量 LLM 复核，只跑本地确定性校验，保住 90 秒上限；步 ④ 进度显示「长合同跳过 LLM 复核」
+- **索引纠正**：`findings` / `lowRiskClauses` 的 `clause_index` 先用原文匹配回条款，模型写错一位时自动纠正，再做覆盖率与去重
+
 ### 步 ⑤ 报告
 
 - 纯本地模板渲染，**不让 LLM 排版**
 - 六段：总体概览 / 高风险详解 / 中风险条款 / 低风险条款 / 修改优先级 / 签约建议
 - 每段内容来自结构化数据，格式永不漂移
+- 每条风险可展开「法条参考」：本地检索命中的法规原文摘要，屏幕与导出都保留；屏幕端为 `<details>` 折叠，打印时隐藏以免报告过长
 
 ---
 
@@ -265,9 +285,8 @@ workbench/
 
 | 名称 | baseURL | 默认模型 | 状态 |
 |---|---|---|---|
-| DeepSeek | `https://api.deepseek.com` | `deepseek-flash` | ✅ 默认 |
-| DashScope | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-plus` | ✅ |
-| 智谱 | `https://open.bigmodel.cn/api/paas/v4` | `glm-4.6` | ⚠️ 需本地代理（UI 明确标注） |
+| DashScope | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen3.8-max-0902` | ✅ 默认 |
+| DeepSeek | `https://api.deepseek.com` | `deepseek-flash` | ✅ |
 
 - 模型名可编辑，预设只是默认值
 - 每家 Key 分开存；切换服务商不丢 Key
@@ -277,6 +296,7 @@ workbench/
 - OpenAI 兼容 `/chat/completions`
 - `temperature: 0`
 - 非流式
+- DashScope `qwen3.8-max-0902` 固定传 `enable_thinking: false`：默认思考模式会生成大量 reasoning，4000 token 被占满且单步超过 90 秒
 - 尝试 `response_format: { "type": "json_object" }`；若服务商报错则去掉该字段重试
 - 每步 `max_tokens`：抽取 3000 / 评估 4000 / 复核 800
 - 超时：单次 120s；网络错误自动重试 1 次（指数退避 1s / 2s）
@@ -337,8 +357,8 @@ score = min(100, high × 15 + mid × 6 + low × 1)
 
 ### 布局
 
-- 顶栏 56px：产品名（衬线）/ 合同类型下拉 / 模型状态点 / 设置按钮
-- 侧栏 200px：审查台 · 条款库（设置走顶栏抽屉）
+- 顶栏 60px 悬浮玻璃条（左右留白 18px）：产品名 / 合同类型下拉 / 模型状态点 / 设置按钮
+- 侧栏 206px 玻璃卡片：审查台 · 条款库（设置走顶栏抽屉）
 - 主内容区：1280px 以上，最小宽度 1100px
 - 状态条：可省略（MVP 无台账数据）
 
@@ -348,8 +368,8 @@ score = min(100, high × 15 + mid × 6 + low × 1)
 - 类型推荐：粘贴/载入后本地关键词扫描，命中时提示「检测到像 XX 合同，已切换」，用户可手动改回
 - 运行中：文本域锁定，底部 5 节点流水线动画；当前节点呼吸灯，完成打勾
 - 完成态：左右分栏
-  - 左：合同正文，风险条款标黄/标红 + 点击右栏条目滚动定位
-  - 右：风险清单（等级形状 + 标题 + 法条 + 折叠建议 + 复制修改条款）
+  - 左：合同正文，风险条款标黄/标红 + 点击右栏条目滚动定位；高风险条目选中后，对应原文出现旋转光束描边（参考问数精灵登录按钮的 BorderBeam，沿用 ocean 蓝紫配色，长条款转速 3.1s），中/低风险保留闪烁定位
+  - 右：风险清单（等级形状 + 标题 + 法条 + 折叠建议 + 复制修改条款；当前选中条目有 active 高亮）
   - 顶部分数条：高风险 X / 中 Y / 低 Z / 综合评分
 - 错误态：失败节点标红 + 错误信息 + 「重跑该步」
 - 空条款/无风险：明确显示"未发现明显风险"，不编造条目
@@ -362,22 +382,22 @@ score = min(100, high × 15 + mid × 6 + low × 1)
 
 ### 设置（抽屉）
 
-- 服务商选择（含智谱"需本地代理"提示）
+- 服务商选择（DashScope / DeepSeek）
 - API Key（password 输入，脱敏显示）
 - 模型名（可编辑）
 - 脱敏开关（默认开）+ 需隐藏名称列表
 - 保存全部写 IndexedDB
 
-### 视觉（严格照 PRD §16）
+### 视觉（2026-11-19 改为方向 B：屏幕含报告统一玻璃风，导出/打印保留纸感）
 
-- 纸底 `#FAF9F6`、卡片 `#FFFFFF`、墨 `#17171A`、次级 `#6B6B70`、分割线 `#E3E0D8`
-- 高风险 `#B4352A`、中 `#B8873A`、低/通过 `#2F6E58`、按钮 `#1F1F23`
-- 标题衬线（Noto Serif SC / 思源宋体 / SimSun / serif），正文黑体（system-ui / Microsoft YaHei）
-- 圆角：卡片 6px、按钮 4px、标签 3px
-- 阴影 `0 1px 2px rgba(0,0,0,.04)`，主要靠 1px 细线分层
-- 图标：**只用自绘** 8 个核心 + 少量自绘补充；不引 Lucide，不做第三方许可声明
-- 风险标记：高=实心方块、中=实心菱形、低=空心圆环
-- 禁止：紫色、渐变、荧光色、大圆角、卡通插画、弹跳动效
+- 屏面（审查台 / 条款库 / 设置）：天空渐变底 `#CDE8F6 → #E2F3EF → #F4FAF8`，半透明白玻璃卡片 + backdrop-filter 模糊，大圆角（卡片 26px / 面板 20px / 控件 14px）
+- 主色：墨绿 `#22483B`（主按钮）、薄荷 `#3F8F6F`（低风险/成功）、高 `#C95F5F`、中 `#C0914B`
+- 字体：屏面标题与正文无衬线（system-ui / Microsoft YaHei），靠字重与字号拉开层级
+- 图标：**只用自绘**，不引第三方
+- 报告页（屏幕）：玻璃文件卡 + 无衬线正文 + 薄荷节标题点 + 风险色脊线，与工作台同一套 tokens；导出 .doc 与打印仍保留 PRD §16 纸感
+- 动效：流水线节点、toast、高风险条款选中光束；除此之外不做弹跳/炫技
+- 禁止：大面积紫色、霓虹、卡通插画（高风险光束的 ocean 蓝紫属于参考动效例外）
+- 说明：该调整覆盖 PRD §16 对屏面的纸感要求，屏幕端报告一并统一；导出与打印不受影响
 
 ### 打印
 
@@ -395,6 +415,13 @@ score = min(100, high × 15 + mid × 6 + low × 1)
 | 输入为空 / 少于 50 字 | 阻止并提示 |
 | 超过 3 万字 | 提示"合同较长，审查可能变慢" |
 | 超过 5 万字 | 硬上限，阻止提交 |
+| 上传扫描版 PDF / 加密 PDF / 损坏文件 | 明确提示原因；扫描版建议粘贴文字或换 DOCX，不静默失败 |
+| 上传旧版 `.doc` | 提示另存为 `.docx`，不尝试解析 |
+| 上传文件超过 25MB / PDF 超过 300 页 | 解析前阻止并提示上限 |
+| 解析后超过 20 万字 | 拒绝并提示拆分，不截断后偷偷送审 |
+| 解析后超过 5 万字但不足 20 万字 | 填入文本框并标红提示；开始审查时按 5 万字硬上限阻止 |
+| 解析中再次点击审查 | 阻止提交，提示等文件解析完成 |
+| 解析超过 60 秒 | 超时提示检查文件或拆分，不把界面永久卡在「正在解析」 |
 | 审查中刷新/关闭 | `beforeunload` 确认提示 |
 | 重跑某步 | 保留已完成步骤的中间结果，从失败步继续 |
 | 关闭脱敏 | 原文直发；设置里明确说明后果 |
@@ -409,21 +436,26 @@ score = min(100, high × 15 + mid × 6 + low × 1)
 
 1. `workbench/tests/test_build.py`
    - 构建成功、`dist/index.html` 存在
-   - 体积 < 1.5 MB
+   - 体积 < 4 MB
    - 无外部 `<script src>` / `<link rel=stylesheet>` / `@import url(http…)`
    - 必备字符串存在：免责声明、示例合同名、RULES 数量 ≥ 60
+   - PDF.js 主模块 / worker / Mammoth 已内联，`WB.parseFile` 存在
 2. `workbench/tests/test_rules.py`
    - schema 完整、id 唯一、level 合法、contractType 合法
    - `basis` 匹配 `/第[一二三四五六七八九十百千\d]+条/`
    - `keywords` 非空、`id` 非空
 3. `workbench/scripts/spike.mjs`（M0 门禁，真调 DashScope）
    - `sample_lease.txt` 全流程 ≤ 90s
+   - `--file=workbench/tests/fixtures/lease_3000.txt --type=房屋租赁合同`：3019 字长合同全流程 ≤ 90s
    - 风险 ≥ 5 条且每条有法条
    - JSON 一次成功率记录
 4. `workbench/scripts/acceptance.mjs`（CDP）
    - 打开 `file://.../dist/index.html`
    - 写入测试 Key → 载入示例 → 运行 → 断言报告与耗时
    - 刷新后断言 Key 与当前结果还在
+   - `--file=`：真实上传 PDF → 等待解析 → 运行 → 断言报告与法条参考
+5. `workbench/scripts/parser_check.mjs`（CDP）
+   - 英文 PDF、中文 PDF、DOCX 提取；`.doc` 明确拒绝；无控制台异常
 
 ### 手动验收
 
@@ -436,11 +468,35 @@ score = min(100, high × 15 + mid × 6 + low × 1)
 
 | PRD # | 标准 | 验证方式 |
 |---|---|---|
-| 1 | 3000 字租赁合同 90 秒内出报告 | spike + acceptance 计时 |
-| 2 | 风险 ≥ 5 条且带法条 | spike 断言 |
-| 3 | 断网能开界面、看条款库 | 手动 DevTools Offline |
-| 4 | 关浏览器重开 Key 和设置还在 | acceptance 刷新断言 |
-| 5 | 单文件 < 1.5 MB | test_build |
+| 1 | 3000 字租赁合同 90 秒内出报告 | 3019 字 fixture 实测 80.1s；873 字浏览器验收 61.5s |
+| 2 | 风险 ≥ 5 条且带法条 | spike 断言（3019 字：21/21 带法条） |
+| 3 | 断网能开界面、看条款库 | `offline_check.mjs`（10 张条款卡片） |
+| 4 | 关浏览器重开 Key 和设置还在 | `restart_check.mjs`（完整关闭 + 同 profile 重开） |
+| 5 | 单文件体积可控 | `test_build` < 4 MB（V1 当前约 2.9 MB） |
+
+### 第一阶段验收记录（2026-11-19）
+
+| 项 | 结果 |
+|---|---|
+| 3019 字租赁合同 | 80.1s，21 条风险全部带法条；长合同按预算跳过 LLM 复核，本地校验通过 |
+| 873 字租赁合同（浏览器） | 61.5s，5/5 带法条，六段报告完整 |
+| 断网 | 页面可打开，条款库 10 张卡片 |
+| 关浏览器重开 | Key / 设置 / 隐藏名称仍在 |
+| 单文件体积 | 221.7 KB |
+| 自动化 | pytest 23 passed · UI 冒烟 15/15 |
+
+### 第二阶段 V1 文件解析验收记录（2026-11-19）
+
+| 项 | 结果 |
+|---|---|
+| 中文 PDF 上传 → 解析 → 真调模型 → 报告 | 解析 0.8s（860 字），审查 64.4s；高 2 / 中 3 / 低 8，评分 56 |
+| 报告与法条 | 5 条风险 5/5 带法条，3 条挂载法条参考，六段完整 |
+| 示例合同回归 | 70.9s，7 条风险，4 条法条参考，8/8 验收项通过 |
+| 文件解析器 | 英文 PDF / 中文 PDF / DOCX / `.doc` 拒绝，8/8 通过 |
+| 离线 | 断网可打开，条款库 10 张卡片 |
+| 关浏览器重开 | Key / 设置 / 当前结果仍在 |
+| 单文件体积 | 约 2.9 MB（2913 KB，< 4 MB） |
+| 自动化 | pytest 25 passed · UI 冒烟 18/18 · 构建检查通过 |
 
 ---
 
@@ -454,6 +510,7 @@ score = min(100, high × 15 + mid × 6 + low × 1)
 | M3 | 审查台 UI + 流水线动画 + 高亮跳转 | 可视化验收 |
 | M4 | 条款库 + 设置 + 脱敏 + 导出 | 功能验收 |
 | M5 | 测试 + 打印 + 代码审查 + 最终验收 | 5 条标准全过 |
+| V1 | PDF / DOCX 上传解析 + 法条参考展开 | 中文 PDF 端到端通过；无 OCR 明确提示 |
 
 ---
 
@@ -461,14 +518,17 @@ score = min(100, high × 15 + mid × 6 + low × 1)
 
 | 风险 | 对策 |
 |---|---|
-| qwen-plus 偶发非法 JSON | JSON mode + repair + 1 次重试 + 3 次降级；M0 实测成功率 |
-| 90 秒目标保不住 | M0 先测；超时则压缩复核 max_tokens / 减少法规片段 / 调整抽取 max_tokens |
+| qwen3.8-max-0902 偶发非法 JSON | JSON mode + repair + 1 次重试 + 3 次降级；M0 实测成功率 |
+| 90 秒目标保不住 | M0 先测；超时则压缩复核 max_tokens / 减少法规片段 / 长合同跳过 LLM 复核（本地校验保留） |
 | 条款高亮找不到原文 | 归一化空白后再匹配；仍找不到则不高亮但保留条目 |
 | 脱敏占位符被 LLM 改写 | 提示词强约束 + 还原失败原样展示 + 不阻断 |
 | 规则法条不准确 | 全部从 `regulation.json` 摘取；test_rules 校验格式；人工抽查 |
-| 智谱预设点了不可用 | UI 明示"需本地代理"，并在错误提示中引导 |
+| 服务商模型名变更 | 模型名可编辑；预设值随 `.env` 验收脚本同步更新 |
 | 综合评分公式不合理 | M0 用示例合同校准权重，留痕后固化 |
-| 内置内容体积膨胀 | 构建检查体积；MVP 不嵌 case_law 展示 |
+| 内置内容体积膨胀 | 构建检查体积（<4MB）；MVP 不嵌 case_law 展示 |
+| 扫描版 PDF 无法提取 | 明确提示不做 OCR；建议粘贴文字或换 DOCX，不静默出空报告 |
+| PDF.js / Mammoth 升级破坏 `file://` | `parser_check` 覆盖三种文件 + `.doc` 拒绝；升级后必须重跑 |
+| PDF 文字层乱序 | 按 y 坐标重建换行；中文不插空格；NFKC + 康熙部首还原 |
 
 ---
 
@@ -479,7 +539,7 @@ score = min(100, high × 15 + mid × 6 + low × 1)
 | 2026-11-19 | MVP 测试用 DashScope，界面默认 DeepSeek |
 | 2026-11-19 | 界面范围：审查台 + 条款库 + 设置（不做案头首页） |
 | 2026-11-19 | 代码组织：分模块源码 + build.py 内联 |
-| 2026-11-19 | 预设：DeepSeek + DashScope + 智谱（需代理），不做 Ollama |
+| 2026-11-19 | 预设：DashScope（默认）+ DeepSeek，不做 Ollama；智谱移出 MVP |
 | 2026-11-19 | 复核：本地确定性校验 + 轻量 LLM，error 重评 1 轮 |
 | 2026-11-19 | 立场切换不做 UI，schema 保留 `stance` |
 | 2026-11-19 | 脱敏：正则 + 名称列表，默认开启 |
@@ -488,6 +548,17 @@ score = min(100, high × 15 + mid × 6 + low × 1)
 | 2026-11-19 | 当前审查结果单槽持久化 |
 | 2026-11-19 | 合同类型手选 + 关键词推荐 |
 | 2026-11-19 | 输入硬上限 5 万字；3 万字提示 |
+| 2026-11-19 | 视觉改方向 B：屏面（含完整报告）天空渐变 + 玻璃拟态，导出/打印保留纸感 |
+| 2026-11-19 | DashScope 换新 Key，默认模型改为 `qwen3.8-max-0902`；智谱预设与测试一并移除 |
+| 2026-11-19 | DashScope 请求关闭思考（`enable_thinking: false`），否则单步超时 |
+| 2026-11-19 | 长合同（评估后 >35s）跳过 LLM 复核保 90 秒；clause_index 按原文纠正 |
+| 2026-11-19 | 第一阶段验收通过：3019 字 80.1s，21/21 带法条；断网/重开/体积全过 |
+| 2026-11-19 | V1 加真合同解析：文字层 PDF / DOCX / TXT，本地解析、零上传；不做 OCR，`.doc` 拒绝 |
+| 2026-11-19 | 解析器内联方案：PDF.js base64 + Blob URL + worker；Mammoth 源码内联；单文件预算放宽到 4MB |
+| 2026-11-19 | 风险条目挂载本地法条参考，屏幕可展开，打印隐藏 |
+| 2026-11-19 | 第二阶段验收通过：中文 PDF 解析 0.8s + 审查 64.4s，5/5 带法条，3 条法条参考 |
+| 2026-11-19 | 高风险条目选中后，原文加旋转光束描边（参考问数精灵登录按钮 BorderBeam，ocean 蓝紫配色，3.1s 转速）；中/低风险保留闪烁 |
+| 2026-11-19 | 修复：刷新恢复的结果未写入 `state.lastResult`，导致高风险光束退化为普通闪烁；改由 `showResult` 统一恢复上下文 |
 
 ---
 

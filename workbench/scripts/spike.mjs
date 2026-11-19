@@ -3,10 +3,12 @@
  *
  * 用法：
  *   node workbench/scripts/spike.mjs --sample=lease
+ *   node workbench/scripts/spike.mjs --file=workbench/tests/fixtures/lease_3000.txt --type=房屋租赁合同 --gate
  *   node workbench/scripts/spike.mjs --all --gate
  *
- * Key 从仓库根目录 .env 读取（DASHSCOPE_API_KEY / DEEPSEEK_API_KEY / ZHIPU_API_KEY）
+ * Key 从仓库根目录 .env 读取（DASHSCOPE_API_KEY / DEEPSEEK_API_KEY）
  */
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadEnv } from "./lib.mjs";
@@ -40,7 +42,7 @@ if (!provider) {
   process.exit(1);
 }
 
-const keyMap = { dashscope: "DASHSCOPE_API_KEY", deepseek: "DEEPSEEK_API_KEY", zhipu: "ZHIPU_API_KEY" };
+const keyMap = { dashscope: "DASHSCOPE_API_KEY", deepseek: "DEEPSEEK_API_KEY" };
 const apiKey = process.env[keyMap[providerKey]] || env[keyMap[providerKey]] || "";
 if (!apiKey) {
   console.error(`缺少 ${keyMap[providerKey]}（可写在仓库根目录 .env）`);
@@ -55,9 +57,24 @@ const settings = {
 };
 
 const sampleArg = arg("sample", "lease");
-const samples = hasFlag("all")
-  ? WB.SAMPLES
-  : WB.SAMPLES.filter((s) => s.key === sampleArg);
+const fileArg = arg("file", "");
+const typeArg = arg("type", "");
+let samples;
+if (fileArg) {
+  const filePath = path.resolve(REPO, fileArg);
+  let text;
+  try {
+    text = fs.readFileSync(filePath, "utf8");
+  } catch (err) {
+    console.error(`读不到合同文件：${fileArg}`);
+    process.exit(1);
+  }
+  samples = [{ key: "file", name: path.basename(filePath), file: fileArg, text }];
+} else {
+  samples = hasFlag("all")
+    ? WB.SAMPLES
+    : WB.SAMPLES.filter((s) => s.key === sampleArg);
+}
 
 if (!samples.length) {
   console.error(`找不到示例：${sampleArg}`);
@@ -69,15 +86,16 @@ console.log(`服务商：${provider.label} · 模型：${settings.model}`);
 let failed = false;
 
 for (const sample of samples) {
+  const contractType = typeArg || (fileArg ? "自定义" : sample.name);
   console.log("\n" + "═".repeat(62));
-  console.log(`示例：${sample.name}（${sample.file}，${sample.text.length} 字）`);
+  console.log(`示例：${sample.name}（${sample.file}，${sample.text.length} 字）· 类型：${contractType}`);
   console.log("═".repeat(62));
 
   const t0 = Date.now();
   try {
     const result = await WB.runPipeline({
       contractText: sample.text,
-      contractType: sample.name,
+      contractType,
       settings,
       masking: true,
       hiddenNames: [],
@@ -96,7 +114,9 @@ for (const sample of samples) {
       console.log(`本地校验：${result.localIssues.length} 个问题`);
       result.localIssues.slice(0, 6).forEach((i) => console.log(`  · [${i.severity}] ${i.type}: ${i.description}`));
     }
-    if (result.review && result.review.issues && result.review.issues.length) {
+    if (result.reviewSkipped) {
+      console.log(`复核：已跳过（${result.reviewSkipped}）`);
+    } else if (result.review && result.review.issues && result.review.issues.length) {
       console.log(`复核意见：${result.review.issues.length} 条`);
       result.review.issues.slice(0, 6).forEach((i) => console.log(`  · [${i.severity}] ${i.type}: ${i.description}`));
     }

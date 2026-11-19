@@ -10,6 +10,7 @@
     clause: '<path d="M6 3h12v18l-6-4-6 4z"/>',
     settings: '<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="17" r="2"/>',
     export: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 20h16"/>',
+    upload: '<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>',
   };
 
   const STEPS = [
@@ -46,6 +47,7 @@
     lastResult: null,
     lastContractText: "",
     running: false,
+    parsingFile: false,
     abort: null,
     clauseFilter: "房屋租赁合同",
     reportTab: "list",
@@ -54,6 +56,8 @@
   };
 
   const ui = {};
+  let beamMark = null;
+  let beamResizeTimer = null;
 
   document.addEventListener("DOMContentLoaded", init);
 
@@ -73,12 +77,13 @@
     if (saved && saved.result && saved.contractText) {
       ui.input.value = saved.contractText;
       updateCharCount();
-      if (saved.contractType) setType(saved.contractType);
+      if (saved.contractType) setType(saved.contractType, false);
       showResult(saved.result, saved.contractText);
       toast("已恢复上次审查结果");
     } else {
       showEmpty();
     }
+    root.__WB_READY__ = true;
   }
 
   function cacheUI() {
@@ -88,6 +93,9 @@
     ui.input = $("#contract-input");
     ui.charCount = $("#char-count");
     ui.typeHint = $("#type-hint");
+    ui.fileBtn = $("#btn-file");
+    ui.fileInput = $("#file-input");
+    ui.fileStatus = $("#file-status");
     ui.sampleRow = $("#sample-row");
     ui.empty = $("#review-empty");
     ui.running = $("#review-running");
@@ -126,14 +134,14 @@
     ui.typeSelect.innerHTML = WB.CONTRACT_TYPES.map(
       (t) => `<option value="${esc(t)}">${esc(t)}</option>`
     ).join("");
-    setType(state.settings.contractType || WB.CONTRACT_TYPES[0]);
+    setType(state.settings.contractType || WB.CONTRACT_TYPES[0], false);
   }
 
-  function setType(type) {
+  function setType(type, persist) {
     if (!WB.CONTRACT_TYPES.includes(type)) return;
     ui.typeSelect.value = type;
     state.settings.contractType = type;
-    WB.saveSettings(state.settings).catch(() => {});
+    if (persist !== false) WB.saveSettings(state.settings).catch(() => {});
   }
 
   function populateProviders() {
@@ -211,11 +219,33 @@
       loadSample(btn.dataset.sample);
     });
 
+    ui.fileBtn.addEventListener("click", () => ui.fileInput.click());
+    ui.fileInput.addEventListener("change", () => {
+      const file = ui.fileInput.files && ui.fileInput.files[0];
+      if (file) handleFile(file);
+    });
+    ui.empty.addEventListener("dragover", (e) => {
+      if (!e.dataTransfer) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      ui.input.classList.add("dragover");
+    });
+    ui.empty.addEventListener("dragleave", (e) => {
+      if (!ui.empty.contains(e.relatedTarget)) ui.input.classList.remove("dragover");
+    });
+    ui.empty.addEventListener("drop", (e) => {
+      e.preventDefault();
+      ui.input.classList.remove("dragover");
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    });
+
     $("#btn-start").addEventListener("click", startReview);
     $("#btn-clear").addEventListener("click", () => {
       ui.input.value = "";
       updateCharCount();
       ui.typeHint.textContent = "";
+      resetFileStatus();
       ui.input.focus();
     });
 
@@ -238,7 +268,7 @@
     ui.riskList.addEventListener("click", (e) => {
       const btn = e.target.closest(".risk-item");
       if (!btn) return;
-      jumpToRisk(btn.dataset.idx);
+      jumpToRisk(btn.dataset.idx, btn);
     });
 
     ui.clauseFilters.addEventListener("click", (e) => {
@@ -259,6 +289,7 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !ui.drawer.classList.contains("hidden")) closeSettings();
     });
+    window.addEventListener("resize", scheduleBeamRedraw);
 
     // 复制修改条款（报告内的按钮）
     document.addEventListener("click", (e) => {
@@ -283,6 +314,7 @@
   }
 
   function hideStates() {
+    clearBeam();
     [ui.empty, ui.running, ui.result, ui.error].forEach((el) => el.classList.add("hidden"));
   }
 
@@ -311,6 +343,7 @@
 
   async function startReview() {
     if (state.running) return;
+    if (state.parsingFile) { toast("正在解析文件，稍等一下"); return; }
 
     const text = ui.input.value.trim();
     if (text.length < 50) { toast("合同内容太短（至少 50 字）", "error"); return; }
@@ -396,6 +429,7 @@
     ui.input.value = "";
     ui.typeHint.textContent = "";
     updateCharCount();
+    resetFileStatus();
     WB.clearCurrent().catch(() => {});
     showEmpty();
     ui.input.focus();
@@ -416,6 +450,8 @@
   // ═════════════ 结果渲染 ═════════════
 
   function showResult(result, contractText) {
+    state.lastResult = result;
+    state.lastContractText = contractText;
     hideStates();
     ui.result.classList.remove("hidden");
     switchView("review");
@@ -470,7 +506,57 @@
     ui.riskList.innerHTML = html || '<p class="empty-line">未发现明显风险。</p>';
   }
 
-  function jumpToRisk(idx) {
+  function clearBeam() {
+    beamMark = null;
+    clearTimeout(beamResizeTimer);
+    if (!ui.contractView) return;
+    ui.contractView.querySelectorAll(".hl-beam-rect").forEach((el) => el.remove());
+    ui.contractView.querySelectorAll("mark.hl-beam-source").forEach((el) => {
+      el.classList.remove("hl-beam-source");
+    });
+    ui.contractView.querySelectorAll("mark.hl-flash").forEach((el) => {
+      el.classList.remove("hl-flash");
+    });
+  }
+
+  function redrawBeam() {
+    if (!beamMark || !ui.contractView || !ui.contractView.contains(beamMark)) return;
+    const mark = beamMark;
+    clearBeam();
+    mark.classList.add("hl-beam-source");
+    showBeam(mark);
+  }
+
+  function scheduleBeamRedraw() {
+    if (!beamMark) return;
+    clearTimeout(beamResizeTimer);
+    beamResizeTimer = setTimeout(redrawBeam, 120);
+  }
+
+  // 高风险条款：在原文每一行外画一圈旋转光束，参考问数精灵登录按钮的 BorderBeam。
+  function showBeam(mark) {
+    beamMark = mark;
+    const view = ui.contractView;
+    const viewRect = view.getBoundingClientRect();
+    const rects = Array.from(mark.getClientRects()).filter((r) => r.width > 2 && r.height > 2);
+    if (!rects.length) return;
+
+    rects.forEach((r) => {
+      const beam = document.createElement("div");
+      beam.className = "hl-beam-rect";
+      beam.setAttribute("aria-hidden", "true");
+      beam.style.left = `${r.left - viewRect.left + view.scrollLeft - 4}px`;
+      beam.style.top = `${r.top - viewRect.top + view.scrollTop - 4}px`;
+      beam.style.width = `${r.width + 8}px`;
+      beam.style.height = `${r.height + 8}px`;
+      view.appendChild(beam);
+    });
+  }
+
+  function jumpToRisk(idx, sourceBtn) {
+    $$(".risk-item.is-active").forEach((el) => el.classList.remove("is-active"));
+    clearBeam();
+
     let mark = ui.contractView.querySelector(`mark[data-risk-index="${idx}"]`);
     // 同一条款可能对应多个风险点，高亮只保留一个；回退到相同原文的标记
     if (!mark && state.lastResult && state.lastResult.findings) {
@@ -484,7 +570,20 @@
       toast("正文中未定位到该条款，可对照右侧原文核对", "error");
       return;
     }
+
+    if (sourceBtn) sourceBtn.classList.add("is-active");
     mark.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    const finding = state.lastResult && state.lastResult.findings
+      ? state.lastResult.findings[Number(idx)]
+      : null;
+    const level = finding ? (finding.level || WB.deriveLevel(finding)) : "";
+    if (level === "高") {
+      mark.classList.add("hl-beam-source");
+      showBeam(mark);
+      return;
+    }
+
     mark.classList.add("hl-flash");
     setTimeout(() => mark.classList.remove("hl-flash"), 1200);
   }
@@ -498,6 +597,63 @@
     });
     ui.riskList.classList.toggle("hidden", tab !== "list");
     ui.reportView.classList.toggle("hidden", tab !== "report");
+  }
+
+  // ═════════════ 文件解析 ═════════════
+
+  function setFileStatus(text, kind) {
+    ui.fileStatus.textContent = text;
+    ui.fileStatus.className = "file-status" + (kind ? " " + kind : "");
+  }
+
+  function resetFileStatus() {
+    setFileStatus("支持文字层 PDF / DOCX / TXT，文件只在本机解析", "");
+    if (ui.fileInput) ui.fileInput.value = "";
+  }
+
+  function parseWithTimeout(file) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("文件解析超时（60 秒），请检查文件是否损坏或拆分后再试")),
+        60000
+      );
+      WB.parseFile(file).then(
+        (result) => { clearTimeout(timer); resolve(result); },
+        (err) => { clearTimeout(timer); reject(err); }
+      );
+    });
+  }
+
+  async function handleFile(file) {
+    if (state.parsingFile || !file) return;
+    state.parsingFile = true;
+    showEmpty();
+    setFileStatus(`正在解析 ${file.name}……`, "");
+    try {
+      const parsed = await parseWithTimeout(file);
+      ui.input.value = parsed.text;
+      ui.input.dispatchEvent(new Event("input", { bubbles: true }));
+      updateCharCount();
+      showEmpty();
+
+      const pages = parsed.meta && parsed.meta.pages ? ` · ${parsed.meta.pages} 页` : "";
+      const warning = parsed.warnings && parsed.warnings.length ? ` · ${parsed.warnings[0]}` : "";
+      const tooLong = parsed.text.length > WB.PARSE_LIMITS.maxTextChars;
+      const kind = tooLong ? "error" : parsed.warnings && parsed.warnings.length ? "warn" : "ok";
+      setFileStatus(
+        `已从 ${parsed.fileName} 提取 ${parsed.text.length.toLocaleString("zh-CN")} 字${pages}${warning}`,
+        kind
+      );
+      if (parsed.warnings && parsed.warnings.length) toast(parsed.warnings[0]);
+      ui.input.focus();
+    } catch (err) {
+      const message = (err && err.message) || "文件解析失败";
+      setFileStatus(message, "error");
+      toast(message, "error");
+    } finally {
+      state.parsingFile = false;
+      ui.fileInput.value = "";
+    }
   }
 
   // ═════════════ 输入辅助 ═════════════
@@ -556,6 +712,7 @@
     updateCharCount();
     setType(sample.name);
     showTypeHint(`已载入示例：${sample.name}`);
+    resetFileStatus();
     ui.input.focus();
   }
 
@@ -644,7 +801,7 @@
 
   function updateModelStatus() {
     const s = state.settings;
-    const p = WB.PROVIDERS[s.provider] || WB.PROVIDERS.deepseek;
+    const p = WB.PROVIDERS[s.provider] || WB.PROVIDERS.dashscope;
     const hasKey = Boolean((s.apiKeys || {})[s.provider]);
     ui.modelStatus.classList.remove("ok", "warn");
     if (!hasKey) {
@@ -652,7 +809,7 @@
       return;
     }
     ui.modelStatusText.textContent = `${p.label} · ${s.model}`;
-    ui.modelStatus.classList.add(s.provider === "zhipu" ? "warn" : "ok");
+    ui.modelStatus.classList.add("ok");
   }
 
   // ═════════════ 导出 / 复制 ═════════════

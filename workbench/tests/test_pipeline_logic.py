@@ -37,7 +37,22 @@ def test_core_logic():
             _require("prompts.js"),
             _require("llm.js"),
             _require("pipeline.js"),
+            _require("data/samples.js"),
             "const WB = globalThis.WB;",
+            """
+            // 确定性拆分：示例租赁合同应切出 ≥8 条
+            const lease = WB.SAMPLES.find((s) => s.key === 'lease');
+            const split = WB.splitClauses(lease.text);
+            assert(split.length >= 8, 'splitClauses 只切出 ' + split.length + ' 条');
+            assert(split[0].text.indexOf('第一条') === 0 || split[0].text.indexOf('房屋租赁合同') === 0);
+            assert.deepStrictEqual(WB.splitClauses('没有条款编号的一段文字'), []);
+            """,
+            """
+            // JSON 修复：多对象拼接 / 代码围栏 / 尾逗号
+            assert.deepStrictEqual(WB.parseJSON('{"a":1}{"a":2}'), { a: 1 });
+            assert.deepStrictEqual(WB.parseJSON('```json\\n{"a":1,}\\n```'), { a: 1 });
+            assert.deepStrictEqual(WB.parseJSON('说明文字 {"a":[1,2]} 结束'), { a: [1, 2] });
+            """,
             """
             // 脱敏往返
             const original = '甲方：张三，身份证320102199001011234，电话13800001111，邮箱a@b.com，账号6222020202020202020';
@@ -63,6 +78,51 @@ def test_core_logic():
             assert(rules.some((r) => r.id === 'r_lease_penalty'));
             assert(rules.some((r) => r.id === 'r_common_jurisdiction'));
             assert(!rules.some((r) => r.id === 'r_loan_rate'));
+            """,
+            """
+            // 低风险去重：已有 finding 的条款不再进 lowRisk；重复低风险只保留一条
+            const check = WB.localChecks({
+              clauses: [{ index: 1, text: 'a' }, { index: 2, text: 'b' }],
+              findings: [{
+                rule_id: 'x', clause_index: 1, clause_text: 'a',
+                fairness: 4, clarity: 1, exposure: 1,
+                risk_reason: 'r', basis: '民法典第1条', suggestion: 's'
+              }],
+              lowRiskClauses: [
+                { clause_index: 1, clause_text: 'a', reason: 'dup' },
+                { clause_index: 2, clause_text: 'b', reason: 'ok' },
+                { clause_index: 2, clause_text: 'b2', reason: 'dup' }
+              ],
+              rules: []
+            });
+            assert.strictEqual(check.findings.length, 1);
+            assert.strictEqual(check.lowRiskClauses.length, 1);
+            assert.strictEqual(check.lowRiskClauses[0].clause_index, 2);
+            assert.strictEqual(check.missing.length, 0);
+            """,
+            """
+            // 索引纠正：模型写错一位时，按原文匹配回正确的条款
+            const check2 = WB.localChecks({
+              clauses: [
+                { index: 1, text: '第一条 租金及支付方式 乙方应于每月五日前支付当月租金人民币一万五千元' },
+                { index: 2, text: '第二条 押金 乙方应支付押金人民币四万五千元' }
+              ],
+              findings: [{
+                rule_id: 'x', clause_index: 2,
+                clause_text: '乙方应于每月五日前支付当月租金人民币一万五千元',
+                fairness: 4, clarity: 1, exposure: 1,
+                risk_reason: 'r', basis: '民法典第1条', suggestion: 's'
+              }],
+              lowRiskClauses: [{
+                clause_index: 1,
+                clause_text: '第二条 押金 乙方应支付押金人民币四万五千元',
+                reason: 'ok'
+              }],
+              rules: []
+            });
+            assert.strictEqual(check2.findings[0].clause_index, 1);
+            assert.strictEqual(check2.lowRiskClauses[0].clause_index, 2);
+            assert.strictEqual(check2.missing.length, 0);
             """,
             """
             // 报告转义：合同文本里的 HTML 不得生效

@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import sys
 from pathlib import Path
@@ -21,6 +22,7 @@ ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent
 SRC = ROOT / "src"
 DIST = ROOT / "dist"
+VENDOR = ROOT / "vendor"
 
 SAMPLE_FILES = [
     ("lease", "房屋租赁合同", "sample_lease.txt"),
@@ -47,8 +49,15 @@ SCRIPT_ORDER = [
     "llm.js",
     "pipeline.js",
     "storage.js",
+    "file_parser.js",
     "app.js",
 ]
+
+VENDOR_FILES = {
+    "pdf_main": VENDOR / "pdfjs" / "pdf.min.mjs",
+    "pdf_worker": VENDOR / "pdfjs" / "pdf.worker.min.mjs",
+    "mammoth": VENDOR / "mammoth" / "mammoth.browser.min.js",
+}
 
 
 def js_literal(value) -> str:
@@ -104,12 +113,30 @@ def build() -> int:
         return 1
 
     html = inline_file(index_path)
-    if "<!-- BUILD:STYLES -->" not in html or "<!-- BUILD:SCRIPTS -->" not in html:
+    placeholders = ("<!-- BUILD:STYLES -->", "<!-- BUILD:VENDOR -->", "<!-- BUILD:SCRIPTS -->")
+    if any(p not in html for p in placeholders):
         print("[build] index.html 缺少 BUILD 占位符", file=sys.stderr)
         return 1
 
+    for name, path in VENDOR_FILES.items():
+        if not path.exists():
+            print(f"[build] 缺少解析器：{path}（请先放置 pdf.js / mammoth 产物）", file=sys.stderr)
+            return 1
+
     css = inline_file(SRC / "styles.css")
     html = html.replace("<!-- BUILD:STYLES -->", f"<style>\n{css}\n</style>")
+
+    pdf_main = base64.b64encode(VENDOR_FILES["pdf_main"].read_bytes()).decode("ascii")
+    pdf_worker = base64.b64encode(VENDOR_FILES["pdf_worker"].read_bytes()).decode("ascii")
+    mammoth = inline_file(VENDOR_FILES["mammoth"]).replace("</script", "<\\/script")
+    vendor_html = "\n".join(
+        [
+            f'<script type="text/plain" id="pdfjs-main">{pdf_main}</script>',
+            f'<script type="text/plain" id="pdfjs-worker">{pdf_worker}</script>',
+            f"<script>\n{mammoth}\n</script>",
+        ]
+    )
+    html = html.replace("<!-- BUILD:VENDOR -->", vendor_html)
 
     scripts = []
     for rel in SCRIPT_ORDER:
@@ -141,11 +168,11 @@ def check() -> int:
 
     html = out.read_text(encoding="utf-8")
     size = out.stat().st_size
-    if size >= 1.5 * 1024 * 1024:
-        print(f"[check] ✗ 体积超限：{size / 1024:.1f} KB >= 1536 KB", file=sys.stderr)
+    if size >= 4 * 1024 * 1024:
+        print(f"[check] ✗ 体积超限：{size / 1024:.1f} KB >= 4096 KB", file=sys.stderr)
         ok = False
     else:
-        print(f"[check] ✓ 体积 {size / 1024:.1f} KB < 1536 KB")
+        print(f"[check] ✓ 体积 {size / 1024:.1f} KB < 4096 KB")
 
     checks = [
         ("无外部脚本", "<script src=" not in html and "<script src=" not in html),
@@ -154,12 +181,22 @@ def check() -> int:
         ("含 CSP", "Content-Security-Policy" in html),
         (
             "占位符已替换",
-            "<!-- BUILD:STYLES -->" not in html and "<!-- BUILD:SCRIPTS -->" not in html,
+            all(
+                p not in html
+                for p in (
+                    "<!-- BUILD:STYLES -->",
+                    "<!-- BUILD:VENDOR -->",
+                    "<!-- BUILD:SCRIPTS -->",
+                )
+            ),
         ),
         ("含免责声明", "不构成法律意见" in html),
         ("含示例合同", "sample_lease.txt" in html),
         ("RULES 数量 ≥ 60", _count_rules(html) >= 60),
         ("含 5 步流水线", "WB.runPipeline" in html),
+        ("含 PDF 解析器", 'id="pdfjs-main"' in html and 'id="pdfjs-worker"' in html),
+        ("含 DOCX 解析器", "mammoth.extractRawText" in html),
+        ("含文件解析入口", "WB.parseFile" in html),
     ]
     for name, passed in checks:
         print(f"[check] {'✓' if passed else '✗'} {name}")

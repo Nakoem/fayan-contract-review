@@ -107,6 +107,17 @@ export async function waitFor(cdp, expression, timeout = 15000, interval = 200) 
   return null;
 }
 
+/** 刷新页面并等待新文档真正就绪（避免 CDP 在旧文档上提前判定 ready） */
+export async function reloadPage(cdp, readyExpression = `document.readyState === "complete" && window.__WB_READY__ === true && document.querySelectorAll(".sample-chip").length === 6`, timeout = 15000) {
+  await cdp.eval(`window.__wbReloadMarker = true; true`);
+  await cdp.send("Page.reload", { ignoreCache: true });
+  await waitFor(
+    cdp,
+    `typeof window.__wbReloadMarker === "undefined" && typeof WB === "object" && ${readyExpression}`,
+    timeout
+  );
+}
+
 export async function screenshot(cdp, outPath) {
   const s = await cdp.send("Page.captureScreenshot", { format: "png" });
   fs.writeFileSync(outPath, Buffer.from(s.result.data, "base64"));
@@ -114,10 +125,11 @@ export async function screenshot(cdp, outPath) {
 }
 
 /** 启动 headless Chrome，连接 CDP，返回可关闭的句柄 */
-export async function launchBrowser({ url, width = 1280, height = 900, prefix = "wb" }) {
+export async function launchBrowser({ url, width = 1280, height = 900, prefix = "wb", profileDir = null }) {
   const chrome = findChrome();
   const port = 9300 + Math.floor(Math.random() * 400);
-  const profile = fs.mkdtempSync(path.join(os.tmpdir(), prefix + "-"));
+  const profile = profileDir || fs.mkdtempSync(path.join(os.tmpdir(), prefix + "-"));
+  const ownsProfile = !profileDir;
 
   const child = spawn(chrome, [
     "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
@@ -126,7 +138,9 @@ export async function launchBrowser({ url, width = 1280, height = 900, prefix = 
 
   const cleanup = () => {
     try { child.kill(); } catch (e) { /* ignore */ }
-    try { fs.rmSync(profile, { recursive: true, force: true }); } catch (e) { /* ignore */ }
+    if (ownsProfile) {
+      try { fs.rmSync(profile, { recursive: true, force: true }); } catch (e) { /* ignore */ }
+    }
   };
 
   try {
@@ -148,6 +162,16 @@ export async function launchBrowser({ url, width = 1280, height = 900, prefix = 
       child,
       profile,
       async close() {
+        try { ws.close(); } catch (e) { /* ignore */ }
+        cleanup();
+      },
+      async closeGracefully() {
+        try { await cdp.send("Browser.close"); } catch (e) { /* ignore */ }
+        await new Promise((resolve) => {
+          if (child.exitCode !== null) return resolve();
+          const timer = setTimeout(resolve, 3000);
+          child.once("exit", () => { clearTimeout(timer); resolve(); });
+        });
         try { ws.close(); } catch (e) { /* ignore */ }
         cleanup();
       },
