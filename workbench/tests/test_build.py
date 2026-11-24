@@ -84,6 +84,12 @@ def test_pipeline_embedded(html):
     assert "WB.highlightContract" in html
 
 
+def test_review_stance_embedded(html):
+    assert 'id="review-stance"' in html
+    assert "WB.STANCES" in html
+    assert "stanceLabel" in html
+
+
 def test_rule_editor_embedded(html):
     assert 'id="view-rules"' in html
     assert "WB.RuleStore" in html

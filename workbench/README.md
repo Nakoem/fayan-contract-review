@@ -9,7 +9,7 @@
 
 1. 双击 `dist/index.html`（Chrome / Edge，1280px 以上）
 2. 右上角「设置」→ 选服务商 → 填 API Key → 保存
-3. 粘贴合同，或上传 PDF / Word，或点一份示例合同 → 「开始审查」
+3. 粘贴合同，或上传 PDF / Word，或点一份示例合同 → 选合同类型与审查视角 → 「开始审查」
 4. 审完可点「加入台账」，在「合同台账」里记到期日与付款节点；案头会显示 30 天内待办
 
 首次使用必须配置自己的模型 Key。合同原文只会发送给你选择的模型服务商；其余数据留在本机浏览器。
@@ -70,6 +70,9 @@ node workbench/scripts/parser_check.mjs
 # 单份示例真调模型（量耗时与 JSON 稳定性）
 node workbench/scripts/spike.mjs --sample=lease --provider=dashscope
 
+# 指定审查视角（neutral / tenant / landlord 等）
+node workbench/scripts/spike.mjs --sample=lease --stance=tenant --stance-label=承租人
+
 # 3000 字长合同压测（长合同会自动跳过 LLM 复核保 90 秒）
 node workbench/scripts/spike.mjs --file=workbench/tests/fixtures/lease_3000.txt --type=房屋租赁合同 --gate
 
@@ -118,6 +121,7 @@ workbench/
 ## 关键设计
 
 - **规则数据化**：规则存在 `RULES` 数组里，提示词由代码拼装；规则编辑器只读写这份数组，不改审查链路。
+- **审查视角（V1.5）**：审查前按合同角色选择立场——租赁看出租人 / 承租人、劳动看用人单位 / 劳动者等，默认中立。视角进入评估与复核提示词：非中立时只报对该方不利的风险，对我方有利且不违反强制性规定的条款不报；可能无效或被调整的仍提示可执行性风险。报告元信息与结果统计会显示所选视角，选择随设置持久化，历史记录也会保留。
 - **5 步流水线**：抽取（LLM）→ 法条（本地 BM25）→ 评估（LLM）→ 复核（本地 + 轻量 LLM）→ 报告（本地模板）。
 - **报告不交给 LLM 排版**：LLM 只吐结构化 JSON，六段式报告由本地模板渲染，格式稳定。
 - **评级确定性**：任一维度 ≥4 → 高；任一 =3 → 中；均 ≤2 → 低。

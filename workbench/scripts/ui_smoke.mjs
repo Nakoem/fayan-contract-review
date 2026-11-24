@@ -36,6 +36,7 @@ const MOCK = String.raw`(() => {
       return { content: JSON.stringify({ clauses: clauses }), usage: null };
     }
     if (sys.indexOf("风险分析师") >= 0) {
+      window.__mockEvalUser = (opts.messages && opts.messages[1] && opts.messages[1].content) || "";
       const cs = window.__mockClauses || [];
       const findIndex = function (needle) {
         for (let i = 0; i < cs.length; i++) { if (cs[i].text.indexOf(needle) >= 0) return cs[i].index; }
@@ -112,6 +113,26 @@ async function main() {
     ok("页面加载", true, await cdp.eval(`document.title`));
     ok("示例合同 6 份", (await cdp.eval(`document.querySelectorAll(".sample-chip").length`)) === 6);
     ok("合同类型 6 类", (await cdp.eval(`document.querySelectorAll("#contract-type option").length`)) === 6);
+
+    const stanceOptions = await cdp.eval(`Array.from(document.querySelectorAll("#review-stance option")).map((o) => o.textContent)`);
+    const stanceHint = await cdp.eval(`document.querySelector("#stance-hint").textContent`);
+    ok(
+      "审查视角默认中立",
+      stanceOptions.length === 3 && stanceOptions[0] === "中立（双方）" &&
+        stanceOptions.indexOf("承租人") >= 0 && stanceHint.indexOf("公平") >= 0,
+      stanceOptions.join(" / ")
+    );
+    await cdp.eval(`(() => { const s = document.querySelector("#review-stance"); s.value = "tenant"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    await cdp.eval(`(() => { const s = document.querySelector("#contract-type"); s.value = "劳动合同"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    const laborStances = await cdp.eval(`Array.from(document.querySelectorAll("#review-stance option")).map((o) => o.textContent)`);
+    const laborStanceValue = await cdp.eval(`document.querySelector("#review-stance").value`);
+    await cdp.eval(`(() => { const s = document.querySelector("#contract-type"); s.value = "房屋租赁合同"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    ok(
+      "视角随合同类型切换",
+      laborStances.length === 3 && laborStances.indexOf("劳动者") >= 0 &&
+        laborStances.indexOf("用人单位") >= 0 && laborStanceValue === "neutral",
+      `${laborStances.join(" / ")} · 切换后 ${laborStanceValue}`
+    );
     await shot("ui-empty.png");
 
     await cdp.eval(`document.querySelector('.nav-item[data-view="clauses"]').click(); true`);
@@ -137,6 +158,7 @@ async function main() {
     await reloadPage(cdp);
 
     await cdp.eval(MOCK);
+    await cdp.eval(`(() => { const s = document.querySelector("#review-stance"); s.value = "tenant"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
 
     await cdp.eval(`(() => {
       const s = WB.SAMPLES.find(function (x) { return x.key === "lease"; });
@@ -164,6 +186,14 @@ async function main() {
     ok("报告六段", sections === 6, `${sections} 段`);
     ok("签约建议", signText.indexOf("修改后签") >= 0, signText.trim());
     ok("评分概览", stats.indexOf("综合评分") >= 0, stats);
+    const reportMeta = await cdp.eval(`(document.querySelector("#report-view .report-meta") || {}).textContent || ""`);
+    const evalRequest = await cdp.eval(`window.__mockEvalUser || ""`);
+    ok(
+      "审查视角进入结果",
+      stats.indexOf("承租人") >= 0 && reportMeta.indexOf("审查视角：承租人") >= 0,
+      reportMeta.replace(/\s+/g, " ").trim()
+    );
+    ok("视角进入评估请求", evalRequest.indexOf("审查视角：承租人") >= 0, evalRequest.slice(0, 40).replace(/\s+/g, " "));
     await shot("ui-result-list.png");
 
     await cdp.eval(`document.querySelector("#risk-list .risk-item.high").click(); true`);
@@ -397,8 +427,10 @@ async function main() {
     await reloadPage(cdp);
     const restored = await waitFor(cdp, `!document.querySelector("#review-result").classList.contains("hidden")`, 8000).catch(() => false);
     const savedKey = await cdp.eval(`(async () => { const s = await WB.loadSettings(); return s.apiKeys.dashscope; })()`);
+    const savedStance = await cdp.eval(`(async () => (await WB.loadSettings()).stance)()`);
     ok("刷新恢复审查结果", !!restored);
     ok("API Key 持久化", savedKey === "test-key", savedKey ? "已读取" : "未找到");
+    ok("审查视角持久化", savedStance === "tenant", savedStance);
 
     await cdp.eval(`document.querySelector("#risk-list .risk-item.high").click(); true`);
     const restoredBeam = (await waitFor(cdp, `document.querySelectorAll(".hl-beam-rect").length`, 3000).catch(() => 0)) || 0;

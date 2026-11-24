@@ -119,6 +119,8 @@
 
   function cacheUI() {
     ui.typeSelect = $("#contract-type");
+    ui.stanceSelect = $("#review-stance");
+    ui.stanceHint = $("#stance-hint");
     ui.modelStatus = $("#model-status");
     ui.modelStatusText = $("#model-status-text");
     ui.input = $("#contract-input");
@@ -243,10 +245,36 @@
     setType(state.settings.contractType || WB.CONTRACT_TYPES[0], false);
   }
 
+  function populateStances(type) {
+    const t = type || state.settings.contractType;
+    if (!ui.stanceSelect) return;
+    const roles = Object.prototype.hasOwnProperty.call(WB.STANCES, t) ? WB.STANCES[t] : [];
+    const options = [{ key: "neutral", label: "中立（双方）" }].concat(roles);
+    const current = state.settings.stance || "neutral";
+    const valid = options.some((r) => r.key === current);
+    const value = valid ? current : "neutral";
+    ui.stanceSelect.innerHTML = options
+      .map((r) => `<option value="${esc(r.key)}">${esc(r.label)}</option>`)
+      .join("");
+    ui.stanceSelect.value = value;
+    state.settings.stance = value;
+    updateStanceHint(t);
+  }
+
+  function updateStanceHint(type) {
+    if (!ui.stanceHint) return;
+    const label = WB.stanceLabel(type || state.settings.contractType, state.settings.stance);
+    ui.stanceHint.textContent =
+      state.settings.stance === "neutral"
+        ? "按双方公平性审查，不偏向任何一方"
+        : `站在${label}一侧，优先看对我方不利的条款`;
+  }
+
   function setType(type, persist) {
     if (!WB.CONTRACT_TYPES.includes(type)) return;
     ui.typeSelect.value = type;
     state.settings.contractType = type;
+    populateStances(type);
     if (persist !== false) WB.saveSettings(state.settings).catch(() => {});
   }
 
@@ -587,6 +615,13 @@
         if (!btn.dataset.view) return;
         switchView(btn.dataset.view);
       });
+    });
+
+    ui.typeSelect.addEventListener("change", () => setType(ui.typeSelect.value));
+    ui.stanceSelect.addEventListener("change", () => {
+      state.settings.stance = ui.stanceSelect.value;
+      updateStanceHint();
+      WB.saveSettings(state.settings).catch(() => {});
     });
 
     ui.input.addEventListener("input", () => {
@@ -1694,9 +1729,14 @@
     };
 
     try {
+      const contractType = ui.typeSelect.value;
+      const stance = state.settings.stance || "neutral";
+      const stanceLabel = WB.stanceLabel(contractType, stance);
       const result = await WB.runPipeline({
         contractText: text,
-        contractType: ui.typeSelect.value,
+        contractType,
+        stance,
+        stanceLabel,
         settings,
         hiddenNames: state.settings.hiddenNames || [],
         masking: state.settings.masking !== false,
@@ -1713,15 +1753,17 @@
       const record = {
         id: "rv_" + savedAt,
         createdAt: savedAt,
-        contractType: ui.typeSelect.value,
-        title: reviewTitle(text, ui.typeSelect.value),
+        contractType,
+        stance,
+        title: reviewTitle(text, contractType),
         contractText: text,
         result,
       };
       state.lastReviewId = record.id;
       await WB.saveCurrent({
         contractText: text,
-        contractType: ui.typeSelect.value,
+        contractType,
+        stance,
         result,
         savedAt,
         reviewId: record.id,
@@ -1786,16 +1828,21 @@
     ui.result.classList.remove("hidden");
     switchView("review");
 
-    if (result.contractType && WB.CONTRACT_TYPES.includes(result.contractType)) {
-      ui.typeSelect.value = result.contractType;
-    }
+    const resultType = result.contractType && WB.CONTRACT_TYPES.includes(result.contractType)
+      ? result.contractType
+      : state.settings.contractType;
+    ui.typeSelect.value = resultType;
+    state.settings.contractType = resultType;
+    state.settings.stance = result.stance || "neutral";
+    populateStances(resultType);
 
     const c = result.counts || { high: 0, mid: 0, low: 0 };
     ui.resultStats.innerHTML = `
       <span class="result-stat high">高风险 <b>${c.high}</b></span>
       <span class="result-stat mid">中风险 <b>${c.mid}</b></span>
       <span class="result-stat low">低风险 <b>${c.low}</b></span>
-      <span class="result-stat score">综合评分 <b>${result.score == null ? "—" : result.score}</b><span>/100</span></span>`;
+      <span class="result-stat score">综合评分 <b>${result.score == null ? "—" : result.score}</b><span>/100</span></span>
+      <span class="result-stat">审查视角 <b>${esc(result.stanceLabel || WB.stanceLabel(resultType, result.stance))}</b></span>`;
 
     ui.contractView.innerHTML = WB.highlightContract(contractText, result.findings || []);
     ui.reportView.innerHTML = result.reportHtml || "";
@@ -2023,6 +2070,7 @@
     if (best && bestScore >= 3 && best !== current) {
       ui.typeSelect.value = best;
       state.settings.contractType = best;
+      populateStances(best);
       showTypeHint(`检测到像「${best}」，已切换`);
     } else if (best && best !== current && bestScore >= 2) {
       showTypeHint(`看起来更像「${best}」？可在上方切换`);
@@ -2122,6 +2170,7 @@
       masking,
       hiddenNames: names,
       contractType: state.settings.contractType || WB.CONTRACT_TYPES[0],
+      stance: state.settings.stance || "neutral",
     };
 
     await WB.saveSettings(state.settings);

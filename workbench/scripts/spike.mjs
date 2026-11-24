@@ -59,6 +59,8 @@ const settings = {
 const sampleArg = arg("sample", "lease");
 const fileArg = arg("file", "");
 const typeArg = arg("type", "");
+const stanceArg = arg("stance", "neutral");
+const stanceLabelArg = arg("stance-label", "");
 let samples;
 if (fileArg) {
   const filePath = path.resolve(REPO, fileArg);
@@ -88,7 +90,7 @@ let failed = false;
 for (const sample of samples) {
   const contractType = typeArg || (fileArg ? "自定义" : sample.name);
   console.log("\n" + "═".repeat(62));
-  console.log(`示例：${sample.name}（${sample.file}，${sample.text.length} 字）· 类型：${contractType}`);
+  console.log(`示例：${sample.name}（${sample.file}，${sample.text.length} 字）· 类型：${contractType} · 视角：${stanceLabelArg || stanceArg}`);
   console.log("═".repeat(62));
 
   const t0 = Date.now();
@@ -96,6 +98,8 @@ for (const sample of samples) {
     const result = await WB.runPipeline({
       contractText: sample.text,
       contractType,
+      stance: stanceArg,
+      stanceLabel: stanceLabelArg || undefined,
       settings,
       masking: true,
       hiddenNames: [],
@@ -107,7 +111,7 @@ for (const sample of samples) {
 
     const secs = ((Date.now() - t0) / 1000).toFixed(1);
     console.log(`\n耗时：${secs}s（抽取 ${(result.timings.extract / 1000).toFixed(1)}s / 评估 ${(result.timings.eval / 1000).toFixed(1)}s / 复核 ${(result.timings.review / 1000).toFixed(1)}s）`);
-    console.log(`风险：高 ${result.counts.high} · 中 ${result.counts.mid} · 低 ${result.counts.low} · 综合评分 ${result.score}/100`);
+    console.log(`风险：高 ${result.counts.high} · 中 ${result.counts.mid} · 低 ${result.counts.low} · 综合评分 ${result.score}/100 · 视角 ${result.stanceLabel}`);
     console.log(`结论：${result.advice.icon} ${result.advice.text}${result.reEvaluated ? "（复核重评过）" : ""}`);
     console.log(`摘要：${result.summary || "（无）"}`);
     if (result.localIssues && result.localIssues.length) {

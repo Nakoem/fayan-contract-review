@@ -20,6 +20,7 @@
       masking: true,
       hiddenNames: [],
       contractType: "房屋租赁合同",
+      stance: "neutral",
     };
   };
 
@@ -36,6 +37,7 @@
       masking: saved.masking !== false,
       hiddenNames: Array.isArray(saved.hiddenNames) ? saved.hiddenNames : [],
       contractType: saved.contractType || base.contractType,
+      stance: typeof saved.stance === "string" ? saved.stance : base.stance,
     };
   }
 

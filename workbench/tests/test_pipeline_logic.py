@@ -80,6 +80,59 @@ def test_core_logic():
             assert(!rules.some((r) => r.id === 'r_loan_rate'));
             """,
             """
+            // 审查视角：按合同角色映射；非法/缺失回落中立
+            assert.strictEqual(WB.stanceLabel('房屋租赁合同', 'tenant'), '承租人');
+            assert.strictEqual(WB.stanceLabel('房屋租赁合同', 'landlord'), '出租人');
+            assert.strictEqual(WB.stanceLabel('劳动合同', 'employee'), '劳动者');
+            assert.strictEqual(WB.stanceLabel('房屋租赁合同', 'neutral'), '中立（双方）');
+            assert.strictEqual(WB.stanceLabel('房屋租赁合同', 'lender'), '中立（双方）');
+            assert.strictEqual(WB.stanceLabel('房屋租赁合同', null), '中立（双方）');
+            assert.strictEqual(WB.stanceLabel('__proto__', 'tenant'), '中立（双方）');
+            """,
+            """
+            // 审查视角进入评估 / 复核提示词
+            const evalMsgs = WB.buildEvalMessages({
+              contractType: '房屋租赁合同', stanceLabel: '承租人',
+              clauses: [{ index: 1, text: '押金不退' }],
+              matchedRules: [], regSnippets: []
+            });
+            assert(evalMsgs[0].content.indexOf('审查视角') >= 0);
+            assert(evalMsgs[0].content.indexOf('优先承租权') >= 0);
+            assert(evalMsgs[0].content.indexOf('法定义务') >= 0);
+            assert(evalMsgs[0].content.indexOf('同时覆盖') >= 0);
+            assert(evalMsgs[0].content.indexOf('提前解约违约金') >= 0);
+            assert(evalMsgs[0].content.indexOf('优先使用候选规则') >= 0);
+            assert(evalMsgs[0].content.indexOf('必须在 findings 中以“条款缺失”提示') >= 0);
+            assert(evalMsgs[0].content.indexOf('即使合同没有对应原文') >= 0);
+            assert(evalMsgs[1].content.indexOf('审查视角：承租人') >= 0);
+            const reviewMsgs = WB.buildReviewMessages({
+              contractType: '房屋租赁合同', stanceLabel: '承租人',
+              clauses: [], findings: [], lowRiskClauses: []
+            });
+            assert(reviewMsgs[1].content.indexOf('审查视角：承租人') >= 0);
+            assert(reviewMsgs[0].content.indexOf('semantic|stance') >= 0);
+            const stanceIssueMsgs = WB.buildEvalMessages({
+              contractType: '房屋租赁合同', stanceLabel: '承租人',
+              clauses: [{ index: 1, text: '押金不退' }],
+              matchedRules: [], regSnippets: [],
+              issues: [{ type: 'stance', description: '把对承租人有利的条款报为风险', suggestion: '移入低风险' }]
+            });
+            assert(stanceIssueMsgs[1].content.indexOf('stance 类必须按「审查视角」重评') >= 0);
+            """,
+            """
+            // 审查视角进入报告元信息
+            const htmlStance = WB.renderReport({
+              contractType: '房屋租赁合同', stanceLabel: '承租人',
+              findings: [], lowRiskClauses: [], summary: 's', dateText: '2026-11-24'
+            });
+            assert(htmlStance.indexOf('审查视角：承租人') >= 0);
+            const htmlNeutral = WB.renderReport({
+              contractType: '房屋租赁合同', findings: [], lowRiskClauses: [],
+              summary: 's', dateText: '2026-11-24'
+            });
+            assert(htmlNeutral.indexOf('审查视角：中立（双方）') >= 0);
+            """,
+            """
             // 审查快照：显式传入 rules 时只读快照，不受全局 WB.RULES 影响
             const snapshot = [{
               id: 'snap_rule', contractType: '房屋租赁合同', keywords: ['押金'],

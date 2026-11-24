@@ -135,6 +135,11 @@
             <p class="eyebrow">签约之前</p>
             <h1 class="empty-title">把合同贴进来，<br>看看有没有坑。</h1>
             <p class="empty-desc">粘贴合同全文，或上传 PDF / Word。审查会调用你配置的模型；文件只在本机解析。</p>
+            <div class="stance-row">
+              <label class="stance-label" for="review-stance">审查视角</label>
+              <select id="review-stance" class="type-select stance-select" aria-label="审查视角"></select>
+              <span id="stance-hint" class="stance-hint">按合同角色选择，报告会从该方立场评估</span>
+            </div>
             <textarea id="contract-input" class="contract-input" placeholder="在此粘贴合同全文，或把 PDF / Word 拖进来……" spellcheck="false" aria-label="合同全文"></textarea>
             <div class="input-meta">
               <span id="char-count" class="char-count">0 字</span>

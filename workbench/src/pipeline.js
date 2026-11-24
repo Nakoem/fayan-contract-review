@@ -441,7 +441,7 @@
     </section>`;
   }
 
-  WB.renderReport = function ({ contractType, findings, lowRiskClauses, summary, dateText }) {
+  WB.renderReport = function ({ contractType, stanceLabel, findings, lowRiskClauses, summary, dateText }) {
     const groups = groupByClause(findings || []);
     const high = groups.filter((g) => g.level === "高");
     const mid = groups.filter((g) => g.level === "中");
@@ -478,7 +478,7 @@
     return `<div class="report" id="report-root">
       <header class="report-head">
         <h2 class="report-title">合同审查报告</h2>
-        <p class="report-meta">合同类型：${WB.escapeHtml(contractType)}　·　审查日期：${WB.escapeHtml(dateText || new Date().toLocaleDateString("zh-CN"))}</p>
+        <p class="report-meta">合同类型：${WB.escapeHtml(contractType)}　·　审查视角：${WB.escapeHtml(stanceLabel || "中立（双方）")}　·　审查日期：${WB.escapeHtml(dateText || new Date().toLocaleDateString("zh-CN"))}</p>
       </header>
       ${sectionHTML("一、总体风险概览", overview)}
       ${sectionHTML("二、高风险条款详解", highHTML, "（无）")}
@@ -582,6 +582,8 @@
   WB.runPipeline = async function ({
     contractText,
     contractType,
+    stance,
+    stanceLabel,
     settings,
     hiddenNames,
     masking = true,
@@ -590,6 +592,8 @@
     reviewEnabled = true,
   }) {
     const startAll = Date.now();
+    const stanceName = stanceLabel ||
+      (WB.stanceLabel ? WB.stanceLabel(contractType, stance) : "中立（双方）");
     const timings = {};
     // 审查开始时冻结规则：中途在规则页修改，不会让同一次审查前后读到两套规则。
     const rulesSnapshot = (WB.RULES || []).map((r) =>
@@ -667,7 +671,7 @@
     // ③ 评估
     progress(3, "running");
     const t3 = Date.now();
-    let evalJson = await evalOnce({ contractType, clauses, matchedRules, regSnippets, llmOpts });
+    let evalJson = await evalOnce({ contractType, stanceLabel: stanceName, clauses, matchedRules, regSnippets, llmOpts });
     timings.eval = Date.now() - t3;
     progress(3, "done", (evalJson.findings || []).length + " 条风险");
 
@@ -690,7 +694,8 @@
         review = await callJSON(
           llmOpts,
           WB.buildReviewMessages({
-            contractType, clauses, findings: check.findings, lowRiskClauses: check.lowRiskClauses,
+            contractType, stanceLabel: stanceName,
+            clauses, findings: check.findings, lowRiskClauses: check.lowRiskClauses,
           }),
           800,
           "第 4 步「复核」",
@@ -707,7 +712,7 @@
     if (reviewErrors.length && review.passed === false && !reEvaluated) {
       reEvaluated = true;
       evalJson = await evalOnce({
-        contractType, clauses, matchedRules, regSnippets, llmOpts,
+        contractType, stanceLabel: stanceName, clauses, matchedRules, regSnippets, llmOpts,
         issues: reviewErrors,
       });
       check = WB.localChecks({
@@ -754,6 +759,7 @@
     const summary = WB.unmaskText(String(evalJson.summary || "").trim(), maskMap);
     const reportHtml = WB.renderReport({
       contractType,
+      stanceLabel: stanceName,
       findings,
       lowRiskClauses: lows,
       summary,
@@ -773,6 +779,8 @@
     return {
       ok: true,
       contractType,
+      stance: stance || "neutral",
+      stanceLabel: stanceName,
       clauses,
       matchedRules,
       regSnippets,
@@ -792,10 +800,10 @@
     };
   };
 
-  async function evalOnce({ contractType, clauses, matchedRules, regSnippets, llmOpts, issues }) {
+  async function evalOnce({ contractType, stanceLabel, clauses, matchedRules, regSnippets, llmOpts, issues }) {
     const json = await callJSON(
       llmOpts,
-      WB.buildEvalMessages({ contractType, clauses, matchedRules, regSnippets, issues }),
+      WB.buildEvalMessages({ contractType, stanceLabel, clauses, matchedRules, regSnippets, issues }),
       4000,
       "第 3 步「评估」",
       (j) => Array.isArray(j.findings)

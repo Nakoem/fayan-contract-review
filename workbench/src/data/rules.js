@@ -17,6 +17,48 @@
     "借款合同",
   ];
 
+  // 审查视角：按合同角色选择，避免“甲方/乙方”在不同合同里含义错位。
+  // key = neutral 表示中立（双方公平性）；其余 key 与具体合同类型绑定。
+  WB.STANCES = {
+    房屋租赁合同: [
+      { key: "tenant", label: "承租人" },
+      { key: "landlord", label: "出租人" },
+    ],
+    劳动合同: [
+      { key: "employee", label: "劳动者" },
+      { key: "employer", label: "用人单位" },
+    ],
+    买卖合同: [
+      { key: "buyer", label: "买受人" },
+      { key: "seller", label: "出卖人" },
+    ],
+    服务合同: [
+      { key: "client", label: "委托方（客户）" },
+      { key: "provider", label: "服务方" },
+    ],
+    合作协议: [
+      { key: "partyA", label: "合作方 A" },
+      { key: "partyB", label: "合作方 B" },
+    ],
+    借款合同: [
+      { key: "borrower", label: "借款人" },
+      { key: "lender", label: "出借人" },
+    ],
+    通用: [
+      { key: "partyA", label: "甲方" },
+      { key: "partyB", label: "乙方" },
+    ],
+  };
+
+  WB.stanceLabel = function (contractType, key) {
+    if (!key || key === "neutral") return "中立（双方）";
+    const roles = Object.prototype.hasOwnProperty.call(WB.STANCES, contractType)
+      ? WB.STANCES[contractType]
+      : [];
+    const role = roles.filter((r) => r.key === key)[0];
+    return role ? role.label : "中立（双方）";
+  };
+
   const r = (id, contractType, name, keywords, condition, level, basis, advice) => ({
     id,
     contractType,

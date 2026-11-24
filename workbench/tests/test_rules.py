@@ -190,6 +190,35 @@ def test_expanded_rule_coverage(rules):
     assert by_id["r_common_arbitration_clause"]["basis"] == "仲裁法第27条、第29条"
 
 
+def test_review_stances():
+    """审查视角覆盖 6 类合同 + 通用，每类两个角色。"""
+    node = _node()
+    script = (
+        "require(" + json.dumps(str(RULES_JS).replace("\\", "/")) + ");"
+        "process.stdout.write(JSON.stringify({"
+        "stances: globalThis.WB.STANCES,"
+        "tenant: globalThis.WB.stanceLabel('房屋租赁合同', 'tenant'),"
+        "neutral: globalThis.WB.stanceLabel('房屋租赁合同', 'neutral')"
+        "}));"
+    )
+    out = subprocess.run(
+        [node, "-e", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    data = json.loads(out.stdout)
+    stances = data["stances"]
+    assert set(stances) == TYPES | {"通用"}, f"审查视角类型不全：{sorted(stances)}"
+    for contract_type, roles in stances.items():
+        assert len(roles) == 2, f"{contract_type} 角色数量不对"
+        assert len({r.get("key") for r in roles}) == 2, f"{contract_type} 角色 key 重复"
+        assert all(r.get("key") and r.get("label") for r in roles), f"{contract_type} 角色字段为空"
+    assert data["tenant"] == "承租人"
+    assert data["neutral"] == "中立（双方）"
+
+
 def test_rule_store_merge():
     """内置覆盖只接受已存在的 id；自定义规则做字段校验；非法数据被丢弃。"""
     node = _node()
