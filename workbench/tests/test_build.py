@@ -82,12 +82,20 @@ def test_rules_embedded(html):
 def test_pipeline_embedded(html):
     assert "WB.runPipeline" in html
     assert "WB.highlightContract" in html
+    assert "WB.buildDocHtml" in html
+    assert "WordSection1" in html
 
 
 def test_review_stance_embedded(html):
     assert 'id="review-stance"' in html
     assert "WB.STANCES" in html
     assert "stanceLabel" in html
+
+
+def test_docx_export_embedded(html):
+    assert "WB.buildDocx" in html
+    assert "application/vnd.openxmlformats-officedocument.wordprocessingml.document" in html
+    assert "导出 .docx" in html
 
 
 def test_rule_editor_embedded(html):
@@ -123,6 +131,7 @@ def test_no_missing_scripts():
         "prompts.js",
         "llm.js",
         "pipeline.js",
+        "docx.js",
     ):
         assert (ROOT / "src" / rel).exists(), f"缺少 {rel}"
 

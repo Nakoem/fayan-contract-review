@@ -194,6 +194,20 @@ async function main() {
       reportMeta.replace(/\s+/g, " ").trim()
     );
     ok("视角进入评估请求", evalRequest.indexOf("审查视角：承租人") >= 0, evalRequest.slice(0, 40).replace(/\s+/g, " "));
+    const exportLabel = await cdp.eval(`document.querySelector("#btn-export").textContent`);
+    const docxCheck = await cdp.eval(`(async () => {
+      const b = WB.buildDocx({
+        contractType: "房屋租赁合同", stanceLabel: "承租人",
+        findings: [], lowRiskClauses: [], summary: "测试", dateText: "2026-11-24"
+      });
+      return { type: b.type, size: b.size };
+    })()`);
+    ok(
+      "Word 导出 .docx",
+      exportLabel.indexOf(".docx") >= 0 &&
+        docxCheck.type.indexOf("openxmlformats") >= 0 && docxCheck.size > 1000,
+      `${exportLabel.trim()} · ${docxCheck.size}B`
+    );
     await shot("ui-result-list.png");
 
     await cdp.eval(`document.querySelector("#risk-list .risk-item.high").click(); true`);
@@ -252,9 +266,30 @@ async function main() {
       title: document.querySelector("#ledger-title").value,
       type: document.querySelector("#ledger-type").value,
       status: document.querySelector("#ledger-status").value,
-      review: document.querySelector("#ledger-review-id").value
+      review: document.querySelector("#ledger-review-id").value,
+      counterparty: document.querySelector("#ledger-counterparty").value,
+      amount: document.querySelector("#ledger-amount").value,
+      start: document.querySelector("#ledger-start").value,
+      end: document.querySelector("#ledger-end").value,
+      paymentDate: document.querySelector("#ledger-payment-date").value,
+      paymentAmount: document.querySelector("#ledger-payment-amount").value,
+      note: document.querySelector("#ledger-note").value
     })`);
-    ok("加入台账预填", draft.title.length > 0 && draft.type === "房屋租赁合同" && draft.status === "待签" && draft.review.length > 0, JSON.stringify(draft));
+    ok(
+      "加入台账预填",
+      draft.title.length > 0 &&
+        draft.type === "房屋租赁合同" &&
+        draft.status === "待签" &&
+        draft.review.length > 0 &&
+        draft.counterparty === "张三" &&
+        draft.amount.indexOf("15,000") >= 0 &&
+        draft.start === "2026-06-01" &&
+        draft.end === "2029-05-31" &&
+        /-05$/.test(draft.paymentDate) &&
+        draft.paymentAmount === "15000" &&
+        draft.note.indexOf("押金") >= 0,
+      JSON.stringify(draft)
+    );
     await shot("ui-ledger-form.png");
 
     await cdp.eval(`(() => {

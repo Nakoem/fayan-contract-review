@@ -1647,12 +1647,24 @@
       toast("这份合同已在台账里");
       return;
     }
-    openLedgerForm(null, {
-      title: reviewTitle(state.lastContractText, ui.typeSelect.value),
-      contractType: ui.typeSelect.value,
+    const contractType = state.lastResult.contractType || ui.typeSelect.value;
+    const stance = state.lastResult.stance || (state.settings && state.settings.stance) || "neutral";
+    let draft = {};
+    try {
+      draft = WB.Ledger.extractDraft(state.lastContractText, { contractType, stance });
+    } catch (e) {
+      // 自动识别失败也要能正常打开台账表单，让用户手动填。
+      draft = {};
+    }
+    openLedgerForm(null, Object.assign({}, draft, {
+      title: reviewTitle(state.lastContractText, contractType),
+      contractType,
       status: "待签",
       reviewId: state.lastReviewId || "",
-    });
+    }));
+    const filled = ["counterparty", "amount", "startDate", "endDate", "paymentDate", "paymentAmount", "note"]
+      .filter((key) => draft[key]);
+    if (filled.length) toast("已自动带入合同信息，请核对");
   }
 
   function hideStates() {
@@ -2196,8 +2208,7 @@
 
   // ═════════════ 导出 / 复制 ═════════════
 
-  function downloadText(text, filename, type) {
-    const blob = new Blob([text], { type });
+  function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -2208,15 +2219,19 @@
     setTimeout(() => URL.revokeObjectURL(url), 1500);
   }
 
+  function downloadText(text, filename, type) {
+    downloadBlob(new Blob([text], { type }), filename);
+  }
+
   function safeFilename(name) {
     return String(name || "合同").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60) || "合同";
   }
 
   function exportDoc() {
     if (!state.lastResult) return;
-    const html = WB.buildDocHtml(state.lastResult.reportHtml || "", state.lastResult.contractType || "");
-    downloadText("﻿" + html, `合同审查报告-${dateStamp()}.doc`, "application/msword");
-    toast("报告已导出");
+    const blob = WB.buildDocx(state.lastResult);
+    downloadBlob(blob, `合同审查报告-${dateStamp()}.docx`);
+    toast("报告已导出（.docx）");
   }
 
   function dateStamp() {

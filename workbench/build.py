@@ -48,6 +48,7 @@ SCRIPT_ORDER = [
     "prompts.js",
     "llm.js",
     "pipeline.js",
+    "docx.js",
     "storage.js",
     "rule_store.js",
     "ledger.js",

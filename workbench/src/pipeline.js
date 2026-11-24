@@ -406,7 +406,48 @@
     return `<details class="basis-ref"><summary>法条参考</summary>${items}</details>`;
   }
 
-  function findingCardHTML(g, reportIndex) {
+  function isMissingClause(f) {
+    return Number(f && f.clause_index) === 0 ||
+      String((f && f.clause_text) || "").trim() === "（合同未约定）";
+  }
+
+  function findSourceClause(f, clauses) {
+    const idx = Number(f && f.clause_index) || 0;
+    const list = clauses || [];
+    if (idx) {
+      const byIdx = list.filter((c) => Number(c.index) === idx)[0];
+      if (byIdx) return byIdx;
+    }
+    const quote = normText(f && f.clause_text);
+    if (!quote || quote === normText("（合同未约定）")) return null;
+    return list.filter((c) => normText(c.text).indexOf(quote) >= 0)[0] || null;
+  }
+
+  // 同一条款里可能存在多个独立约定：finding 只摘录其中一个风险点，
+  // 这里把同条款中未出现在摘录里的其他句子显示出来，避免漏看。
+  function extraClauseText(f, clauses) {
+    const source = findSourceClause(f, clauses);
+    if (!source) return "";
+    const quote = normText(f.clause_text);
+    if (!quote || quote === normText("（合同未约定）")) return "";
+    const parts = String(source.text || "")
+      .split(/(?<=[。；;！？\n])/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return parts
+      .filter((s) => {
+        const n = normText(s);
+        if (!n) return false;
+        // 条款标题本身不作为“其他约定”
+        if (/^第[一二三四五六七八九十百千零〇\d]+条/.test(s) && n.length < 40) return false;
+        if (quote.indexOf(n) >= 0) return false;
+        if (n.length >= 20 && n.indexOf(quote) >= 0) return false;
+        return true;
+      })
+      .join(" ");
+  }
+
+  function findingCardHTML(g, reportIndex, clauses) {
     const levelCls = g.level === "高" ? "high" : g.level === "中" ? "mid" : "low";
     const markCls = g.level === "高" ? "mark-square" : g.level === "中" ? "mark-diamond" : "mark-ring";
     const names = [];
@@ -415,8 +456,13 @@
       if (names.indexOf(n) < 0) names.push(n);
     });
     const rows = g.findings.map((f) => {
+      const missing = isMissingClause(f);
+      const sourceLabel = missing ? "缺失条款" : "原文";
+      const sourceText = missing ? "本合同未约定该条款" : f.clause_text;
+      const extra = extraClauseText(f, clauses);
       return `<div class="finding-point">
-        <div class="finding-row"><span class="row-label">原文</span><p class="clause-quote">${WB.escapeHtml(f.clause_text)}</p></div>
+        <div class="finding-row"><span class="row-label">${sourceLabel}</span><p class="clause-quote${missing ? " clause-missing" : ""}">${WB.escapeHtml(sourceText)}</p></div>
+        ${extra ? `<div class="finding-row"><span class="row-label">其他约定</span><p class="clause-extra">${WB.escapeHtml(extra)}</p></div>` : ""}
         <div class="finding-row"><span class="row-label">风险说明</span><p>${WB.escapeHtml(f.risk_reason)}<span class="basis">依据：${WB.escapeHtml(f.basis)}</span></p></div>
         <div class="finding-row"><span class="row-label">修改建议</span><p>${WB.escapeHtml(f.suggestion)}</p></div>
         <button class="copy-btn" type="button" data-copy="${WB.escapeHtml(f.suggestion)}">复制修改条款</button>
@@ -441,7 +487,7 @@
     </section>`;
   }
 
-  WB.renderReport = function ({ contractType, stanceLabel, findings, lowRiskClauses, summary, dateText }) {
+  WB.renderReport = function ({ contractType, stanceLabel, clauses, findings, lowRiskClauses, summary, dateText }) {
     const groups = groupByClause(findings || []);
     const high = groups.filter((g) => g.level === "高");
     const mid = groups.filter((g) => g.level === "中");
@@ -463,8 +509,8 @@
     </div>
     <p class="overview-summary">${WB.escapeHtml(summary || "已完成审查，请结合下列风险点逐条核对。")}</p>`;
 
-    const highHTML = high.map((g, i) => findingCardHTML(g, i)).join("");
-    const midHTML = mid.map((g, i) => findingCardHTML(g, high.length + i)).join("");
+    const highHTML = high.map((g, i) => findingCardHTML(g, i, clauses)).join("");
+    const midHTML = mid.map((g, i) => findingCardHTML(g, high.length + i, clauses)).join("");
     const lowHTML = lows.length
       ? `<ol class="low-list">${lows.map((l) => `<li><span class="clause-quote">${WB.escapeHtml(l.clause_text)}</span><span class="low-reason">${WB.escapeHtml(l.reason)}</span></li>`).join("")}</ol>`
       : "";
@@ -530,29 +576,160 @@
     return html;
   };
 
-  WB.buildDocHtml = function (reportHtml, contractType) {
+  // Word 导出：不直接复用页面里的 reportHtml。Word 对 inline-block / details /
+  // button 的支持很差，这里用表格重新排版，保证打开后是一份正常的文档。
+  function wordText(value) {
+    return WB.escapeHtml(value == null ? "" : value).replace(/\n/g, "<br>");
+  }
+
+  function wordFindingHTML(group, clauses) {
+    const levelCls = group.level === "高" ? "high" : group.level === "中" ? "mid" : "low";
+    const names = [];
+    group.findings.forEach((f) => {
+      const name = f.rule_name || f.rule_id;
+      if (names.indexOf(name) < 0) names.push(name);
+    });
+
+    const rows = group.findings.map((f, rowIndex) => {
+      const missing = isMissingClause(f);
+      const sourceLabel = missing ? "缺失条款" : "原文";
+      const sourceText = missing ? "本合同未约定该条款" : f.clause_text;
+      const extra = extraClauseText(f, clauses);
+      const refs = (f.refs || []).map((r) =>
+        `<p class="ref"><span class="ref-title">${wordText(r.topic)}</span>：${wordText(r.text)}</p>`
+      ).join("");
+      const sep = rowIndex > 0
+        ? '<tr><td class="label sep" colspan="2"></td></tr>'
+        : "";
+      return `${sep}
+        <tr><td width="88" class="label">${sourceLabel}</td><td class="content quote${missing ? " missing" : ""}">${wordText(sourceText)}</td></tr>
+        ${extra ? `<tr><td width="88" class="label">其他约定</td><td class="content extra">${wordText(extra)}</td></tr>` : ""}
+        <tr><td width="88" class="label">风险说明</td><td class="content">${wordText(f.risk_reason)}<span class="basis">依据：${wordText(f.basis)}</span>${refs ? `<div class="ref-block"><div class="ref-title">法条参考</div>${refs}</div>` : ""}</td></tr>
+        <tr><td width="88" class="label">修改建议</td><td class="content">${wordText(f.suggestion)}</td></tr>`;
+    }).join("");
+
+    const levelColor = group.level === "高" ? "#b4352a" : group.level === "中" ? "#b8873a" : "#2f6e58";
+    const headBg = group.level === "高" ? "#fbeeeb" : group.level === "中" ? "#fbf4e6" : "#edf5f0";
+    return `<table class="finding finding-${levelCls}" cellspacing="0" cellpadding="0">
+      <colgroup><col width="88"><col></colgroup>
+      <tr><td colspan="2" class="finding-head" style="background:${headBg};border-top:3pt solid ${levelColor}"><span class="finding-name">${wordText(names.join(" / "))}</span>&nbsp;&nbsp;<span class="finding-level" style="color:${levelColor}">${group.level}风险</span></td></tr>
+      ${rows}
+    </table>`;
+  }
+
+  function wordLowHTML(lows) {
+    if (!lows.length) return '<p class="empty">（无）</p>';
+    return `<table class="low-table" cellspacing="0" cellpadding="0">
+      <tr><th class="low-clause">条款</th><th>说明</th></tr>
+      ${lows.map((l) => `<tr><td class="low-clause">${wordText(l.clause_text)}</td><td>${wordText(l.reason)}</td></tr>`).join("")}
+    </table>`;
+  }
+
+  function wordSection(title, body) {
+    return `<h2>${title}</h2>${body || '<p class="empty">（无）</p>'}`;
+  }
+
+  WB.buildDocHtml = function (result) {
+    const data = result || {};
+    const contractType = data.contractType || "合同";
+    const stanceLabel = data.stanceLabel || "中立（双方）";
+    const findings = data.findings || [];
+    const clauses = data.clauses || [];
+    const groups = groupByClause(findings);
+    const high = groups.filter((g) => g.level === "高");
+    const mid = groups.filter((g) => g.level === "中");
+    const lowGroups = groups.filter((g) => g.level === "低");
+    const lows = (data.lowRiskClauses || []).concat(lowGroups.map((g) => ({
+      clause_text: g.findings[0].clause_text,
+      reason: "综合评分偏低，可接受",
+    })));
+    const counts = {
+      high: high.length,
+      mid: mid.length,
+      low: lows.length,
+    };
+    const score = WB.computeScore(counts);
+    const advice = WB.signAdvice(counts.high);
+    const summary = data.summary || "已完成审查，请结合下列风险点逐条核对。";
+    const dateText = data.dateText || new Date().toLocaleDateString("zh-CN");
+    const highHTML = high.map((g) => wordFindingHTML(g, clauses)).join("");
+    const midHTML = mid.map((g) => wordFindingHTML(g, clauses)).join("");
+    const priorityHTML = `<table class="priority" cellspacing="0" cellpadding="0">
+      <tr><td class="p0">P0 必须改</td><td class="p1">P1 建议改</td><td class="p2">P2 可接受</td></tr>
+      <tr><td>${counts.high} 条</td><td>${counts.mid} 条</td><td>${counts.low} 条</td></tr>
+    </table>`;
+    const statsHTML = `<table class="stats" cellspacing="0" cellpadding="0">
+      <tr>
+        <td class="high"><div class="num">${counts.high}</div><div class="label">高风险</div></td>
+        <td class="mid"><div class="num">${counts.mid}</div><div class="label">中风险</div></td>
+        <td class="low"><div class="num">${counts.low}</div><div class="label">低风险</div></td>
+        <td class="score"><div class="num">${score}<span class="small">/100</span></div><div class="label">综合风险评分</div></td>
+      </tr>
+    </table>`;
+
     const css = `
-      body{font-family:"Noto Serif SC","SimSun",serif;color:#17171A;line-height:1.6;font-size:12pt;max-width:720px;margin:0 auto;padding:24px}
-      h2{font-size:22pt;margin:0 0 8px}
-      h3{font-size:14pt;border-bottom:1px solid #E3E0D8;padding-bottom:4px;margin:22px 0 10px}
-      .report-meta{color:#6B6B70;font-size:10pt}
-      .finding-card{border:1px solid #E3E0D8;border-left:4px solid #B4352A;padding:10px 14px;margin:10px 0;break-inside:avoid}
-      .finding-mid{border-left-color:#B8873A}.finding-low{border-left-color:#2F6E58}
-      .finding-head{font-weight:bold;margin-bottom:6px}
-      .finding-level{font-weight:normal;font-size:10pt;margin-left:8px}
-      .finding-row{display:block;margin:4px 0}
-      .row-label{display:inline-block;width:64px;color:#6B6B70;font-size:10pt;vertical-align:top}
-      .finding-row p{display:inline;margin:0}
-      .basis{color:#6B6B70;font-size:10pt;margin-left:8px}
-      .copy-btn{display:none}
-      .overview-grid{margin:8px 0}
-      .overview-stat{display:inline-block;margin-right:26px;vertical-align:top}
-      .stat-num{font-size:20pt;font-variant-numeric:tabular-nums}
-      .stat-label{color:#6B6B70;font-size:9pt}
-      .sign-advice{font-size:13pt}
-      .report-foot{margin-top:24px;padding-top:8px;border-top:1px solid #E3E0D8;color:#6B6B70;font-size:9pt}
+      @page WordSection1 { size:21.0cm 29.7cm; margin:2.0cm; }
+      div.WordSection1 { page:WordSection1; }
+      body { font-family:"宋体",SimSun,serif; font-size:10.5pt; line-height:1.65; color:#1f1f1f; margin:0; }
+      h1 { font-family:"黑体",SimHei,sans-serif; font-size:20pt; margin:0 0 6pt; letter-spacing:0.5pt; }
+      .meta { font-size:9.5pt; color:#666; margin:0 0 16pt; }
+      h2 { font-family:"黑体",SimHei,sans-serif; font-size:13.5pt; margin:16pt 0 8pt; padding-bottom:4pt; border-bottom:1pt solid #d8d3c7; page-break-after:avoid; }
+      p { margin:0 0 6pt; }
+      .summary { font-size:10.5pt; margin:10pt 0 0; }
+      .empty { color:#777; }
+      .small { font-size:9pt; font-weight:normal; color:#666; }
+      .stats { width:100%; border-collapse:collapse; margin:8pt 0 10pt; mso-table-lspace:0pt; mso-table-rspace:0pt; }
+      .stats td { width:25%; border:1pt solid #e0dcd2; padding:8pt 6pt; text-align:center; vertical-align:middle; }
+      .stats .num { font-size:20pt; font-weight:bold; line-height:1.1; }
+      .stats .label { font-size:9pt; color:#666; }
+      .stats .high { background:#fbeeeb; } .stats .mid { background:#fbf4e6; } .stats .low { background:#edf5f0; } .stats .score { background:#f5f3ee; }
+      .finding { width:100%; table-layout:fixed; border-collapse:collapse; margin:0 0 12pt; border:1pt solid #e0dcd2; page-break-inside:avoid; mso-table-lspace:0pt; mso-table-rspace:0pt; }
+      .finding-high { border-left:4pt solid #b4352a; }
+      .finding-mid { border-left:4pt solid #b8873a; }
+      .finding-low { border-left:4pt solid #2f6e58; }
+      .finding-head { background:#f7f4ee; padding:6pt 8pt; font-weight:bold; font-size:11.5pt; }
+      .finding-high .finding-head { background:#fbeeeb; }
+      .finding-mid .finding-head { background:#fbf4e6; }
+      .finding-low .finding-head { background:#edf5f0; }
+      .finding-name { margin-right:8pt; }
+      .finding-level { font-size:9.5pt; font-weight:bold; }
+      .level-high { color:#b4352a; } .level-mid { color:#b8873a; } .level-low { color:#2f6e58; }
+      .finding td.label { width:80pt; white-space:nowrap; padding:5pt 6pt 5pt 8pt; color:#666; font-size:9.5pt; vertical-align:top; border-top:1pt solid #eee9df; }
+      .finding td.content { padding:5pt 8pt; vertical-align:top; border-top:1pt solid #eee9df; }
+      .finding tr, .low-table tr { page-break-inside:avoid; }
+      .quote { color:#111; }
+      .missing { color:#777; }
+      .extra { color:#666; }
+      .basis { display:block; color:#666; font-size:9pt; margin-top:2pt; }
+      .ref-block { margin-top:4pt; padding:4pt 6pt; background:#f7f5ef; border-left:2pt solid #cfc8b8; font-size:9pt; color:#555; }
+      .ref-title { font-weight:bold; color:#333; }
+      .ref { margin:2pt 0 0; }
+      .low-table { width:100%; table-layout:fixed; border-collapse:collapse; margin:0 0 10pt; mso-table-lspace:0pt; mso-table-rspace:0pt; }
+      .low-table th { background:#f5f3ee; border:1pt solid #e0dcd2; padding:5pt 6pt; font-size:9.5pt; text-align:left; }
+      .low-table td { border:1pt solid #e0dcd2; padding:5pt 6pt; vertical-align:top; font-size:9.5pt; }
+      .low-clause { width:42%; color:#333; }
+      .priority { width:100%; border-collapse:collapse; margin:4pt 0 8pt; }
+      .priority td { border:1pt solid #e0dcd2; padding:6pt; text-align:center; font-size:10pt; }
+      .p0 { color:#b4352a; font-weight:bold; } .p1 { color:#b8873a; font-weight:bold; } .p2 { color:#2f6e58; font-weight:bold; }
+      .sign-advice { font-size:13pt; font-weight:bold; margin:6pt 0 14pt; }
+      .footer { margin-top:18pt; padding-top:6pt; border-top:1pt solid #e0dcd2; color:#777; font-size:8.5pt; }
     `;
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>合同审查报告</title><style>${css}</style></head><body>${reportHtml}</body></html>`;
+
+    return `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>合同审查报告</title>
+      <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
+      <style>${css}</style></head><body><div class="WordSection1">
+      <h1>合同审查报告</h1>
+      <p class="meta">合同类型：${wordText(contractType)}　·　审查视角：${wordText(stanceLabel)}　·　审查日期：${wordText(dateText)}</p>
+      <h2>一、总体风险概览</h2>
+      ${statsHTML}
+      <p class="summary">${wordText(summary)}</p>
+      ${wordSection("二、高风险条款详解", highHTML)}
+      ${wordSection("三、需关注的中风险条款", midHTML)}
+      ${wordSection("四、低风险条款（可接受）", wordLowHTML(lows))}
+      ${wordSection("五、修改优先级建议", priorityHTML)}
+      ${wordSection("六、签约建议", `<p class="sign-advice">${wordText(advice.text)}</p>`)}
+      <p class="footer">${wordText((WB.REPORT_LABELS && WB.REPORT_LABELS.disclaimer) || "本工具输出为 AI 辅助结果，不构成法律意见。正式签署前请由执业律师复核。")}</p>
+      </div></body></html>`;
   };
 
   // ───────────────────────── JSON 调用（解析失败自动换模式重试） ─────────────────────────
@@ -756,14 +933,17 @@
     const t5 = Date.now();
     const findings = unmaskList(check.findings);
     const lows = unmaskList(check.lowRiskClauses);
+    const reportClauses = WB.unmaskDeep(clauses, maskMap);
     const summary = WB.unmaskText(String(evalJson.summary || "").trim(), maskMap);
+    const dateText = new Date().toLocaleDateString("zh-CN");
     const reportHtml = WB.renderReport({
       contractType,
       stanceLabel: stanceName,
+      clauses: reportClauses,
       findings,
       lowRiskClauses: lows,
       summary,
-      dateText: new Date().toLocaleDateString("zh-CN"),
+      dateText,
     });
     timings.report = Date.now() - t5;
     timings.total = Date.now() - startAll;
@@ -781,7 +961,8 @@
       contractType,
       stance: stance || "neutral",
       stanceLabel: stanceName,
-      clauses,
+      dateText,
+      clauses: reportClauses,
       matchedRules,
       regSnippets,
       findings,

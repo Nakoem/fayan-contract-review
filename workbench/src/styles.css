@@ -816,6 +816,8 @@ mark.hl-beam-source {
 .row-label { width: auto; padding-top: 1px; color: var(--muted); font-size: 11px; letter-spacing: 0; }
 .finding-row p { display: block; margin: 0; }
 .clause-quote { font-family: var(--sans); color: var(--ink); }
+.clause-quote.clause-missing { color: var(--muted); font-style: normal; }
+.clause-extra { color: var(--muted); }
 .finding-row .clause-quote { border-left: 1px solid var(--line); padding-left: 10px; }
 .basis { display: block; color: var(--muted); font-size: 11px; margin: 6px 0 0; white-space: normal; }
 .copy-btn {

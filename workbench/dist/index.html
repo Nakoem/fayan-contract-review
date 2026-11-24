@@ -824,6 +824,8 @@ mark.hl-beam-source {
 .row-label { width: auto; padding-top: 1px; color: var(--muted); font-size: 11px; letter-spacing: 0; }
 .finding-row p { display: block; margin: 0; }
 .clause-quote { font-family: var(--sans); color: var(--ink); }
+.clause-quote.clause-missing { color: var(--muted); font-style: normal; }
+.clause-extra { color: var(--muted); }
 .finding-row .clause-quote { border-left: 1px solid var(--line); padding-left: 10px; }
 .basis { display: block; color: var(--muted); font-size: 11px; margin: 6px 0 0; white-space: normal; }
 .copy-btn {
@@ -2325,7 +2327,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: rgba(63
             <div class="result-stats" id="result-stats"></div>
             <div class="result-actions">
               <button id="btn-add-ledger" class="btn btn-ghost" type="button"><span data-icon="ledger"></span>加入台账</button>
-              <button id="btn-export" class="btn btn-ghost" type="button"><span data-icon="export"></span>导出 .doc</button>
+              <button id="btn-export" class="btn btn-ghost" type="button"><span data-icon="export"></span>导出 .docx</button>
               <button id="btn-print" class="btn btn-ghost" type="button">打印</button>
               <button id="btn-new" class="btn btn-primary" type="button">审下一份</button>
             </div>
@@ -4214,7 +4216,48 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
     return `<details class="basis-ref"><summary>法条参考</summary>${items}</details>`;
   }
 
-  function findingCardHTML(g, reportIndex) {
+  function isMissingClause(f) {
+    return Number(f && f.clause_index) === 0 ||
+      String((f && f.clause_text) || "").trim() === "（合同未约定）";
+  }
+
+  function findSourceClause(f, clauses) {
+    const idx = Number(f && f.clause_index) || 0;
+    const list = clauses || [];
+    if (idx) {
+      const byIdx = list.filter((c) => Number(c.index) === idx)[0];
+      if (byIdx) return byIdx;
+    }
+    const quote = normText(f && f.clause_text);
+    if (!quote || quote === normText("（合同未约定）")) return null;
+    return list.filter((c) => normText(c.text).indexOf(quote) >= 0)[0] || null;
+  }
+
+  // 同一条款里可能存在多个独立约定：finding 只摘录其中一个风险点，
+  // 这里把同条款中未出现在摘录里的其他句子显示出来，避免漏看。
+  function extraClauseText(f, clauses) {
+    const source = findSourceClause(f, clauses);
+    if (!source) return "";
+    const quote = normText(f.clause_text);
+    if (!quote || quote === normText("（合同未约定）")) return "";
+    const parts = String(source.text || "")
+      .split(/(?<=[。；;！？\n])/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return parts
+      .filter((s) => {
+        const n = normText(s);
+        if (!n) return false;
+        // 条款标题本身不作为“其他约定”
+        if (/^第[一二三四五六七八九十百千零〇\d]+条/.test(s) && n.length < 40) return false;
+        if (quote.indexOf(n) >= 0) return false;
+        if (n.length >= 20 && n.indexOf(quote) >= 0) return false;
+        return true;
+      })
+      .join(" ");
+  }
+
+  function findingCardHTML(g, reportIndex, clauses) {
     const levelCls = g.level === "高" ? "high" : g.level === "中" ? "mid" : "low";
     const markCls = g.level === "高" ? "mark-square" : g.level === "中" ? "mark-diamond" : "mark-ring";
     const names = [];
@@ -4223,8 +4266,13 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
       if (names.indexOf(n) < 0) names.push(n);
     });
     const rows = g.findings.map((f) => {
+      const missing = isMissingClause(f);
+      const sourceLabel = missing ? "缺失条款" : "原文";
+      const sourceText = missing ? "本合同未约定该条款" : f.clause_text;
+      const extra = extraClauseText(f, clauses);
       return `<div class="finding-point">
-        <div class="finding-row"><span class="row-label">原文</span><p class="clause-quote">${WB.escapeHtml(f.clause_text)}</p></div>
+        <div class="finding-row"><span class="row-label">${sourceLabel}</span><p class="clause-quote${missing ? " clause-missing" : ""}">${WB.escapeHtml(sourceText)}</p></div>
+        ${extra ? `<div class="finding-row"><span class="row-label">其他约定</span><p class="clause-extra">${WB.escapeHtml(extra)}</p></div>` : ""}
         <div class="finding-row"><span class="row-label">风险说明</span><p>${WB.escapeHtml(f.risk_reason)}<span class="basis">依据：${WB.escapeHtml(f.basis)}</span></p></div>
         <div class="finding-row"><span class="row-label">修改建议</span><p>${WB.escapeHtml(f.suggestion)}</p></div>
         <button class="copy-btn" type="button" data-copy="${WB.escapeHtml(f.suggestion)}">复制修改条款</button>
@@ -4249,7 +4297,7 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
     </section>`;
   }
 
-  WB.renderReport = function ({ contractType, stanceLabel, findings, lowRiskClauses, summary, dateText }) {
+  WB.renderReport = function ({ contractType, stanceLabel, clauses, findings, lowRiskClauses, summary, dateText }) {
     const groups = groupByClause(findings || []);
     const high = groups.filter((g) => g.level === "高");
     const mid = groups.filter((g) => g.level === "中");
@@ -4271,8 +4319,8 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
     </div>
     <p class="overview-summary">${WB.escapeHtml(summary || "已完成审查，请结合下列风险点逐条核对。")}</p>`;
 
-    const highHTML = high.map((g, i) => findingCardHTML(g, i)).join("");
-    const midHTML = mid.map((g, i) => findingCardHTML(g, high.length + i)).join("");
+    const highHTML = high.map((g, i) => findingCardHTML(g, i, clauses)).join("");
+    const midHTML = mid.map((g, i) => findingCardHTML(g, high.length + i, clauses)).join("");
     const lowHTML = lows.length
       ? `<ol class="low-list">${lows.map((l) => `<li><span class="clause-quote">${WB.escapeHtml(l.clause_text)}</span><span class="low-reason">${WB.escapeHtml(l.reason)}</span></li>`).join("")}</ol>`
       : "";
@@ -4338,29 +4386,160 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
     return html;
   };
 
-  WB.buildDocHtml = function (reportHtml, contractType) {
+  // Word 导出：不直接复用页面里的 reportHtml。Word 对 inline-block / details /
+  // button 的支持很差，这里用表格重新排版，保证打开后是一份正常的文档。
+  function wordText(value) {
+    return WB.escapeHtml(value == null ? "" : value).replace(/\n/g, "<br>");
+  }
+
+  function wordFindingHTML(group, clauses) {
+    const levelCls = group.level === "高" ? "high" : group.level === "中" ? "mid" : "low";
+    const names = [];
+    group.findings.forEach((f) => {
+      const name = f.rule_name || f.rule_id;
+      if (names.indexOf(name) < 0) names.push(name);
+    });
+
+    const rows = group.findings.map((f, rowIndex) => {
+      const missing = isMissingClause(f);
+      const sourceLabel = missing ? "缺失条款" : "原文";
+      const sourceText = missing ? "本合同未约定该条款" : f.clause_text;
+      const extra = extraClauseText(f, clauses);
+      const refs = (f.refs || []).map((r) =>
+        `<p class="ref"><span class="ref-title">${wordText(r.topic)}</span>：${wordText(r.text)}</p>`
+      ).join("");
+      const sep = rowIndex > 0
+        ? '<tr><td class="label sep" colspan="2"></td></tr>'
+        : "";
+      return `${sep}
+        <tr><td width="88" class="label">${sourceLabel}</td><td class="content quote${missing ? " missing" : ""}">${wordText(sourceText)}</td></tr>
+        ${extra ? `<tr><td width="88" class="label">其他约定</td><td class="content extra">${wordText(extra)}</td></tr>` : ""}
+        <tr><td width="88" class="label">风险说明</td><td class="content">${wordText(f.risk_reason)}<span class="basis">依据：${wordText(f.basis)}</span>${refs ? `<div class="ref-block"><div class="ref-title">法条参考</div>${refs}</div>` : ""}</td></tr>
+        <tr><td width="88" class="label">修改建议</td><td class="content">${wordText(f.suggestion)}</td></tr>`;
+    }).join("");
+
+    const levelColor = group.level === "高" ? "#b4352a" : group.level === "中" ? "#b8873a" : "#2f6e58";
+    const headBg = group.level === "高" ? "#fbeeeb" : group.level === "中" ? "#fbf4e6" : "#edf5f0";
+    return `<table class="finding finding-${levelCls}" cellspacing="0" cellpadding="0">
+      <colgroup><col width="88"><col></colgroup>
+      <tr><td colspan="2" class="finding-head" style="background:${headBg};border-top:3pt solid ${levelColor}"><span class="finding-name">${wordText(names.join(" / "))}</span>&nbsp;&nbsp;<span class="finding-level" style="color:${levelColor}">${group.level}风险</span></td></tr>
+      ${rows}
+    </table>`;
+  }
+
+  function wordLowHTML(lows) {
+    if (!lows.length) return '<p class="empty">（无）</p>';
+    return `<table class="low-table" cellspacing="0" cellpadding="0">
+      <tr><th class="low-clause">条款</th><th>说明</th></tr>
+      ${lows.map((l) => `<tr><td class="low-clause">${wordText(l.clause_text)}</td><td>${wordText(l.reason)}</td></tr>`).join("")}
+    </table>`;
+  }
+
+  function wordSection(title, body) {
+    return `<h2>${title}</h2>${body || '<p class="empty">（无）</p>'}`;
+  }
+
+  WB.buildDocHtml = function (result) {
+    const data = result || {};
+    const contractType = data.contractType || "合同";
+    const stanceLabel = data.stanceLabel || "中立（双方）";
+    const findings = data.findings || [];
+    const clauses = data.clauses || [];
+    const groups = groupByClause(findings);
+    const high = groups.filter((g) => g.level === "高");
+    const mid = groups.filter((g) => g.level === "中");
+    const lowGroups = groups.filter((g) => g.level === "低");
+    const lows = (data.lowRiskClauses || []).concat(lowGroups.map((g) => ({
+      clause_text: g.findings[0].clause_text,
+      reason: "综合评分偏低，可接受",
+    })));
+    const counts = {
+      high: high.length,
+      mid: mid.length,
+      low: lows.length,
+    };
+    const score = WB.computeScore(counts);
+    const advice = WB.signAdvice(counts.high);
+    const summary = data.summary || "已完成审查，请结合下列风险点逐条核对。";
+    const dateText = data.dateText || new Date().toLocaleDateString("zh-CN");
+    const highHTML = high.map((g) => wordFindingHTML(g, clauses)).join("");
+    const midHTML = mid.map((g) => wordFindingHTML(g, clauses)).join("");
+    const priorityHTML = `<table class="priority" cellspacing="0" cellpadding="0">
+      <tr><td class="p0">P0 必须改</td><td class="p1">P1 建议改</td><td class="p2">P2 可接受</td></tr>
+      <tr><td>${counts.high} 条</td><td>${counts.mid} 条</td><td>${counts.low} 条</td></tr>
+    </table>`;
+    const statsHTML = `<table class="stats" cellspacing="0" cellpadding="0">
+      <tr>
+        <td class="high"><div class="num">${counts.high}</div><div class="label">高风险</div></td>
+        <td class="mid"><div class="num">${counts.mid}</div><div class="label">中风险</div></td>
+        <td class="low"><div class="num">${counts.low}</div><div class="label">低风险</div></td>
+        <td class="score"><div class="num">${score}<span class="small">/100</span></div><div class="label">综合风险评分</div></td>
+      </tr>
+    </table>`;
+
     const css = `
-      body{font-family:"Noto Serif SC","SimSun",serif;color:#17171A;line-height:1.6;font-size:12pt;max-width:720px;margin:0 auto;padding:24px}
-      h2{font-size:22pt;margin:0 0 8px}
-      h3{font-size:14pt;border-bottom:1px solid #E3E0D8;padding-bottom:4px;margin:22px 0 10px}
-      .report-meta{color:#6B6B70;font-size:10pt}
-      .finding-card{border:1px solid #E3E0D8;border-left:4px solid #B4352A;padding:10px 14px;margin:10px 0;break-inside:avoid}
-      .finding-mid{border-left-color:#B8873A}.finding-low{border-left-color:#2F6E58}
-      .finding-head{font-weight:bold;margin-bottom:6px}
-      .finding-level{font-weight:normal;font-size:10pt;margin-left:8px}
-      .finding-row{display:block;margin:4px 0}
-      .row-label{display:inline-block;width:64px;color:#6B6B70;font-size:10pt;vertical-align:top}
-      .finding-row p{display:inline;margin:0}
-      .basis{color:#6B6B70;font-size:10pt;margin-left:8px}
-      .copy-btn{display:none}
-      .overview-grid{margin:8px 0}
-      .overview-stat{display:inline-block;margin-right:26px;vertical-align:top}
-      .stat-num{font-size:20pt;font-variant-numeric:tabular-nums}
-      .stat-label{color:#6B6B70;font-size:9pt}
-      .sign-advice{font-size:13pt}
-      .report-foot{margin-top:24px;padding-top:8px;border-top:1px solid #E3E0D8;color:#6B6B70;font-size:9pt}
+      @page WordSection1 { size:21.0cm 29.7cm; margin:2.0cm; }
+      div.WordSection1 { page:WordSection1; }
+      body { font-family:"宋体",SimSun,serif; font-size:10.5pt; line-height:1.65; color:#1f1f1f; margin:0; }
+      h1 { font-family:"黑体",SimHei,sans-serif; font-size:20pt; margin:0 0 6pt; letter-spacing:0.5pt; }
+      .meta { font-size:9.5pt; color:#666; margin:0 0 16pt; }
+      h2 { font-family:"黑体",SimHei,sans-serif; font-size:13.5pt; margin:16pt 0 8pt; padding-bottom:4pt; border-bottom:1pt solid #d8d3c7; page-break-after:avoid; }
+      p { margin:0 0 6pt; }
+      .summary { font-size:10.5pt; margin:10pt 0 0; }
+      .empty { color:#777; }
+      .small { font-size:9pt; font-weight:normal; color:#666; }
+      .stats { width:100%; border-collapse:collapse; margin:8pt 0 10pt; mso-table-lspace:0pt; mso-table-rspace:0pt; }
+      .stats td { width:25%; border:1pt solid #e0dcd2; padding:8pt 6pt; text-align:center; vertical-align:middle; }
+      .stats .num { font-size:20pt; font-weight:bold; line-height:1.1; }
+      .stats .label { font-size:9pt; color:#666; }
+      .stats .high { background:#fbeeeb; } .stats .mid { background:#fbf4e6; } .stats .low { background:#edf5f0; } .stats .score { background:#f5f3ee; }
+      .finding { width:100%; table-layout:fixed; border-collapse:collapse; margin:0 0 12pt; border:1pt solid #e0dcd2; page-break-inside:avoid; mso-table-lspace:0pt; mso-table-rspace:0pt; }
+      .finding-high { border-left:4pt solid #b4352a; }
+      .finding-mid { border-left:4pt solid #b8873a; }
+      .finding-low { border-left:4pt solid #2f6e58; }
+      .finding-head { background:#f7f4ee; padding:6pt 8pt; font-weight:bold; font-size:11.5pt; }
+      .finding-high .finding-head { background:#fbeeeb; }
+      .finding-mid .finding-head { background:#fbf4e6; }
+      .finding-low .finding-head { background:#edf5f0; }
+      .finding-name { margin-right:8pt; }
+      .finding-level { font-size:9.5pt; font-weight:bold; }
+      .level-high { color:#b4352a; } .level-mid { color:#b8873a; } .level-low { color:#2f6e58; }
+      .finding td.label { width:80pt; white-space:nowrap; padding:5pt 6pt 5pt 8pt; color:#666; font-size:9.5pt; vertical-align:top; border-top:1pt solid #eee9df; }
+      .finding td.content { padding:5pt 8pt; vertical-align:top; border-top:1pt solid #eee9df; }
+      .finding tr, .low-table tr { page-break-inside:avoid; }
+      .quote { color:#111; }
+      .missing { color:#777; }
+      .extra { color:#666; }
+      .basis { display:block; color:#666; font-size:9pt; margin-top:2pt; }
+      .ref-block { margin-top:4pt; padding:4pt 6pt; background:#f7f5ef; border-left:2pt solid #cfc8b8; font-size:9pt; color:#555; }
+      .ref-title { font-weight:bold; color:#333; }
+      .ref { margin:2pt 0 0; }
+      .low-table { width:100%; table-layout:fixed; border-collapse:collapse; margin:0 0 10pt; mso-table-lspace:0pt; mso-table-rspace:0pt; }
+      .low-table th { background:#f5f3ee; border:1pt solid #e0dcd2; padding:5pt 6pt; font-size:9.5pt; text-align:left; }
+      .low-table td { border:1pt solid #e0dcd2; padding:5pt 6pt; vertical-align:top; font-size:9.5pt; }
+      .low-clause { width:42%; color:#333; }
+      .priority { width:100%; border-collapse:collapse; margin:4pt 0 8pt; }
+      .priority td { border:1pt solid #e0dcd2; padding:6pt; text-align:center; font-size:10pt; }
+      .p0 { color:#b4352a; font-weight:bold; } .p1 { color:#b8873a; font-weight:bold; } .p2 { color:#2f6e58; font-weight:bold; }
+      .sign-advice { font-size:13pt; font-weight:bold; margin:6pt 0 14pt; }
+      .footer { margin-top:18pt; padding-top:6pt; border-top:1pt solid #e0dcd2; color:#777; font-size:8.5pt; }
     `;
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>合同审查报告</title><style>${css}</style></head><body>${reportHtml}</body></html>`;
+
+    return `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>合同审查报告</title>
+      <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
+      <style>${css}</style></head><body><div class="WordSection1">
+      <h1>合同审查报告</h1>
+      <p class="meta">合同类型：${wordText(contractType)}　·　审查视角：${wordText(stanceLabel)}　·　审查日期：${wordText(dateText)}</p>
+      <h2>一、总体风险概览</h2>
+      ${statsHTML}
+      <p class="summary">${wordText(summary)}</p>
+      ${wordSection("二、高风险条款详解", highHTML)}
+      ${wordSection("三、需关注的中风险条款", midHTML)}
+      ${wordSection("四、低风险条款（可接受）", wordLowHTML(lows))}
+      ${wordSection("五、修改优先级建议", priorityHTML)}
+      ${wordSection("六、签约建议", `<p class="sign-advice">${wordText(advice.text)}</p>`)}
+      <p class="footer">${wordText((WB.REPORT_LABELS && WB.REPORT_LABELS.disclaimer) || "本工具输出为 AI 辅助结果，不构成法律意见。正式签署前请由执业律师复核。")}</p>
+      </div></body></html>`;
   };
 
   // ───────────────────────── JSON 调用（解析失败自动换模式重试） ─────────────────────────
@@ -4564,14 +4743,17 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
     const t5 = Date.now();
     const findings = unmaskList(check.findings);
     const lows = unmaskList(check.lowRiskClauses);
+    const reportClauses = WB.unmaskDeep(clauses, maskMap);
     const summary = WB.unmaskText(String(evalJson.summary || "").trim(), maskMap);
+    const dateText = new Date().toLocaleDateString("zh-CN");
     const reportHtml = WB.renderReport({
       contractType,
       stanceLabel: stanceName,
+      clauses: reportClauses,
       findings,
       lowRiskClauses: lows,
       summary,
-      dateText: new Date().toLocaleDateString("zh-CN"),
+      dateText,
     });
     timings.report = Date.now() - t5;
     timings.total = Date.now() - startAll;
@@ -4589,7 +4771,8 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
       contractType,
       stance: stance || "neutral",
       stanceLabel: stanceName,
-      clauses,
+      dateText,
+      clauses: reportClauses,
       matchedRules,
       regSnippets,
       findings,
@@ -4622,6 +4805,130 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
       summary: String(json.summary || "").trim(),
     };
   }
+})(globalThis);
+
+</script>
+<script>
+/* 合同工作台 · Word 导出（真 .docx）
+ *
+ * 用 Office Open XML 的 altChunk 把已经排好版的报告 HTML 交给 Word 导入：
+ * - 外层是真正的 .docx（ZIP），Word 不再提示“扩展名与格式不一致”
+ * - 内容仍复用 buildDocHtml 的表格排版，不需要维护两套 Word 生成逻辑
+ * - 不依赖任何第三方库，单文件构建可直接内联
+ */
+(function (root) {
+  const WB = (root.WB = root.WB || {});
+
+  const MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  const enc = new TextEncoder();
+
+  const CRC_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) {
+        c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      }
+      table[n] = c >>> 0;
+    }
+    return table;
+  })();
+
+  function crc32(data) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < data.length; i++) {
+      c = CRC_TABLE[(c ^ data[i]) & 0xFF] ^ (c >>> 8);
+    }
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function bytes(parts) {
+    let total = 0;
+    parts.forEach((p) => { total += p.length; });
+    const out = new Uint8Array(total);
+    let at = 0;
+    parts.forEach((p) => {
+      out.set(p, at);
+      at += p.length;
+    });
+    return out;
+  }
+
+  const u16 = (n) => new Uint8Array([n & 255, (n >>> 8) & 255]);
+  const u32 = (n) => new Uint8Array([
+    n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255,
+  ]);
+
+  // Store（不压缩）ZIP。DOCX 很小，省掉压缩后仍只有几十 KB。
+  function zipStore(files) {
+    const localChunks = [];
+    const central = [];
+    let offset = 0;
+
+    files.forEach((file) => {
+      const name = enc.encode(file.name);
+      const data = typeof file.data === "string" ? enc.encode(file.data) : file.data;
+      const crc = crc32(data);
+      const localHeader = bytes([
+        u32(0x04034B50), u16(20), u16(0x0800), u16(0), u16(0), u16(0),
+        u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0), name,
+      ]);
+      localChunks.push(localHeader, data);
+      central.push({ name, crc, size: data.length, offset });
+      offset += localHeader.length + data.length;
+    });
+
+    const centralStart = offset;
+    const centralChunks = [];
+    central.forEach((entry) => {
+      centralChunks.push(bytes([
+        u32(0x02014B50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0),
+        u32(entry.crc), u32(entry.size), u32(entry.size), u16(entry.name.length),
+        u16(0), u16(0), u16(0), u16(0), u32(0), u32(entry.offset), entry.name,
+      ]));
+    });
+    const centralSize = centralChunks.reduce((sum, c) => sum + c.length, 0);
+    const end = bytes([
+      u32(0x06054B50), u16(0), u16(0), u16(central.length), u16(central.length),
+      u32(centralSize), u32(centralStart), u16(0),
+    ]);
+
+    return new Blob(localChunks.concat(centralChunks, [end]), { type: MIME });
+  }
+
+  const CONTENT_TYPES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Default Extension="html" ContentType="text/html"/>
+<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`;
+
+  const ROOT_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+
+  const DOC_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="htmlChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="afchunk.html"/>
+</Relationships>`;
+
+  const DOCUMENT = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<w:body><w:altChunk r:id="htmlChunk"/><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body>
+</w:document>`;
+
+  WB.buildDocx = function (result) {
+    const html = WB.buildDocHtml(result || {});
+    return zipStore([
+      { name: "[Content_Types].xml", data: CONTENT_TYPES },
+      { name: "_rels/.rels", data: ROOT_RELS },
+      { name: "word/document.xml", data: DOCUMENT },
+      { name: "word/_rels/document.xml.rels", data: DOC_RELS },
+      { name: "word/afchunk.html", data: html },
+    ]);
+  };
 })(globalThis);
 
 </script>
@@ -5518,6 +5825,463 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
     return rows.join("\r\n") + "\r\n";
   }
 
+  // ── 加入台账时的合同信息自动识别 ──
+  // 全部在本地做，不额外调用模型；识别不到的字段留空，保存前可改。
+  const PARTY_ROLE_MAP = {
+    "出租方": "landlord",
+    "出租人": "landlord",
+    "房东": "landlord",
+    "承租方": "tenant",
+    "承租人": "tenant",
+    "租客": "tenant",
+    "租户": "tenant",
+    "用人单位": "employer",
+    "用工方": "employer",
+    "用工单位": "employer",
+    "聘用方": "employer",
+    "劳动者": "employee",
+    "员工": "employee",
+    "职工": "employee",
+    "受聘人": "employee",
+    "卖方": "seller",
+    "出卖人": "seller",
+    "供货方": "seller",
+    "供货商": "seller",
+    "供方": "seller",
+    "供应方": "seller",
+    "供应商": "seller",
+    "买方": "buyer",
+    "买受人": "buyer",
+    "采购方": "buyer",
+    "采购人": "buyer",
+    "需方": "buyer",
+    "需求方": "buyer",
+    "订购方": "buyer",
+    "客户": "buyer",
+    "委托方": "client",
+    "委托人": "client",
+    "委托单位": "client",
+    "发包方": "client",
+    "服务方": "provider",
+    "受托方": "provider",
+    "服务商": "provider",
+    "服务提供方": "provider",
+    "承包方": "provider",
+    "承接方": "provider",
+    "出借方": "lender",
+    "出借人": "lender",
+    "贷款方": "lender",
+    "贷款人": "lender",
+    "借款方": "borrower",
+    "借款人": "borrower",
+    "合作方A": "partyA",
+    "合作方B": "partyB",
+    "A方": "partyA",
+    "B方": "partyB",
+  };
+
+  const PARTY_DEFAULT_ROLE = {
+    "房屋租赁合同": { a: "landlord", b: "tenant" },
+    "劳动合同": { a: "employer", b: "employee" },
+    "买卖合同": { a: "seller", b: "buyer" },
+    "服务合同": { a: "client", b: "provider" },
+    "合作协议": { a: "partyA", b: "partyB" },
+    "借款合同": { a: "lender", b: "borrower" },
+  };
+
+  const OPPOSITE_ROLE = {
+    tenant: "landlord",
+    landlord: "tenant",
+    employee: "employer",
+    employer: "employee",
+    buyer: "seller",
+    seller: "buyer",
+    client: "provider",
+    provider: "client",
+    partyA: "partyB",
+    partyB: "partyA",
+    borrower: "lender",
+    lender: "borrower",
+  };
+
+  const DATE_SRC = "\\d{4}\\s*[年./-]\\s*\\d{1,2}\\s*[月./-]\\s*\\d{1,2}\\s*日?";
+
+  function own(obj, key) {
+    return Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : undefined;
+  }
+
+  function cleanPartyName(value) {
+    let s = String(value || "").split(/\r?\n/)[0].trim();
+    s = s.replace(/[（(](?:盖章|签字|签章)[）)]/g, "");
+    s = s.replace(/[（(]以下简称[^）)]*[）)]/g, "");
+    s = s.replace(/\s+(?:身份证号|身份证|电话|地址|法定代表人|统一社会信用代码|联系人|住所|住址)\s*[:：]?.*$/, "");
+    s = s.replace(/\s+/g, " ").trim();
+    if (!s) return "";
+    if (/^(甲方|乙方)[:：]?$/.test(s)) return "";
+    if (/(甲方|乙方)\s*[（(]?\s*(?:盖章|签字|签章)/.test(s)) return "";
+    if (/^(身份证|电话|地址|法定代表人|统一社会信用代码)/.test(s)) return "";
+    return s.slice(0, 80);
+  }
+
+  function extractParties(text) {
+    const head = String(text || "").slice(0, 5000);
+    const out = { a: "", b: "", roleA: "", roleB: "", byRole: {} };
+    const labelRe = /(甲方|乙方)\s*(?:[（(]([^）)]{1,20})[）)])?\s*[:：]\s*([^\n]{0,120})/g;
+    let m;
+    while ((m = labelRe.exec(head))) {
+      const side = m[1] === "甲方" ? "a" : "b";
+      const roleLabel = String(m[2] || "").replace(/\s+/g, "");
+      const role = own(PARTY_ROLE_MAP, roleLabel) || "";
+      const name = cleanPartyName(m[3]);
+      if (!name) continue;
+      if (!out[side]) out[side] = name;
+      if (role) {
+        if (side === "a" && !out.roleA) out.roleA = role;
+        if (side === "b" && !out.roleB) out.roleB = role;
+        if (!out.byRole[role]) out.byRole[role] = name;
+      }
+    }
+
+    const roleRe = new RegExp(`(${Object.keys(PARTY_ROLE_MAP).join("|")})\\s*(?:[（(]([^）)]{1,20})[）)])?\\s*[:：]\\s*([^\\n]{0,120})`, "g");
+    while ((m = roleRe.exec(head))) {
+      const role = own(PARTY_ROLE_MAP, m[1]);
+      const name = cleanPartyName(m[3]);
+      if (!role || !name) continue;
+      if (!out.byRole[role]) out.byRole[role] = name;
+      const paren = String(m[2] || "").replace(/\s+/g, "");
+      if (paren === "甲方" && !out.a) out.a = name;
+      if (paren === "乙方" && !out.b) out.b = name;
+      if (paren === "甲方" && !out.roleA) out.roleA = role;
+      if (paren === "乙方" && !out.roleB) out.roleB = role;
+    }
+    return out;
+  }
+
+  function pickCounterparty(parties, stance, contractType) {
+    const base = own(PARTY_DEFAULT_ROLE, contractType) || {};
+    const roleA = parties.roleA || base.a || "";
+    const roleB = parties.roleB || base.b || "";
+    const nameA = parties.a || (roleA ? parties.byRole[roleA] : "") || "";
+    const nameB = parties.b || (roleB ? parties.byRole[roleB] : "") || "";
+    const target = own(OPPOSITE_ROLE, stance);
+    if (target) {
+      if (parties.byRole[target]) return parties.byRole[target];
+      if (roleA === target && nameA) return nameA;
+      if (roleB === target && nameB) return nameB;
+    }
+    const both = [];
+    if (nameA) both.push(`甲方 ${nameA}`);
+    if (nameB) both.push(`乙方 ${nameB}`);
+    return both.join(" / ").slice(0, 80);
+  }
+
+  function normalizeDateToken(token) {
+    const m = /^(\d{4})\s*[年./-]\s*(\d{1,2})\s*[月./-]\s*(\d{1,2})\s*日?$/.exec(String(token || "").trim());
+    if (!m) return "";
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const d = Number(m[3]);
+    const date = new Date(y, mo - 1, d, 12, 0, 0, 0);
+    if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return "";
+    return `${y}-${pad(mo)}-${pad(d)}`;
+  }
+
+  function extractTerm(text) {
+    const src = String(text || "");
+    const rangeRe = new RegExp(`(${DATE_SRC})\\s*(?:起|开始)?[，,\\s]*(?:至|到|—|–|~|～|-)\\s*(${DATE_SRC})`, "g");
+    let best = null;
+    let m;
+    while ((m = rangeRe.exec(src))) {
+      const start = normalizeDateToken(m[1]);
+      const end = normalizeDateToken(m[2]);
+      if (!start || !end || end < start) continue;
+      const context = src.slice(Math.max(0, m.index - 40), m.index);
+      let score = 0;
+      if (/(合同期限|租赁期|租期|服务期|合作期限|借款期限|履行期限|有效期|合同期)/.test(context)) score += 3;
+      if (/(试用期|保修期|质保期|保密期|付款期|通知期)/.test(context)) score -= 3;
+      if (!best || score > best.score) best = { start, end, score };
+    }
+    if (best) return { start: best.start, end: best.end, source: "range" };
+
+    const endRe = new RegExp(`(?:有效期至|截止(?:日期)?|终止日期|到期日)[^。\\n]{0,8}?(${DATE_SRC})`);
+    const endMatch = endRe.exec(src);
+    if (endMatch) {
+      const end = normalizeDateToken(endMatch[1]);
+      if (end) return { start: "", end, source: "end" };
+    }
+    return { start: "", end: "", source: "" };
+  }
+
+  function extractSignDate(text) {
+    const re = new RegExp(`(?:签订|签署|签约|签字)日期\\s*[:：]?\\s*(${DATE_SRC})`);
+    const m = re.exec(String(text || ""));
+    return m ? normalizeDateToken(m[1]) : "";
+  }
+
+  function daysInMonth(year, monthIndex) {
+    return new Date(year, monthIndex + 1, 0).getDate();
+  }
+
+  function isoFromDate(date) {
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  }
+
+  function nextMonthlyDay(day, now) {
+    const today = now ? new Date(now) : new Date();
+    const y = today.getFullYear();
+    const m = today.getMonth();
+    const todayStart = new Date(y, m, today.getDate(), 0, 0, 0, 0);
+    let target = new Date(y, m, Math.min(day, daysInMonth(y, m)), 12, 0, 0, 0);
+    if (target < todayStart) {
+      const ny = m === 11 ? y + 1 : y;
+      const nm = (m + 1) % 12;
+      target = new Date(ny, nm, Math.min(day, daysInMonth(ny, nm)), 12, 0, 0, 0);
+    }
+    return isoFromDate(target);
+  }
+
+  function lastWorkday(year, monthIndex) {
+    const d = new Date(year, monthIndex + 1, 0, 12, 0, 0, 0);
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+    return d;
+  }
+
+  function nextLastWorkday(now) {
+    const today = now ? new Date(now) : new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+    let d = lastWorkday(today.getFullYear(), today.getMonth());
+    if (d < todayStart) d = lastWorkday(today.getFullYear(), today.getMonth() + 1);
+    return isoFromDate(d);
+  }
+
+  function todayIso(now) {
+    const d = now ? new Date(now) : new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  function extractPayment(text, now) {
+    const src = String(text || "");
+    const dayMatch = /每月\s*(\d{1,2})\s*(?:日|号)/.exec(src);
+    if (dayMatch) {
+      const day = Number(dayMatch[1]);
+      if (day >= 1 && day <= 31) return { date: nextMonthlyDay(day, now), schedule: "" };
+    }
+    if (/每月\s*最后(?:一个)?工作日/.test(src)) {
+      return { date: nextLastWorkday(now), schedule: "每月最后一个工作日" };
+    }
+    const today = todayIso(now);
+    const re = new RegExp(`(?:于|在)\\s*(${DATE_SRC})\\s*(?:前|之前)?\\s*(?:支付|付款|缴纳|转账|汇入)`, "g");
+    let m;
+    let best = "";
+    while ((m = re.exec(src))) {
+      const d = normalizeDateToken(m[1]);
+      if (d && d >= today && (!best || d < best)) best = d;
+    }
+    return { date: best, schedule: "" };
+  }
+
+  function moneyValue(numberText, unit) {
+    const n = Number(String(numberText || "").replace(/,/g, ""));
+    if (!isFinite(n) || n <= 0) return null;
+    return unit === "万元" ? Math.round(n * 10000) : n;
+  }
+
+  function moneyFrom(text, re) {
+    const m = re.exec(String(text || ""));
+    return m ? moneyValue(m[1], m[2]) : null;
+  }
+
+  function firstMoney(text, list) {
+    for (let i = 0; i < list.length; i++) {
+      const value = moneyFrom(text, list[i]);
+      if (value != null) return value;
+    }
+    return null;
+  }
+
+  function moneyText(value) {
+    return value == null ? "" : String(Math.round(value * 100) / 100);
+  }
+
+  function moneyDisplay(value) {
+    return value == null ? "" : Number(value).toLocaleString("zh-CN");
+  }
+
+  const CN_DIGITS = {
+    "零": 0,
+    "〇": 0,
+    "一": 1,
+    "二": 2,
+    "两": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+    "壹": 1,
+    "贰": 2,
+    "叁": 3,
+    "肆": 4,
+    "伍": 5,
+    "陆": 6,
+    "柒": 7,
+    "捌": 8,
+    "玖": 9,
+  };
+  const CN_UNITS = { "十": 10, "拾": 10, "百": 100, "佰": 100, "千": 1000, "仟": 1000 };
+  const CN_NUM = "零〇一二三四五六七八九壹贰叁肆伍陆柒捌玖两十拾百佰千仟万萬亿億";
+
+  function chineseNumber(text) {
+    let total = 0;
+    let section = 0;
+    let num = 0;
+    String(text || "").split("").forEach((ch) => {
+      const digit = own(CN_DIGITS, ch);
+      if (digit != null) {
+        num = digit;
+        return;
+      }
+      const unit = own(CN_UNITS, ch);
+      if (unit) {
+        if (!num) num = 1;
+        section += num * unit;
+        num = 0;
+        return;
+      }
+      if (ch === "万" || ch === "萬") {
+        section = (section + num) * 10000;
+        total += section;
+        section = 0;
+        num = 0;
+        return;
+      }
+      if (ch === "亿" || ch === "億") {
+        total = (total + section + num) * 100000000;
+        section = 0;
+        num = 0;
+      }
+    });
+    return total + section + num;
+  }
+
+  const TOTAL_LABEL = "合同总价款|合同总价|合同总金额|合同金额|项目总费用|项目总金额|项目费用|项目款|服务费总额|服务费总计|服务费合计|服务费总价|服务费|费用总额|总费用|总价款|总价|总金额|价款总额|价款|合同价款|合同额|租金总额|工资总额|年薪|货款总额|货款|采购总价|采购总额|成交价|成交金额|报酬总额|总报酬|借款金额|借款本金|借款总额|本金总额|本金|借款";
+  const TOTAL_RE = new RegExp(`(?:${TOTAL_LABEL})[^。\\n%；;]{0,24}?(?:人民币|RMB|¥|￥)\\s*(\\d[\\d,]*(?:\\.\\d+)?)\\s*(万元|元)?`);
+  const TOTAL_UNIT_RE = new RegExp(`(?:${TOTAL_LABEL})[^。\\n%；;]{0,24}?(\\d[\\d,]*(?:\\.\\d+)?)\\s*(万元|元)`);
+  const MONTHLY_LABEL = "月租金|月工资|月薪|每月租金|每月工资|基本工资|固定工资|月服务费|每月费用|租金(?!总额|总价|合计|总计)|工资(?!总额|总价|合计|总计)";
+  const MONTHLY_RE = new RegExp(`(?:${MONTHLY_LABEL})[^。\\n%；;]{0,20}?(?:人民币|¥|￥)\\s*(\\d[\\d,]*(?:\\.\\d+)?)\\s*(万元|元)?`);
+  const MONTHLY_UNIT_RE = new RegExp(`(?:${MONTHLY_LABEL})[^。\\n%；;]{0,20}?(\\d[\\d,]*(?:\\.\\d+)?)\\s*(万元|元)`);
+  const FIRST_TOTAL_RE = /(?:共计|合计)[^。\n%；;]{0,12}?(?:人民币|¥|￥)?\s*(\d[\d,]*(?:\.\d+)?)\s*(万元|元)/;
+  const FIRST_LABEL_RE = /(?:首次|首期|第一期|定金|预付款)[^。\n%；;]{0,30}?(?:人民币|¥|￥)\s*(\d[\d,]*(?:\.\d+)?)\s*(万元|元)?/;
+  const FIRST_UNIT_RE = /(?:首次|首期|第一期|定金|预付款)[^。\n%；;]{0,30}?(\d[\d,]*(?:\.\d+)?)\s*(万元|元)/;
+
+  const TOTAL_CN_RE = new RegExp(`(?:${TOTAL_LABEL})[^。\\n%；;]{0,24}?(?:人民币|RMB|¥|￥)?\\s*([${CN_NUM}]+)\\s*(?:元|圆)`);
+  const MONTHLY_CN_RE = new RegExp(`(?:${MONTHLY_LABEL})[^。\\n%；;]{0,20}?(?:人民币|¥|￥)?\\s*([${CN_NUM}]+)\\s*(?:元|圆)`);
+  const FIRST_CN_RE = /(?:共计|合计)[^。\n%；;]{0,12}?(?:人民币|¥|￥)?\s*([零〇一二三四五六七八九壹贰叁肆伍陆柒捌玖两十拾百佰千仟万萬亿億]+)\s*(?:元|圆)/;
+
+  function percentMoney(text) {
+    const m = /(?:支付|付款)[^。\n%]{0,16}?(\d+(?:\.\d+)?)%[（(]\s*(\d[\d,]*(?:\.\d+)?)\s*(万元|元)[）)]/.exec(String(text || ""));
+    return m ? moneyValue(m[2], m[3]) : null;
+  }
+
+  function moneyFromCn(text, re) {
+    const m = re.exec(String(text || ""));
+    if (!m) return null;
+    const n = chineseNumber(m[1]);
+    return n > 0 ? n : null;
+  }
+
+  function firstCnMoney(text, list) {
+    for (let i = 0; i < list.length; i++) {
+      const value = moneyFromCn(text, list[i]);
+      if (value != null) return value;
+    }
+    return null;
+  }
+
+  function extractMoney(text) {
+    let total = firstMoney(text, [TOTAL_RE, TOTAL_UNIT_RE]);
+    if (total == null) total = firstCnMoney(text, [TOTAL_CN_RE]);
+    let monthly = firstMoney(text, [MONTHLY_RE, MONTHLY_UNIT_RE]);
+    if (monthly == null) monthly = firstCnMoney(text, [MONTHLY_CN_RE]);
+    let first = firstMoney(text, [FIRST_TOTAL_RE, FIRST_LABEL_RE, FIRST_UNIT_RE]);
+    if (first == null) first = firstCnMoney(text, [FIRST_CN_RE]);
+    return {
+      total,
+      monthly,
+      first,
+      percent: percentMoney(text),
+    };
+  }
+
+  function extractNote(text, info) {
+    const src = String(text || "");
+    const parts = [];
+    if (info.startFromSign) parts.push("开始日期按签订日期带入");
+    const deposit = firstMoney(src, [
+      /押金[^。\n，,；;]{0,12}?(?:人民币|¥|￥)\s*(\d[\d,]*(?:\.\d+)?)\s*(万元|元)?/,
+      /押金[^。\n，,；;]{0,12}?(\d[\d,]*(?:\.\d+)?)\s*(万元|元)/,
+    ]);
+    if (deposit != null) parts.push(`押金 ${moneyDisplay(deposit)} 元`);
+    const rate = /(?:年利率|年化利率)(?:为|是)?\s*([\d.]+)\s*%/.exec(src);
+    if (rate) parts.push(`年利率 ${rate[1]}%`);
+    const probation = /试用期(?:为|是)?\s*(\d+)\s*(个月|月|年)/.exec(src);
+    if (probation) parts.push(`试用期 ${probation[1]}${probation[2]}`);
+    const term = /(?:租赁期|租期|合同期限|合作期限|借款期限|服务期|履行期限|有效期)(?:为|是|共|计|[:：])?\s*(\d{1,3}|[一二三四五六七八九十两]+)\s*(年|个月|月)/.exec(src);
+    if (term) parts.push(`期限 ${term[1]}${term[2]}`);
+    if (!term) {
+      const span = /(?:为期|期限为)\s*(\d+)\s*(个月|年)/.exec(src);
+      if (span) parts.push(`期限 ${span[1]}${span[2]}`);
+    }
+    if (info.schedule) parts.push(info.schedule);
+    if (/含税/.test(src)) parts.push("含税");
+    const split = /甲方[^。\n]{0,12}?享有\s*(\d+)%[^。\n]{0,20}?乙方[^。\n]{0,12}?享有\s*(\d+)%/.exec(src);
+    if (split) parts.push(`分成 ${split[1]}%/${split[2]}%`);
+    return parts.join("；").slice(0, 300);
+  }
+
+  function extractDraft(text, options) {
+    const src = String(text || "");
+    const opts = options || {};
+    const contractType = opts.contractType || "";
+    const stance = opts.stance || "neutral";
+    const parties = extractParties(src);
+    const money = extractMoney(src);
+    const term = extractTerm(src);
+    const payment = extractPayment(src, opts.now);
+    const signDate = extractSignDate(src);
+    let startDate = term.start;
+    let startFromSign = false;
+    if (!startDate && signDate) {
+      startDate = signDate;
+      startFromSign = true;
+    }
+    const amount = money.total != null
+      ? String(money.total)
+      : money.monthly != null
+        ? `${moneyDisplay(money.monthly)}/月`
+        : "";
+    const paymentAmount = money.monthly != null
+      ? String(money.monthly)
+      : money.first != null
+        ? String(money.first)
+        : money.percent != null
+          ? String(money.percent)
+          : "";
+    // 合同已经到期时，不再提示一个到期日之后的付款节点。
+    const paymentDate = payment.date && term.end && payment.date > term.end ? "" : payment.date;
+    return {
+      counterparty: pickCounterparty(parties, stance, contractType),
+      amount,
+      startDate,
+      endDate: term.end,
+      paymentDate,
+      paymentAmount,
+      note: extractNote(src, { startFromSign, schedule: payment.schedule }),
+    };
+  }
+
   WB.Ledger = {
     STATUSES,
     REMIND_DAYS,
@@ -5531,6 +6295,7 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
     createId,
     buildICS,
     buildCSV,
+    extractDraft,
   };
 })(globalThis);
 
@@ -7403,12 +8168,24 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
       toast("这份合同已在台账里");
       return;
     }
-    openLedgerForm(null, {
-      title: reviewTitle(state.lastContractText, ui.typeSelect.value),
-      contractType: ui.typeSelect.value,
+    const contractType = state.lastResult.contractType || ui.typeSelect.value;
+    const stance = state.lastResult.stance || (state.settings && state.settings.stance) || "neutral";
+    let draft = {};
+    try {
+      draft = WB.Ledger.extractDraft(state.lastContractText, { contractType, stance });
+    } catch (e) {
+      // 自动识别失败也要能正常打开台账表单，让用户手动填。
+      draft = {};
+    }
+    openLedgerForm(null, Object.assign({}, draft, {
+      title: reviewTitle(state.lastContractText, contractType),
+      contractType,
       status: "待签",
       reviewId: state.lastReviewId || "",
-    });
+    }));
+    const filled = ["counterparty", "amount", "startDate", "endDate", "paymentDate", "paymentAmount", "note"]
+      .filter((key) => draft[key]);
+    if (filled.length) toast("已自动带入合同信息，请核对");
   }
 
   function hideStates() {
@@ -7952,8 +8729,7 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
 
   // ═════════════ 导出 / 复制 ═════════════
 
-  function downloadText(text, filename, type) {
-    const blob = new Blob([text], { type });
+  function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -7964,15 +8740,19 @@ ${JSON.stringify(lowRiskClauses.map((c) => ({ clause_index: c.clause_index, head
     setTimeout(() => URL.revokeObjectURL(url), 1500);
   }
 
+  function downloadText(text, filename, type) {
+    downloadBlob(new Blob([text], { type }), filename);
+  }
+
   function safeFilename(name) {
     return String(name || "合同").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60) || "合同";
   }
 
   function exportDoc() {
     if (!state.lastResult) return;
-    const html = WB.buildDocHtml(state.lastResult.reportHtml || "", state.lastResult.contractType || "");
-    downloadText("﻿" + html, `合同审查报告-${dateStamp()}.doc`, "application/msword");
-    toast("报告已导出");
+    const blob = WB.buildDocx(state.lastResult);
+    downloadBlob(blob, `合同审查报告-${dateStamp()}.docx`);
+    toast("报告已导出（.docx）");
   }
 
   function dateStamp() {
