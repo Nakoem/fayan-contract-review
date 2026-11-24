@@ -45,6 +45,9 @@
         <button class="nav-item" data-view="clauses" type="button">
           <span class="nav-icon" data-icon="clause"></span><span>条款库</span>
         </button>
+        <button class="nav-item" data-view="rules" type="button">
+          <span class="nav-icon" data-icon="rules"></span><span>审查规则</span>
+        </button>
       </div>
 
       <div class="sidebar-spacer"></div>
@@ -276,6 +279,35 @@
         </div>
         <div id="clause-list" class="clause-list"></div>
       </section>
+
+      <!-- ═══════════ 审查规则 ═══════════ -->
+      <section id="view-rules" class="view hidden" aria-label="审查规则">
+        <div class="rules-head">
+          <div>
+            <p class="eyebrow">本机规则 · 改完立即生效</p>
+            <h2 class="view-title">审查规则</h2>
+            <p class="view-desc">内置规则可修改、可停用，但不能删除；自定义规则可新增和删除。审查时先按关键词筛选，再交给模型逐条判断。</p>
+          </div>
+          <div class="rules-head-actions">
+            <button id="btn-rule-add" class="btn btn-primary" type="button">新增规则</button>
+            <button id="btn-rule-reset" class="btn btn-ghost" type="button">恢复内置默认</button>
+          </div>
+        </div>
+        <div class="rules-toolbar">
+          <div id="rule-filters" class="clause-filters rule-filters"></div>
+          <div class="rules-tools">
+            <select id="rule-status-filter" class="type-select rule-status-select" aria-label="规则状态筛选">
+              <option value="全部状态">全部状态</option>
+              <option value="已启用">已启用</option>
+              <option value="已停用">已停用</option>
+            </select>
+            <input id="rule-search" class="history-search rule-search" type="search" placeholder="搜索规则、关键词或法条" aria-label="搜索审查规则" autocomplete="off">
+          </div>
+        </div>
+        <p id="rule-summary" class="rules-summary"></p>
+        <div id="rules-law-meta" class="rules-law-meta"></div>
+        <div id="rule-list" class="rule-list"></div>
+      </section>
     </main>
   </div>
 
@@ -397,6 +429,63 @@
       <button class="btn btn-primary" type="submit">保存合同</button>
       <button id="btn-cancel-ledger" class="btn btn-ghost" type="button">取消</button>
       <p class="drawer-tip">只保存在本机浏览器；到期 / 付款节点会在案头提醒，也可导出到手机日历。</p>
+    </div>
+  </form>
+</aside>
+
+<!-- ═══════════ 规则编辑抽屉 ═══════════ -->
+<div id="rule-backdrop" class="backdrop hidden"></div>
+<aside id="rule-drawer" class="drawer hidden" aria-label="规则编辑">
+  <div class="drawer-head">
+    <div>
+      <p class="eyebrow">本机规则</p>
+      <h2 id="rule-form-title" class="drawer-title">新增规则</h2>
+    </div>
+    <button id="btn-close-rule" class="icon-btn" type="button" aria-label="关闭规则编辑">×</button>
+  </div>
+  <form id="rule-form" class="drawer-body">
+    <input id="rule-id" type="hidden">
+    <label class="field">
+      <span class="field-label">规则名称 *</span>
+      <input id="rule-name" type="text" maxlength="30" autocomplete="off" required>
+    </label>
+    <div class="field-row">
+      <label class="field">
+        <span class="field-label">合同类型</span>
+        <select id="rule-type"></select>
+      </label>
+      <label class="field">
+        <span class="field-label">风险等级</span>
+        <select id="rule-level">
+          <option value="高">高风险</option>
+          <option value="中" selected>中风险</option>
+          <option value="低">低风险</option>
+        </select>
+      </label>
+    </div>
+    <label class="field">
+      <span class="field-label">适用关键词 *</span>
+      <input id="rule-keywords" type="text" maxlength="240" autocomplete="off" placeholder="用逗号分隔，例如：违约金、滞纳金" required>
+      <span class="field-note">合同里命中任一关键词，这条规则才会进入模型候选。</span>
+    </label>
+    <label class="field">
+      <span class="field-label">判定条件 *</span>
+      <textarea id="rule-condition" rows="3" maxlength="240" placeholder="例如：违约金超过实际损失的 30%" required></textarea>
+    </label>
+    <label class="field">
+      <span class="field-label">法条依据 *</span>
+      <input id="rule-basis" type="text" maxlength="80" autocomplete="off" placeholder="例如：民法典第585条" required>
+      <span class="field-note">必须写具体条号，报告会逐条标注依据。</span>
+    </label>
+    <label class="field">
+      <span class="field-label">建议话术 *</span>
+      <textarea id="rule-advice" rows="3" maxlength="300" placeholder="写给对方的修改建议，报告里会直接引用。" required></textarea>
+    </label>
+    <p id="rule-form-note" class="field-note"></p>
+    <div class="drawer-actions">
+      <button class="btn btn-primary" type="submit">保存规则</button>
+      <button id="btn-cancel-rule" class="btn btn-ghost" type="button">取消</button>
+      <p class="drawer-tip">只保存在本机浏览器；保存后立即参与下一次审查。</p>
     </div>
   </form>
 </aside>

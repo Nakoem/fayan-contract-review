@@ -23,6 +23,7 @@ const dueDay = new Date(today); dueDay.setDate(dueDay.getDate() + 10);
 const START_ISO = isoDate(startDay);
 const PAY_ISO = isoDate(payDay);
 const DUE_ISO = isoDate(dueDay);
+const XSS_RULE_NAME = "<b>测试自定义规则</b>";
 
 const MOCK = String.raw`(() => {
   WB.callLLM = async function (opts) {
@@ -201,11 +202,18 @@ async function main() {
       return {
         report: getComputedStyle(document.querySelector("#report-view")).display,
         contract: getComputedStyle(document.querySelector(".contract-panel")).display,
-        toolbar: getComputedStyle(document.querySelector(".result-toolbar")).display
+        toolbar: getComputedStyle(document.querySelector(".result-toolbar")).display,
+        otherViews: ["view-home", "view-ledger", "view-clauses", "view-rules"]
+          .map(function (id) { return getComputedStyle(document.getElementById(id)).display; })
       };
     })()`);
     await cdp.send("Emulation.setEmulatedMedia", { media: "" });
-    ok("打印样式只保留报告", printStyles.report === "block" && printStyles.contract === "none" && printStyles.toolbar === "none", JSON.stringify(printStyles));
+    const printOthersHidden = printStyles.otherViews.every((d) => d === "none");
+    ok(
+      "打印样式只保留报告",
+      printStyles.report === "block" && printStyles.contract === "none" && printStyles.toolbar === "none" && printOthersHidden,
+      JSON.stringify(printStyles)
+    );
 
     // ── 合同台账：从审查结果加入 ──
     await cdp.eval(`document.querySelector("#btn-add-ledger").click(); true`);
@@ -443,6 +451,249 @@ async function main() {
     })`);
     await cdp.eval(`document.querySelector("#btn-cancel-ledger").click(); true`);
     ok("台账手动新增入口", manualDraft.title === "" && manualDraft.type === "房屋租赁合同" && manualDraft.status === "履行中", JSON.stringify(manualDraft));
+
+    // ── 审查规则：渲染 / 停用 / 编辑 / 持久化 / 恢复 / 自定义 ──
+    await cdp.eval(`document.querySelector('.nav-item[data-view="rules"]').click(); true`);
+    await sleep(250);
+    const ruleRows = await cdp.eval(`document.querySelectorAll("#rule-list .rule-row").length`);
+    const ruleSummary = await cdp.eval(`document.querySelector("#rule-summary").textContent`);
+    ok("审查规则渲染", ruleRows === 111 && ruleSummary.indexOf("内置 111") >= 0, `${ruleRows} 条 · ${ruleSummary}`);
+    const ruleMeta = await cdp.eval(
+      `(document.querySelector("#rules-law-meta summary") || {}).textContent || ""`
+    );
+    ok(
+      "规则法条核对信息",
+      ruleMeta.indexOf("2026-11-24") >= 0 && ruleMeta.indexOf("20 部") >= 0,
+      ruleMeta
+    );
+    await shot("ui-rules.png");
+
+    await cdp.eval(`document.querySelector('#rule-filters [data-rule-type="买卖合同"]').click(); true`);
+    const typeRuleRows = await cdp.eval(`document.querySelectorAll("#rule-list .rule-row").length`);
+    await cdp.eval(`document.querySelector('#rule-filters [data-rule-type="全部"]').click(); true`);
+    ok("规则类型筛选", typeRuleRows === 15, `买卖合同 ${typeRuleRows} 条`);
+
+    await cdp.eval(`document.querySelector('[data-rule-row="r_lease_penalty"] [data-toggle-rule]').click(); true`);
+    const ruleOff = await waitFor(
+      cdp,
+      `WB.RuleStore.find("r_lease_penalty").enabled === false && WB.RuleStore.revision() > 0`,
+      3000
+    ).catch(() => false);
+    const offRow = await cdp.eval(`document.querySelector('[data-rule-row="r_lease_penalty"]').classList.contains("is-off")`);
+    ok("规则停用", !!ruleOff && offRow);
+
+    await cdp.eval(`(() => { const s = document.querySelector("#rule-status-filter"); s.value = "已停用"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    const offFiltered = await cdp.eval(`document.querySelectorAll("#rule-list .rule-row").length`);
+    await cdp.eval(`(() => { const s = document.querySelector("#rule-status-filter"); s.value = "全部状态"; s.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    ok("规则状态筛选", offFiltered === 1, `已停用 ${offFiltered} 条`);
+
+    await cdp.eval(`document.querySelector('[data-rule-row="r_lease_penalty"] [data-edit-rule]').click(); true`);
+    await waitFor(cdp, `!document.querySelector("#rule-drawer").classList.contains("hidden")`, 3000);
+    const ruleDraft = await cdp.eval(`({
+      title: document.querySelector("#rule-form-title").textContent,
+      name: document.querySelector("#rule-name").value,
+      keywords: document.querySelector("#rule-keywords").value
+    })`);
+    await cdp.eval(`(() => {
+      document.querySelector("#rule-advice").value = "测试修改后的建议话术";
+      document.querySelector("#rule-form").requestSubmit();
+      return true;
+    })()`);
+    const editedRule = await waitFor(
+      cdp,
+      `WB.RuleStore.find("r_lease_penalty").advice === "测试修改后的建议话术" &&
+        document.querySelector("#toast").textContent.indexOf("规则已更新") >= 0`,
+      3000
+    ).catch(() => false);
+    ok(
+      "规则编辑",
+      ruleDraft.title === "编辑规则" && ruleDraft.name === "违约金过高" &&
+        ruleDraft.keywords.indexOf("违约金") >= 0 && !!editedRule,
+      JSON.stringify(ruleDraft)
+    );
+
+    await cdp.eval(`document.querySelector('.nav-item[data-view="clauses"]').click(); true`);
+    const clauseOff = await cdp.eval(`document.querySelectorAll("#clause-list .clause-card.is-off").length`);
+    const clauseText = await cdp.eval(`document.querySelector("#clause-list").innerText`);
+    ok(
+      "条款库同步规则",
+      clauseOff === 1 && clauseText.indexOf("测试修改后的建议话术") >= 0 && clauseText.indexOf("已停用") >= 0,
+      `停用卡 ${clauseOff} 张`
+    );
+
+    await reloadPage(cdp);
+    await cdp.eval(`document.querySelector('.nav-item[data-view="rules"]').click(); true`);
+    await sleep(200);
+    const persistedRule = await cdp.eval(`({
+      enabled: WB.RuleStore.find("r_lease_penalty").enabled,
+      advice: WB.RuleStore.find("r_lease_penalty").advice
+    })`);
+    ok("规则刷新后仍在", persistedRule.enabled === false && persistedRule.advice === "测试修改后的建议话术", JSON.stringify(persistedRule));
+
+    const resetClick = cdp.eval(`document.querySelector("#btn-rule-reset").click(); true`);
+    await sleep(300);
+    await cdp.send("Page.handleJavaScriptDialog", { accept: true });
+    await resetClick;
+    const resetDone = await waitFor(
+      cdp,
+      `WB.RuleStore.find("r_lease_penalty").enabled === true &&
+        WB.RuleStore.find("r_lease_penalty").advice.indexOf("违约金上限") >= 0 &&
+        document.querySelector("#toast").textContent.indexOf("已恢复默认") >= 0`,
+      3000
+    ).catch(() => false);
+    ok("恢复内置默认", !!resetDone);
+
+    const rollback = await cdp.eval(`(async () => {
+      const original = WB.saveRuleState;
+      WB.saveRuleState = async () => ({ ok: false });
+      const beforeEnabled = WB.RuleStore.find("r_lease_penalty").enabled;
+      try {
+        document.querySelector('[data-rule-row="r_lease_penalty"] [data-toggle-rule]').click();
+        await new Promise(function (r) { setTimeout(r, 250); });
+      } finally {
+        WB.saveRuleState = original;
+      }
+      return {
+        beforeEnabled: beforeEnabled,
+        afterEnabled: WB.RuleStore.find("r_lease_penalty").enabled,
+        checked: document.querySelector('[data-rule-row="r_lease_penalty"] [data-toggle-rule]').checked,
+        toast: document.querySelector("#toast").textContent
+      };
+    })()`);
+    ok(
+      "规则写入失败回滚",
+      rollback.beforeEnabled === true && rollback.afterEnabled === true && rollback.checked &&
+        rollback.toast.indexOf("存储不可用") >= 0,
+      JSON.stringify(rollback)
+    );
+
+    await cdp.eval(`document.querySelector("#btn-rule-add").click(); true`);
+    await waitFor(cdp, `!document.querySelector("#rule-drawer").classList.contains("hidden")`, 3000);
+    await cdp.eval(`(() => {
+      const set = (sel, value) => { document.querySelector(sel).value = value; };
+      set("#rule-name", ${JSON.stringify(XSS_RULE_NAME)});
+      set("#rule-type", "买卖合同");
+      set("#rule-level", "中");
+      set("#rule-keywords", "测试关键词、验收");
+      set("#rule-condition", "出现测试关键词时提示");
+      set("#rule-basis", "民法典第509条");
+      set("#rule-advice", "建议补充明确约定");
+      document.querySelector("#rule-form").requestSubmit();
+      return true;
+    })()`);
+    const customReady = await waitFor(
+      cdp,
+      `WB.RULES.filter(function (r) { return !r.builtin; }).length > 0 &&
+        document.querySelector("#toast").textContent.indexOf("规则已新增") >= 0`,
+      3000
+    ).catch(() => false);
+    const customRule = await cdp.eval(`WB.RULES.filter(function (r) { return !r.builtin; })[0] || null`);
+    ok(
+      "新增自定义规则",
+      !!customReady && !!customRule && customRule.name === XSS_RULE_NAME && customRule.keywords.length === 2,
+      JSON.stringify(customRule)
+    );
+    const xssRender = await cdp.eval(`(() => {
+      const row = document.querySelector('[data-rule-row="' + WB.RULES.filter(function (r) { return !r.builtin; })[0].id + '"]');
+      return {
+        html: row.querySelector("h3").innerHTML,
+        bold: row.querySelectorAll("h3 b").length,
+        flagged: window.__ruleXss === true
+      };
+    })()`);
+    ok(
+      "规则字段转义",
+      xssRender.html.indexOf("&lt;b&gt;") >= 0 && xssRender.bold === 0 && !xssRender.flagged,
+      xssRender.html
+    );
+    await shot("ui-rules-custom.png");
+
+    const customRuleId = customRule.id;
+    await cdp.eval(`document.querySelector('[data-rule-row="${customRuleId}"] [data-edit-rule]').click(); true`);
+    await waitFor(cdp, `!document.querySelector("#rule-drawer").classList.contains("hidden")`, 3000);
+    await cdp.eval(`(() => {
+      document.querySelector("#rule-advice").value = "自定义规则修改后的建议";
+      document.querySelector("#rule-form").requestSubmit();
+      return true;
+    })()`);
+    const customEdited = await waitFor(
+      cdp,
+      `WB.RuleStore.find(${JSON.stringify(customRuleId)}).advice === "自定义规则修改后的建议" &&
+        document.querySelector("#toast").textContent.indexOf("规则已更新") >= 0`,
+      3000
+    ).catch(() => false);
+    ok("编辑自定义规则", !!customEdited);
+
+    await cdp.eval(`(() => { const s = document.querySelector("#rule-search"); s.value = "测试自定义"; s.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    const searchRows = await cdp.eval(`document.querySelectorAll("#rule-list .rule-row").length`);
+    await cdp.eval(`(() => { const s = document.querySelector("#rule-search"); s.value = ""; s.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    ok("规则搜索", searchRows === 1, `${searchRows} 行`);
+
+    const builtinDelete = await cdp.eval(`document.querySelectorAll('[data-rule-row="r_lease_penalty"] [data-delete-rule]').length`);
+    ok("内置规则不可删", builtinDelete === 0);
+
+    await reloadPage(cdp);
+    await cdp.eval(`document.querySelector('.nav-item[data-view="rules"]').click(); true`);
+    await sleep(200);
+    const customPersisted = await cdp.eval(`WB.RULES.filter(function (r) { return !r.builtin; }).length`);
+    ok("自定义规则刷新后仍在", customPersisted === 1, `${customPersisted} 条`);
+
+    const customId = await cdp.eval(`WB.RULES.filter(function (r) { return !r.builtin; })[0].id`);
+    const deleteRuleClick = cdp.eval(`document.querySelector('[data-rule-row="' + ${JSON.stringify(customId)} + '"] [data-delete-rule]').click(); true`);
+    await sleep(300);
+    await cdp.send("Page.handleJavaScriptDialog", { accept: true });
+    await deleteRuleClick;
+    const customDeleted = await waitFor(
+      cdp,
+      `WB.RULES.filter(function (r) { return !r.builtin; }).length === 0 &&
+        document.querySelector("#toast").textContent.indexOf("规则已删除") >= 0`,
+      3000
+    ).catch(() => false);
+    ok("删除自定义规则", !!customDeleted);
+
+    // 模拟另一标签页写入：广播 -> 本页 refresh -> 规则与列表同步
+    const remoteSync = await cdp.eval(`(async () => {
+      const before = WB.RuleStore.find("r_loan_rate").enabled;
+      const rev = WB.RuleStore.revision();
+      const remote = {
+        overrides: {
+          r_loan_rate: {
+            contractType: "借款合同", name: "年利率超过 LPR 四倍",
+            keywords: ["年利率", "利率", "利息"],
+            condition: "年利率超过合同成立时一年期 LPR 的四倍",
+            level: "高", basis: "民间借贷司法解释第25条",
+            advice: "测试远端建议", enabled: false
+          }
+        },
+        custom: [],
+        updatedAt: (rev || Date.now()) + 1000
+      };
+      const saved = await WB.saveRuleState(remote, rev);
+      const stale = await WB.saveRuleState(
+        { overrides: {}, custom: [], updatedAt: remote.updatedAt + 1000 },
+        rev
+      );
+      const ch = new BroadcastChannel("contract-workbench-rules");
+      ch.postMessage({ type: "rules-updated", tabId: "other-tab" });
+      ch.close();
+      await new Promise(function (r) { setTimeout(r, 400); });
+      return {
+        saved: saved,
+        stale: stale,
+        before: before,
+        after: WB.RuleStore.find("r_loan_rate").enabled,
+        advice: WB.RuleStore.find("r_loan_rate").advice
+      };
+    })()`);
+    ok(
+      "跨标签页规则同步",
+      remoteSync.saved && remoteSync.saved.ok && remoteSync.stale &&
+        remoteSync.stale.ok === false && remoteSync.stale.conflict === true &&
+        remoteSync.before === true && remoteSync.after === false &&
+        remoteSync.advice === "测试远端建议",
+      JSON.stringify(remoteSync)
+    );
+    await cdp.eval(`(async () => { await WB.RuleStore.resetBuiltin(); return true; })()`);
 
     ok("无控制台异常", cdp.exceptions.length === 0, cdp.exceptions.slice(0, 3).join(" | "));
   } catch (err) {

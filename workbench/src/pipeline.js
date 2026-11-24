@@ -131,9 +131,9 @@
     return parts.map((c, i) => ({ index: i + 1, title: c.title, text: c.text }));
   };
 
-  WB.matchRules = function (contractType, clauses) {
+  WB.matchRules = function (contractType, clauses, rules) {
     const allText = (clauses || []).map((c) => c.text || "").join("\n");
-    return (WB.RULES || []).filter((rule) => {
+    return (rules || WB.RULES || []).filter((rule) => {
       if (!rule.enabled) return false;
       if (rule.contractType === "通用") return true; // 通用规则始终参与（可提示缺失条款）
       if (rule.contractType !== contractType) return false;
@@ -591,6 +591,10 @@
   }) {
     const startAll = Date.now();
     const timings = {};
+    // 审查开始时冻结规则：中途在规则页修改，不会让同一次审查前后读到两套规则。
+    const rulesSnapshot = (WB.RULES || []).map((r) =>
+      Object.assign({}, r, { keywords: (r.keywords || []).slice() })
+    );
     const progress = (step, status, detail) => {
       if (onProgress) onProgress({ step, status, detail: detail || "", timings: Object.assign({}, timings) });
     };
@@ -655,7 +659,7 @@
     // ② 法条
     progress(2, "running");
     const t2 = Date.now();
-    const matchedRules = WB.matchRules(contractType, clauses);
+    const matchedRules = WB.matchRules(contractType, clauses, rulesSnapshot);
     const regSnippets = WB.searchRegulations(matchedRules, clauses.length > 18 ? 4 : 8);
     timings.retrieve = Date.now() - t2;
     progress(2, "done", matchedRules.length + " 条候选规则 · " + regSnippets.length + " 段法规");
@@ -674,7 +678,7 @@
       clauses,
       findings: evalJson.findings,
       lowRiskClauses: evalJson.lowRiskClauses,
-      rules: WB.RULES,
+      rules: rulesSnapshot,
     });
 
     let review = { passed: true, issues: [] };
@@ -710,7 +714,7 @@
         clauses,
         findings: evalJson.findings,
         lowRiskClauses: evalJson.lowRiskClauses,
-        rules: WB.RULES,
+        rules: rulesSnapshot,
       });
     }
     // 兜底：重评后仍未覆盖的条款，按低风险补入，保证每条都有归属

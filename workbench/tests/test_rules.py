@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
 RULES_JS = ROOT / "src" / "data" / "rules.js"
 
 TYPES = {
@@ -90,6 +91,51 @@ def test_basis_has_article(rules):
         assert BASIS_RE.search(r["basis"]), f"{r['id']} 法条格式不对：{r['basis']}"
 
 
+def test_legal_citations_current(rules):
+    """2026-11-24 按现行法规核对后修正的关键条文号。"""
+    by_id = {r["id"]: r for r in rules}
+    expected = {
+        "r_lease_jurisdiction": "民事诉讼法第34条",
+        "r_common_jurisdiction": "民事诉讼法第35条",
+        "r_labor_social_insurance": "劳动争议司法解释（二）第19条",
+        "r_service_ip": "著作权法第19条",
+        "r_service_no_refund": "预付式消费司法解释第9条",
+        "r_service_business_closure": "预付式消费司法解释第7条、第23条",
+    }
+    for rid, basis in expected.items():
+        assert by_id[rid]["basis"] == basis, f"{rid} 法条未更新：{by_id[rid]['basis']}"
+
+
+def test_rules_meta():
+    """规则核对日期与来源版本可追溯。"""
+    node = _node()
+    script = (
+        "require(" + json.dumps(str(RULES_JS).replace("\\", "/")) + ");"
+        "process.stdout.write(JSON.stringify(globalThis.WB.RULES_META));"
+    )
+    out = subprocess.run(
+        [node, "-e", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    meta = json.loads(out.stdout)
+    assert meta["verifiedAt"] == "2026-11-24"
+    assert len(meta["sources"]) >= 20
+    assert all(s.get("name") and s.get("version") for s in meta["sources"])
+    names = {s["name"] for s in meta["sources"]}
+    for name in (
+        "中华人民共和国公司法",
+        "中华人民共和国合伙企业法",
+        "中华人民共和国仲裁法",
+        "中华人民共和国消费者权益保护法",
+        "中华人民共和国反不正当竞争法",
+        "最高人民法院关于适用《中华人民共和国民事诉讼法》的解释",
+    ):
+        assert name in names, f"法规来源缺少 {name}"
+
+
 def test_keywords_nonempty(rules):
     for r in rules:
         assert isinstance(r["keywords"], list) and r["keywords"], f"{r['id']} keywords 为空"
@@ -112,3 +158,164 @@ def test_type_coverage(rules):
     for t in TYPES:
         assert counts.get(t, 0) >= 10, f"{t} 规则不足 10 条：{counts.get(t, 0)}"
     assert counts.get("通用", 0) >= 6, "通用规则不足 6 条"
+
+
+def test_expanded_rule_coverage(rules):
+    """P0 + P1 扩容后的规则数量与关键新增规则。"""
+    counts: dict[str, int] = {}
+    for r in rules:
+        counts[r["contractType"]] = counts.get(r["contractType"], 0) + 1
+    assert counts == {
+        "房屋租赁合同": 18,
+        "劳动合同": 20,
+        "买卖合同": 15,
+        "服务合同": 17,
+        "合作协议": 16,
+        "借款合同": 14,
+        "通用": 11,
+    }, counts
+    by_id = {r["id"]: r for r in rules}
+    for rid in (
+        "r_lease_filing",
+        "r_labor_written_contract",
+        "r_sale_title_defect",
+        "r_service_consumer_format",
+        "r_coop_capital_contribution",
+        "r_loan_unlicensed_lending",
+        "r_common_arbitration_clause",
+    ):
+        assert rid in by_id, f"缺少扩容规则 {rid}"
+    assert by_id["r_service_consumer_format"]["basis"] == "消费者权益保护法第26条"
+    assert "公司法" in by_id["r_coop_capital_contribution"]["basis"]
+    assert by_id["r_common_arbitration_clause"]["basis"] == "仲裁法第27条、第29条"
+
+
+def test_rule_store_merge():
+    """内置覆盖只接受已存在的 id；自定义规则做字段校验；非法数据被丢弃。"""
+    node = _node()
+
+    def require(rel: str) -> str:
+        return "require(" + json.dumps((SRC / rel).as_posix()) + ");"
+
+    script = "\n".join(
+        [
+            "const assert = require('node:assert');",
+            require("data/rules.js"),
+            require("storage.js"),
+            require("rule_store.js"),
+            "const WB = globalThis.WB;",
+            "const S = WB.RuleStore;",
+            "const before = S.builtinCount;",
+            """
+            (async () => {
+              S.applyState({
+                overrides: {
+                  r_lease_penalty: {
+                    contractType: "房屋租赁合同", name: "改过的违约金",
+                    keywords: "违约金, 逾期", condition: "新条件", level: "中",
+                    basis: "民法典第585条", advice: "新建议", enabled: false
+                  },
+                  r_not_exist: { name: "不应出现" }
+                },
+                custom: [
+                  {
+                    id: "r_custom_test", contractType: "买卖合同", name: "测试规则",
+                    keywords: "测试、验收", condition: "条件", level: "低",
+                    basis: "民法典第509条", advice: "建议"
+                  },
+                  { id: "r_custom_bad", name: "", keywords: "", condition: "", basis: "", advice: "" }
+                ]
+              });
+              assert.strictEqual(WB.RULES.length, before + 1);
+              const changed = S.find("r_lease_penalty");
+              assert.strictEqual(changed.name, "改过的违约金");
+              assert.deepStrictEqual(changed.keywords, ["违约金", "逾期"]);
+              assert.strictEqual(changed.enabled, false);
+              assert.strictEqual(changed.builtin, true);
+              const custom = S.find("r_custom_test");
+              assert(custom && custom.builtin === false);
+              assert.deepStrictEqual(custom.keywords, ["测试", "验收"]);
+              assert(!S.find("r_custom_bad"));
+              assert(!S.find("r_not_exist"));
+              assert.strictEqual(
+                S.validate({ name: "x", keywords: "k", condition: "c", basis: "民法典", advice: "a" }).ok,
+                false
+              );
+              assert.strictEqual(
+                S.validate({ name: "x", keywords: "k", condition: "c", basis: "民法典第585条", advice: "a" }).ok,
+                true
+              );
+
+              // 存储不可用：写入失败必须回滚，不能“看起来改了”
+              S.applyState({ overrides: {}, custom: [] });
+              WB.loadRuleState = async () => null;
+              WB.saveRuleState = async () => ({ ok: false });
+              const rollback = await S.setEnabled("r_lease_penalty", false);
+              assert.strictEqual(rollback.ok, false);
+              assert.strictEqual(rollback.reason, "storage");
+              assert.strictEqual(S.find("r_lease_penalty").enabled, true);
+
+              // 另一标签页写入新 revision：本次编辑放弃并载入最新状态
+              let stored = { overrides: {}, custom: [], updatedAt: 10 };
+              WB.loadRuleState = async () => stored;
+              WB.saveRuleState = async (next, expected) => {
+                const rev = stored && stored.updatedAt || 0;
+                if (expected != null && stored && rev !== expected) {
+                  return { ok: false, conflict: true };
+                }
+                stored = next;
+                return { ok: true };
+              };
+              S.applyState({ overrides: {}, custom: [], updatedAt: 10 });
+              stored = { overrides: {}, custom: [], updatedAt: 20 };
+              const conflict = await S.setEnabled("r_lease_penalty", false);
+              assert.strictEqual(conflict.ok, false);
+              assert.strictEqual(conflict.reason, "conflict");
+              assert.strictEqual(S.find("r_lease_penalty").enabled, true);
+              assert.strictEqual(S.revision(), 20);
+
+              // 同标签页连续写入排队执行，不会共用旧 revision 互相冲突
+              stored = { overrides: {}, custom: [], updatedAt: 20 };
+              S.applyState({ overrides: {}, custom: [], updatedAt: 20 });
+              const [r1, r2] = await Promise.all([
+                S.setEnabled("r_lease_penalty", false),
+                S.setEnabled("r_lease_penalty", true)
+              ]);
+              assert(r1.ok && r2.ok);
+              assert.strictEqual(S.find("r_lease_penalty").enabled, true);
+
+              // 自定义规则上限
+              const many = [];
+              for (let i = 0; i < S.maxCustom; i++) {
+                many.push({
+                  id: "r_custom_" + i, contractType: "通用", name: "规则" + i,
+                  keywords: "k", condition: "c", basis: "民法典第1条", advice: "a"
+                });
+              }
+              stored = { overrides: {}, custom: many, updatedAt: 30 };
+              S.applyState(stored);
+              const limit = await S.addCustom({
+                contractType: "通用", name: "x", keywords: "k",
+                condition: "c", basis: "民法典第1条", advice: "a"
+              });
+              assert.strictEqual(limit.ok, false);
+              assert.strictEqual(limit.reason, "limit");
+              assert.strictEqual(S.state().custom.length, S.maxCustom);
+              const removed = await S.removeCustom("r_custom_0");
+              assert.strictEqual(removed.ok, true);
+              assert.strictEqual(S.state().custom.length, S.maxCustom - 1);
+
+              console.log("OK");
+            })().catch((e) => { console.error(e); process.exit(1); });
+            """,
+        ]
+    )
+    out = subprocess.run(
+        [node, "-e", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    assert out.returncode == 0, out.stderr
+    assert "OK" in out.stdout

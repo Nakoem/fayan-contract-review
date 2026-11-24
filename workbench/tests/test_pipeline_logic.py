@@ -80,6 +80,18 @@ def test_core_logic():
             assert(!rules.some((r) => r.id === 'r_loan_rate'));
             """,
             """
+            // 审查快照：显式传入 rules 时只读快照，不受全局 WB.RULES 影响
+            const snapshot = [{
+              id: 'snap_rule', contractType: '房屋租赁合同', keywords: ['押金'],
+              enabled: true, name: '快照规则', condition: 'c', level: '高',
+              basis: '民法典第1条', advice: 'a'
+            }];
+            const snapMatched = WB.matchRules('房屋租赁合同', [{ index: 1, text: '押金' }], snapshot);
+            assert.strictEqual(snapMatched.length, 1);
+            assert.strictEqual(snapMatched[0].id, 'snap_rule');
+            assert.strictEqual(WB.matchRules('房屋租赁合同', [{ index: 1, text: '押金' }], []).length, 0);
+            """,
+            """
             // 低风险去重：已有 finding 的条款不再进 lowRisk；重复低风险只保留一条
             const check = WB.localChecks({
               clauses: [{ index: 1, text: 'a' }, { index: 2, text: 'b' }],

@@ -200,6 +200,52 @@
     catch (e) { lsPut("current", null); }
   };
 
+  // 审查规则：与设置共用 settings store，键名区分，避免升级数据库版本。
+  WB.loadRuleState = async function () {
+    try {
+      return await idbGet("settings", "rules");
+    } catch (e) {
+      return lsGet("rules");
+    }
+  };
+
+  // 比较并写入：IndexedDB 事务内读旧 revision，避免两个标签页同时保存时静默覆盖。
+  WB.saveRuleState = async function (ruleState, expectedRevision) {
+    const fallback = () => {
+      const current = lsGet("rules");
+      const currentRev = current && Number(current.updatedAt) || 0;
+      if (expectedRevision != null && current && currentRev !== expectedRevision) {
+        return { ok: false, conflict: true };
+      }
+      return lsPut("rules", ruleState) ? { ok: true } : { ok: false };
+    };
+    let db;
+    try { db = await openDB(); }
+    catch (e) { return fallback(); }
+    try {
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction("settings", "readwrite");
+        const store = tx.objectStore("settings");
+        const get = store.get("rules");
+        let conflict = false;
+        get.onsuccess = () => {
+          const current = get.result;
+          const currentRev = current && Number(current.updatedAt) || 0;
+          if (expectedRevision != null && current && currentRev !== expectedRevision) {
+            conflict = true;
+            return;
+          }
+          store.put(ruleState, "rules");
+        };
+        tx.oncomplete = () => resolve(conflict ? { ok: false, conflict: true } : { ok: true });
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error("IndexedDB tx aborted"));
+      });
+    } catch (e) {
+      return { ok: false };
+    }
+  };
+
   // ───────────────────────── 通用记录（审查历史 / 台账） ─────────────────────────
 
   async function saveRecord(store, lsKey, record) {

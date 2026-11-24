@@ -10,6 +10,7 @@
     review: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><circle cx="11" cy="13" r="3"/><path d="M13.2 15.2 16 18"/>',
     ledger: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10M15 10v10"/>',
     clause: '<path d="M6 3h12v18l-6-4-6 4z"/>',
+    rules: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="m3 6 1.5 1.5L7 5"/><path d="m3 12 1.5 1.5L7 11"/><path d="m3 18 1.5 1.5L7 17"/>',
     settings: '<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="17" r="2"/>',
     export: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 20h16"/>',
     upload: '<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>',
@@ -69,6 +70,9 @@
     ledgerType: "全部类型",
     editingLedgerId: null,
     lastReviewId: null,
+    ruleFilter: "全部",
+    ruleStatus: "全部状态",
+    ruleQuery: "",
   };
 
   const ui = {};
@@ -84,9 +88,15 @@
     const [history, ledger] = await Promise.all([WB.listReviews(), WB.listLedger()]);
     state.history = history;
     state.ledger = ledger;
+    if (WB.RuleStore) {
+      try { await WB.RuleStore.load(); } catch (e) { /* 保留内置默认规则 */ }
+      WB.RuleStore.onRemoteChange = refreshRulesFromStorage;
+    }
     populateTypes();
     populateProviders();
     populateLedgerOptions();
+    populateRuleOptions();
+    renderRuleMeta();
     renderSamples();
     renderClauseFilters();
     renderClauses();
@@ -133,6 +143,27 @@
     ui.reportView = $("#report-view");
     ui.clauseFilters = $("#clause-filters");
     ui.clauseList = $("#clause-list");
+    ui.ruleFilters = $("#rule-filters");
+    ui.ruleList = $("#rule-list");
+    ui.ruleSummary = $("#rule-summary");
+    ui.ruleMeta = $("#rules-law-meta");
+    ui.ruleSearch = $("#rule-search");
+    ui.ruleStatusFilter = $("#rule-status-filter");
+    ui.ruleType = $("#rule-type");
+    ui.ruleLevel = $("#rule-level");
+    ui.ruleName = $("#rule-name");
+    ui.ruleKeywords = $("#rule-keywords");
+    ui.ruleCondition = $("#rule-condition");
+    ui.ruleBasis = $("#rule-basis");
+    ui.ruleAdvice = $("#rule-advice");
+    ui.ruleId = $("#rule-id");
+    ui.ruleForm = $("#rule-form");
+    ui.ruleFormTitle = $("#rule-form-title");
+    ui.ruleFormNote = $("#rule-form-note");
+    ui.ruleDrawer = $("#rule-drawer");
+    ui.ruleBackdrop = $("#rule-backdrop");
+    ui.ruleAdd = $("#btn-rule-add");
+    ui.ruleReset = $("#btn-rule-reset");
     ui.topbar = $("#topbar");
     ui.homeStats = $("#home-stats");
     ui.homeGreetingBlock = $("#home-greeting-block");
@@ -244,6 +275,13 @@
     }).join("");
   }
 
+  function populateRuleOptions() {
+    const types = ["通用"].concat(WB.CONTRACT_TYPES);
+    ui.ruleType.innerHTML = types
+      .map((t) => `<option value="${esc(t)}">${esc(t)}</option>`)
+      .join("");
+  }
+
   function renderSamples() {
     ui.sampleRow.innerHTML = (WB.SAMPLES || []).map(
       (s) => `<button class="sample-chip" type="button" data-sample="${esc(s.key)}">${esc(s.name)}</button>`
@@ -272,11 +310,14 @@
     ui.clauseList.innerHTML = rules.map((r) => {
       const cls = LEVEL_CLS[r.level];
       const mark = LEVEL_MARK[r.level];
-      return `<article class="clause-card ${cls}">
+      const off = r.enabled === false;
+      return `<article class="clause-card ${cls}${off ? " is-off" : ""}">
         <div class="clause-card-head">
           <span class="risk-mark ${mark}"></span>
           <span class="clause-card-name">${esc(r.name)}</span>
           <span class="clause-card-level level-${cls}">${r.level}风险</span>
+          ${off ? '<span class="clause-card-level level-off">已停用</span>' : ""}
+          ${r.builtin ? "" : '<span class="clause-card-level level-custom">自定义</span>'}
           <span class="clause-card-type">${esc(r.basis)}</span>
         </div>
         <p class="clause-card-condition">${esc(r.condition)}</p>
@@ -284,6 +325,258 @@
         <div class="clause-card-advice"><b>替代写法</b>${esc(r.advice)}</div>
       </article>`;
     }).join("");
+  }
+
+  // ═════════════ 审查规则（V1.5） ═════════════
+
+  function renderRuleFilters() {
+    if (!ui.ruleFilters) return;
+    const types = ["全部"].concat(WB.CONTRACT_TYPES, ["通用"]);
+    ui.ruleFilters.innerHTML = types.map((t) => {
+      const active = t === state.ruleFilter ? " active" : "";
+      const label = t === "全部" ? "全部" : t === "通用" ? "通用" : t.replace("合同", "");
+      return `<button class="filter-chip${active}" type="button" data-rule-type="${esc(t)}">${esc(label)}</button>`;
+    }).join("");
+  }
+
+  function renderRuleMeta() {
+    if (!ui.ruleMeta) return;
+    const meta = WB.RULES_META;
+    if (!meta || !meta.verifiedAt) {
+      ui.ruleMeta.innerHTML = "";
+      return;
+    }
+    const sources = (meta.sources || []).map((s) => {
+      const version = s.version ? `<em>${esc(s.version)}</em>` : "";
+      return `<li><span>${esc(s.name)}</span>${version}</li>`;
+    }).join("");
+    ui.ruleMeta.innerHTML = `<details>
+      <summary>内置规则法条依据核对于 ${esc(meta.verifiedAt)} · ${(meta.sources || []).length} 部现行法规</summary>
+      <p>${esc(meta.note || "")}</p>
+      <ul>${sources}</ul>
+    </details>`;
+  }
+
+  function renderRules() {
+    if (!ui.ruleList) return;
+    const all = WB.RULES || [];
+    const q = state.ruleQuery.trim().toLowerCase();
+    const rules = all.filter((r) => {
+      if (state.ruleFilter !== "全部" && r.contractType !== state.ruleFilter) return false;
+      if (state.ruleStatus === "已启用" && !r.enabled) return false;
+      if (state.ruleStatus === "已停用" && r.enabled) return false;
+      if (!q) return true;
+      const hay = [r.name, r.contractType, r.condition, r.basis, r.advice]
+        .concat(r.keywords || [])
+        .join(" ")
+        .toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+
+    const typeOrder = {};
+    WB.CONTRACT_TYPES.concat(["通用"]).forEach((t, i) => { typeOrder[t] = i; });
+    rules.sort((a, b) => {
+      const ta = typeOrder[a.contractType] == null ? 9 : typeOrder[a.contractType];
+      const tb = typeOrder[b.contractType] == null ? 9 : typeOrder[b.contractType];
+      return ta - tb || (LEVEL_RANK[b.level] - LEVEL_RANK[a.level]) || a.name.localeCompare(b.name, "zh");
+    });
+
+    const enabled = all.filter((r) => r.enabled).length;
+    const custom = all.filter((r) => !r.builtin).length;
+    if (ui.ruleSummary) {
+      ui.ruleSummary.textContent =
+        `共 ${all.length} 条 · 已启用 ${enabled} · 已停用 ${all.length - enabled} · 内置 ${all.length - custom} · 自定义 ${custom}`;
+    }
+    if (!rules.length) {
+      ui.ruleList.innerHTML = '<p class="clause-empty">没有匹配的规则。</p>';
+      return;
+    }
+    ui.ruleList.innerHTML = rules.map((r) => {
+      const cls = LEVEL_CLS[r.level];
+      const mark = LEVEL_MARK[r.level];
+      const off = r.enabled === false;
+      const edited = r.builtin && WB.RuleStore && WB.RuleStore.hasOverride(r.id);
+      return `<article class="rule-row level-${cls}${off ? " is-off" : ""}" data-rule-row="${esc(r.id)}">
+        <div class="rule-row-main">
+          <div class="rule-row-top">
+            <span class="risk-mark ${mark}"></span>
+            <h3>${esc(r.name)}</h3>
+            <span class="clause-card-level level-${cls}">${r.level}风险</span>
+            ${r.builtin ? "" : '<span class="rule-tag custom">自定义</span>'}
+            ${off ? '<span class="rule-tag off">已停用</span>' : ""}
+            ${edited ? '<span class="rule-tag edited">已修改</span>' : ""}
+            <span class="rule-type">${esc(r.contractType)}</span>
+          </div>
+          <p class="rule-condition">${esc(r.condition)}</p>
+          <p class="rule-keywords">关键词：<b>${esc((r.keywords || []).join(" / "))}</b></p>
+          <p class="rule-basis">${esc(r.basis)}</p>
+          <p class="rule-advice"><b>建议</b>${esc(r.advice)}</p>
+        </div>
+        <div class="rule-actions">
+          <label class="rule-switch" title="${off ? "启用规则" : "停用规则"}">
+            <input type="checkbox" data-toggle-rule="${esc(r.id)}" ${off ? "" : "checked"} aria-label="${esc((off ? "启用" : "停用") + "规则：" + r.name)}">
+            <span class="rule-switch-track" aria-hidden="true"></span>
+          </label>
+          <button type="button" data-edit-rule="${esc(r.id)}">编辑</button>
+          ${r.builtin ? "" : `<button type="button" data-delete-rule="${esc(r.id)}">删除</button>`}
+        </div>
+      </article>`;
+    }).join("");
+  }
+
+  function openRuleForm(id) {
+    if (!ui.ruleDrawer) return;
+    const rule = id ? WB.RuleStore.find(id) : null;
+    const defaultType = state.ruleFilter !== "全部"
+      ? state.ruleFilter
+      : (state.settings && state.settings.contractType) || WB.CONTRACT_TYPES[0];
+    ui.ruleFormTitle.textContent = rule ? "编辑规则" : "新增规则";
+    ui.ruleId.value = rule ? rule.id : "";
+    ui.ruleName.value = rule ? rule.name : "";
+    ui.ruleType.value = rule ? rule.contractType : defaultType;
+    ui.ruleLevel.value = rule ? rule.level : "中";
+    ui.ruleKeywords.value = rule ? (rule.keywords || []).join("、") : "";
+    ui.ruleCondition.value = rule ? rule.condition : "";
+    ui.ruleBasis.value = rule ? rule.basis : "";
+    ui.ruleAdvice.value = rule ? rule.advice : "";
+    ui.ruleFormNote.textContent = rule && rule.builtin
+      ? "内置规则可以修改和停用，但保留在本机规则库中，不能删除。"
+      : "自定义规则只保存在本机浏览器，可随时删除。";
+    ui.ruleBackdrop.classList.remove("hidden");
+    ui.ruleDrawer.classList.remove("hidden");
+    ui.ruleName.focus();
+  }
+
+  function closeRuleForm() {
+    if (!ui.ruleDrawer) return;
+    ui.ruleBackdrop.classList.add("hidden");
+    ui.ruleDrawer.classList.add("hidden");
+  }
+
+  function ruleErrorToast(res) {
+    if (!res) return;
+    if (res.reason === "conflict") {
+      toast("规则已在其他标签页更新，已载入最新版本", "error");
+      if (ui.ruleDrawer && !ui.ruleDrawer.classList.contains("hidden")) closeRuleForm();
+      renderRuleFilters();
+      renderRules();
+      renderClauses();
+      return;
+    }
+    if (res.reason === "limit") {
+      toast(`自定义规则已达 ${res.limit || WB.RuleStore.maxCustom} 条上限`, "error");
+      return;
+    }
+    if (res.reason === "invalid") {
+      toast(res.message || "规则内容不完整", "error");
+      return;
+    }
+    if (res.reason === "builtin") {
+      toast("内置规则不能删除，可以停用");
+      return;
+    }
+    if (res.reason === "missing") {
+      toast("规则已不存在，正在刷新列表", "error");
+      renderRules();
+      refreshRulesFromStorage();
+      return;
+    }
+    toast("规则未保存：浏览器存储不可用", "error");
+    renderRules();
+  }
+
+  function refreshRulesFromStorage() {
+    if (!WB.RuleStore || !WB.RuleStore.refresh) return;
+    WB.RuleStore.refresh()
+      .then((changed) => {
+        if (!changed) return;
+        if ($("#view-rules") && !$("#view-rules").classList.contains("hidden")) {
+          renderRuleFilters();
+          renderRules();
+        }
+        renderClauses();
+        if (ui.ruleDrawer && !ui.ruleDrawer.classList.contains("hidden")) {
+          closeRuleForm();
+          toast("规则已在其他标签页更新，请重新编辑");
+        }
+      })
+      .catch(() => {});
+  }
+
+  async function toggleRule(id, enabled) {
+    const res = await WB.RuleStore.setEnabled(id, enabled);
+    if (!res.ok) {
+      ruleErrorToast(res);
+      return;
+    }
+    renderRules();
+    renderClauses();
+  }
+
+  async function saveRuleFromForm(e) {
+    e.preventDefault();
+    const raw = {
+      contractType: ui.ruleType.value,
+      name: ui.ruleName.value,
+      keywords: ui.ruleKeywords.value,
+      condition: ui.ruleCondition.value,
+      level: ui.ruleLevel.value,
+      basis: ui.ruleBasis.value,
+      advice: ui.ruleAdvice.value,
+    };
+    const check = WB.RuleStore.validate(raw);
+    if (!check.ok) {
+      toast(check.message, "error");
+      return;
+    }
+    const id = ui.ruleId.value;
+    const res = id ? await WB.RuleStore.update(id, raw) : await WB.RuleStore.addCustom(raw);
+    if (!res.ok) {
+      ruleErrorToast(res);
+      return;
+    }
+    closeRuleForm();
+    renderRuleFilters();
+    renderRules();
+    renderClauses();
+    toast(id ? "规则已更新" : "规则已新增");
+  }
+
+  async function deleteRule(id) {
+    const rule = WB.RuleStore.find(id);
+    if (!rule) return;
+    if (rule.builtin) {
+      toast("内置规则不能删除，可以停用");
+      return;
+    }
+    if (!window.confirm(`删除自定义规则「${rule.name}」？`)) return;
+    const res = await WB.RuleStore.removeCustom(id);
+    if (!res.ok) {
+      ruleErrorToast(res);
+      return;
+    }
+    renderRuleFilters();
+    renderRules();
+    renderClauses();
+    toast("规则已删除");
+  }
+
+  async function resetBuiltinRules() {
+    const count = Object.keys(WB.RuleStore.state().overrides).length;
+    if (!count) {
+      toast("内置规则没有被修改过");
+      return;
+    }
+    if (!window.confirm(`恢复 ${count} 条内置规则的默认内容？停用状态也会一并恢复。`)) return;
+    const res = await WB.RuleStore.resetBuiltin();
+    if (!res.ok) {
+      ruleErrorToast(res);
+      return;
+    }
+    renderRuleFilters();
+    renderRules();
+    renderClauses();
+    toast("内置规则已恢复默认");
   }
 
   // ═════════════ 事件 ═════════════
@@ -373,6 +666,54 @@
       renderClauseFilters();
       renderClauses();
     });
+
+    if (ui.ruleFilters) {
+      ui.ruleFilters.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-rule-type]");
+        if (!btn) return;
+        state.ruleFilter = btn.dataset.ruleType;
+        renderRuleFilters();
+        renderRules();
+      });
+    }
+    if (ui.ruleStatusFilter) {
+      ui.ruleStatusFilter.addEventListener("change", () => {
+        state.ruleStatus = ui.ruleStatusFilter.value;
+        renderRules();
+      });
+    }
+    if (ui.ruleSearch) {
+      ui.ruleSearch.addEventListener("input", () => {
+        state.ruleQuery = ui.ruleSearch.value;
+        renderRules();
+      });
+    }
+    if (ui.ruleList) {
+      ui.ruleList.addEventListener("change", (e) => {
+        const toggle = e.target.closest("[data-toggle-rule]");
+        if (toggle) toggleRule(toggle.dataset.toggleRule, toggle.checked);
+      });
+      ui.ruleList.addEventListener("click", (e) => {
+        const del = e.target.closest("[data-delete-rule]");
+        if (del) {
+          deleteRule(del.dataset.deleteRule);
+          return;
+        }
+        const edit = e.target.closest("[data-edit-rule]");
+        if (edit) {
+          openRuleForm(edit.dataset.editRule);
+          return;
+        }
+        const row = e.target.closest("[data-rule-row]");
+        if (row && !e.target.closest(".rule-switch")) openRuleForm(row.dataset.ruleRow);
+      });
+    }
+    if (ui.ruleAdd) ui.ruleAdd.addEventListener("click", () => openRuleForm(null));
+    if (ui.ruleReset) ui.ruleReset.addEventListener("click", resetBuiltinRules);
+    if (ui.ruleBackdrop) ui.ruleBackdrop.addEventListener("click", closeRuleForm);
+    if (ui.ruleForm) ui.ruleForm.addEventListener("submit", saveRuleFromForm);
+    $("#btn-close-rule").addEventListener("click", closeRuleForm);
+    $("#btn-cancel-rule").addEventListener("click", closeRuleForm);
 
     ui.homeReview.addEventListener("click", nextReview);
     ui.homeTabs.forEach((btn) => {
@@ -507,6 +848,10 @@
 
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
+      if (ui.ruleDrawer && !ui.ruleDrawer.classList.contains("hidden")) {
+        closeRuleForm();
+        return;
+      }
       if (!ui.ledgerDrawer.classList.contains("hidden")) {
         closeLedgerForm();
         return;
@@ -514,6 +859,7 @@
       if (!ui.drawer.classList.contains("hidden")) closeSettings();
     });
     window.addEventListener("resize", scheduleBeamRedraw);
+    window.addEventListener("focus", refreshRulesFromStorage);
 
     // 复制修改条款（报告内的按钮）
     document.addEventListener("click", (e) => {
@@ -538,6 +884,11 @@
     if (ui.homeGreetingBlock) ui.homeGreetingBlock.classList.toggle("hidden", view !== "home");
     if (ui.homeReview) ui.homeReview.classList.toggle("hidden", view !== "home");
     if (view === "clauses") renderClauses();
+    if (view === "rules") {
+      renderRuleFilters();
+      renderRules();
+      refreshRulesFromStorage();
+    }
     if (view === "home") renderHome();
     if (view === "ledger") renderLedger();
   }
