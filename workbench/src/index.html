@@ -313,6 +313,15 @@
                 <span class="field-label">文书类型</span>
                 <select id="doc-type" class="type-select" aria-label="文书类型"></select>
               </label>
+              <div class="field">
+                <span class="field-label">已保存草稿</span>
+                <div class="doc-saved-row">
+                  <select id="doc-saved-select" class="type-select" aria-label="已保存草稿"></select>
+                  <button id="btn-doc-saved-open" class="btn btn-ghost btn-mini" type="button">打开</button>
+                  <button id="btn-doc-saved-delete" class="btn btn-ghost btn-mini" type="button">删除</button>
+                </div>
+                <span class="field-note">生成后自动保存；同一合同 + 同一文书类型保留最近版本。</span>
+              </div>
               <label class="field">
                 <span class="field-label">发函方 / 我方</span>
                 <input id="doc-sender" type="text" maxlength="80" autocomplete="off" placeholder="公司 / 个人">
@@ -345,7 +354,7 @@
                 <span class="field-note">默认勾选高风险条款；没有审查结果时可手动在补充事实里写依据。</span>
               </div>
               <button id="btn-doc-generate" class="btn btn-primary btn-block" type="button">生成草稿</button>
-              <p id="doc-form-note" class="docs-form-note">生成时会调用当前配置的模型；只发送上述事实和勾选条款，不发送整份合同。草稿不会保存，刷新即清。</p>
+              <p id="doc-form-note" class="docs-form-note">生成时会调用当前配置的模型；只发送上述事实和勾选条款，不发送整份合同。草稿自动保存在本机，刷新后可恢复。</p>
             </div>
           </div>
           <div class="home-card docs-preview-card">
@@ -510,7 +519,10 @@
           </div>
           <div class="rules-head-actions">
             <button id="btn-rule-add" class="btn btn-primary" type="button">新增规则</button>
+            <button id="btn-rule-pack-export" class="btn btn-ghost" type="button">导出规则包</button>
+            <button id="btn-rule-pack-import" class="btn btn-ghost" type="button">导入规则包</button>
             <button id="btn-rule-reset" class="btn btn-ghost" type="button">恢复内置默认</button>
+            <input id="rule-pack-input" class="sr-only" type="file" accept=".json,application/json" tabindex="-1">
           </div>
         </div>
         <div class="rules-toolbar">

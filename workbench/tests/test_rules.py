@@ -348,3 +348,145 @@ def test_rule_store_merge():
     )
     assert out.returncode == 0, out.stderr
     assert "OK" in out.stdout
+
+
+def test_rule_pack():
+    """规则包：格式校验、导入合并、持久化失败回滚。"""
+    node = _node()
+
+    def require(rel: str) -> str:
+        return "require(" + json.dumps((SRC / rel).as_posix()) + ");"
+
+    script = "\n".join(
+        [
+            "const assert = require('node:assert');",
+            require("data/rules.js"),
+            require("storage.js"),
+            require("rule_pack.js"),
+            require("rule_store.js"),
+            "const WB = globalThis.WB;",
+            "const S = WB.RuleStore;",
+            """
+            (async () => {
+              const packState = {
+                overrides: {
+                  r_lease_penalty: {
+                    contractType: "房屋租赁合同", name: "包内覆盖", keywords: ["违约金"],
+                    condition: "押金超过两个月租金", level: "高",
+                    basis: "民法典第585条", advice: "包内建议", enabled: false
+                  }
+                },
+                custom: [
+                  {
+                    id: "r_custom_pack_a", contractType: "买卖合同", name: "包内自定义",
+                    keywords: ["验收", "测试"], condition: "出现验收字样", level: "中",
+                    basis: "民法典第509条", advice: "包内自定义建议"
+                  }
+                ]
+              };
+              const pack = WB.RulePack.build(packState, { name: " 测试包 ", note: "导入测试" });
+              assert.strictEqual(pack.app, "contract-workbench-rules");
+              assert.strictEqual(pack.version, 1);
+              assert.strictEqual(pack.name, "测试包");
+              assert.strictEqual(pack.note, "导入测试");
+              assert(pack.exportedAt);
+              const parsed = WB.RulePack.parse(JSON.stringify(pack));
+              assert.deepStrictEqual(parsed.overrides, packState.overrides);
+              assert.deepStrictEqual(parsed.custom, packState.custom);
+              assert.throws(() => WB.RulePack.parse("not json"), /JSON/);
+              assert.throws(
+                () => WB.RulePack.parse(JSON.stringify(Object.assign({}, pack, { app: "other" }))),
+                /合同工作台/
+              );
+              assert.throws(
+                () => WB.RulePack.parse(JSON.stringify(Object.assign({}, pack, { version: 2 }))),
+                /版本/
+              );
+
+              let stored = {
+                overrides: {
+                  r_lease_penalty: {
+                    contractType: "房屋租赁合同", name: "本地覆盖", keywords: ["违约金"],
+                    condition: "本地条件", level: "高",
+                    basis: "民法典第585条", advice: "本地建议", enabled: true
+                  }
+                },
+                custom: [
+                  {
+                    id: "r_custom_local", contractType: "通用", name: "本地自定义",
+                    keywords: ["本地"], condition: "本地条件", level: "低",
+                    basis: "民法典第509条", advice: "本地建议"
+                  }
+                ],
+                updatedAt: 5
+              };
+              WB.loadRuleState = async () => stored;
+              WB.saveRuleState = async (next, expected) => {
+                const rev = Number(stored && stored.updatedAt) || 0;
+                if (expected != null && rev !== expected) return { ok: false, conflict: true };
+                stored = next;
+                return { ok: true };
+              };
+              S.applyState(stored);
+              const builtinTotal = WB.RULES.length;
+
+              const res = await S.importPack({
+                overrides: {
+                  r_lease_penalty: packState.overrides.r_lease_penalty,
+                  r_not_builtin: packState.overrides.r_lease_penalty
+                },
+                custom: [
+                  packState.custom[0],
+                  Object.assign({}, packState.custom[0], { name: "重复 id 应被忽略" }),
+                  {
+                    id: "r_custom_bad", contractType: "通用", name: "",
+                    keywords: [], condition: "", basis: "", advice: ""
+                  }
+                ]
+              });
+              assert.strictEqual(res.ok, true);
+              assert.strictEqual(res.overrides, 1, "非内置 id 不应写入覆盖");
+              assert.strictEqual(res.custom, 1, "重复/非法自定义规则应被丢弃");
+              assert.strictEqual(res.skipped, 0);
+              assert.strictEqual(S.find("r_lease_penalty").name, "包内覆盖");
+              assert.strictEqual(S.find("r_lease_penalty").enabled, false);
+              assert(S.find("r_custom_pack_a"), "应导入自定义规则");
+              assert(S.find("r_custom_local"), "本机原有自定义规则应保留");
+              assert.strictEqual(WB.RULES.length, builtinTotal + 1);
+              assert.strictEqual(S.state().custom.length, 2);
+              assert.strictEqual(stored.custom.length, 2);
+              assert(stored.updatedAt > 5);
+
+              const exported = S.exportPack("当前规则");
+              assert.strictEqual(exported.name, "当前规则");
+              assert.strictEqual(Object.keys(exported.overrides).length, 1);
+              assert.strictEqual(exported.custom.length, 2);
+
+              // 存储失败：导入必须整笔回滚
+              const beforeName = S.find("r_lease_penalty").name;
+              const beforeCustom = S.state().custom.length;
+              WB.saveRuleState = async () => ({ ok: false });
+              const failed = await S.importPack({
+                overrides: {
+                  r_lease_penalty: Object.assign({}, packState.overrides.r_lease_penalty, { name: "不应生效" })
+                },
+                custom: []
+              });
+              assert.strictEqual(failed.ok, false);
+              assert.strictEqual(failed.reason, "storage");
+              assert.strictEqual(S.find("r_lease_penalty").name, beforeName);
+              assert.strictEqual(S.state().custom.length, beforeCustom);
+              console.log("OK");
+            })().catch((e) => { console.error(e); process.exit(1); });
+            """,
+        ]
+    )
+    out = subprocess.run(
+        [node, "-e", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(ROOT),
+    )
+    assert out.returncode == 0, out.stderr
+    assert "OK" in out.stdout

@@ -2450,6 +2450,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: rgba(63
 .docs-form-head .home-card-title,
 .docs-preview-head .home-card-title { font-size: 14px; }
 .docs-form .field { margin-bottom: 14px; }
+.doc-saved-row { display: flex; align-items: center; gap: 6px; }
+.doc-saved-row select { flex: 1; min-width: 0; }
+.doc-saved-row .btn { flex: none; min-height: 36px; padding: 0 12px; }
 .docs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 .docs-grid .field { margin-bottom: 14px; }
 .docs-clause-list {

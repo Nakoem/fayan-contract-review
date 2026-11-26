@@ -304,6 +304,60 @@
       return serialize(() => this._removeCustom(id));
     },
 
+    exportPack(name) {
+      return WB.RulePack.build(state, { name: name || "我的规则包" });
+    },
+
+    importPack(pack) {
+      return serialize(() => this._importPack(pack));
+    },
+
+    async _importPack(pack) {
+      const incoming = normalizeState({
+        overrides: pack && pack.overrides,
+        custom: pack && pack.custom,
+      });
+      // 导入的自定义 id 不能和内置规则撞车；撞车时换一个新 id。
+      const seen = new Set();
+      incoming.custom = incoming.custom.map((rule, i) => {
+        if (!BUILTIN_IDS.has(rule.id)) return rule;
+        return Object.assign({}, rule, {
+          id: `r_custom_pack_${Date.now().toString(36)}_${i}`,
+        });
+      }).filter((rule) => {
+        if (seen.has(rule.id)) return false;
+        seen.add(rule.id);
+        return true;
+      });
+      const before = clone(state);
+      state.overrides = Object.assign({}, state.overrides, incoming.overrides);
+      const byId = new Map(state.custom.map((rule) => [rule.id, rule]));
+      const additions = [];
+      let applied = 0;
+      let skipped = 0;
+      incoming.custom.forEach((rule) => {
+        if (byId.has(rule.id)) {
+          byId.set(rule.id, rule);
+          applied += 1;
+        } else if (state.custom.length + additions.length < MAX_CUSTOM) {
+          additions.push(rule);
+          applied += 1;
+        } else {
+          skipped += 1;
+        }
+      });
+      // 先保留本机规则，再用导入规则补足空位；超出上限的导入项不挤掉本地规则。
+      state.custom = state.custom.map((rule) => byId.get(rule.id)).concat(additions);
+      const saved = await saveWithRollback(before);
+      if (!saved.ok) return saved;
+      return {
+        ok: true,
+        overrides: Object.keys(incoming.overrides).length,
+        custom: applied,
+        skipped: skipped,
+      };
+    },
+
     async _removeCustom(id) {
       const rule = this.find(id);
       if (!rule) return { ok: false, reason: "missing" };

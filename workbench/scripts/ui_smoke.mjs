@@ -15,6 +15,41 @@ const INDEX = path.join(WB_DIR, "dist", "index.html");
 const SHOT_DIR = path.join(WB_DIR, "screenshots");
 fs.mkdirSync(SHOT_DIR, { recursive: true });
 const ATTACH_FILE = path.join(SHOT_DIR, "ui-attachment.txt");
+const RULE_PACK_FILE = path.join(SHOT_DIR, "ui-rule-pack.json");
+fs.writeFileSync(
+  RULE_PACK_FILE,
+  JSON.stringify({
+    app: "contract-workbench-rules",
+    version: 1,
+    name: "UI 测试规则包",
+    note: "界面导入测试",
+    overrides: {
+      r_lease_penalty: {
+        contractType: "房屋租赁合同",
+        name: "导入后的违约金规则",
+        keywords: ["违约金", "逾期"],
+        condition: "违约金超过实际损失的百分之三十",
+        level: "高",
+        basis: "民法典第585条",
+        advice: "UI 导入建议",
+        enabled: true
+      }
+    },
+    custom: [
+      {
+        id: "r_custom_ui_pack",
+        contractType: "买卖合同",
+        name: "UI 导入规则",
+        keywords: ["验收", "测试"],
+        condition: "出现验收或测试关键词",
+        level: "中",
+        basis: "民法典第509条",
+        advice: "UI 导入自定义建议"
+      }
+    ]
+  }),
+  "utf8"
+);
 fs.writeFileSync(ATTACH_FILE, "合同附件测试\n第二行\n", "utf8");
 
 const isoDate = (d) =>
@@ -569,6 +604,52 @@ async function main() {
     );
     await shot("ui-documents.png");
 
+    const docSaved = await cdp.eval(`(async () => {
+      const list = await WB.listDocDrafts();
+      return {
+        count: list.length,
+        docType: list[0] && list[0].docType,
+        chars: list[0] && list[0].content.length,
+        options: document.querySelectorAll("#doc-saved-select option").length,
+        selected: document.querySelector("#doc-saved-select").value,
+        status: document.querySelector("#doc-status").textContent
+      };
+    })()`);
+    ok(
+      "文书草稿自动保存",
+      docSaved.count === 1 && docSaved.docType === "demand" && docSaved.chars > 50 &&
+        docSaved.options === 2 && !!docSaved.selected && docSaved.status.indexOf("自动保存") >= 0,
+      JSON.stringify(docSaved)
+    );
+
+    await cdp.eval(`(() => {
+      const ta = document.querySelector("#doc-draft");
+      ta.value += " 补充：测试自动保存";
+      ta.dispatchEvent(new Event("input", { bubbles: true }));
+      return true;
+    })()`);
+    const docEdited = await waitFor(
+      cdp,
+      `(async () => { const list = await WB.listDocDrafts(); return list[0] && list[0].content.indexOf("测试自动保存") >= 0; })()`,
+      3000
+    ).catch(() => false);
+    ok("文书草稿编辑自动保存", !!docEdited);
+
+    await cdp.eval(`(() => {
+      const ta = document.querySelector("#doc-draft");
+      ta.value = "";
+      ta.dispatchEvent(new Event("input", { bubbles: true }));
+      document.querySelector("#btn-doc-saved-open").click();
+      return true;
+    })()`);
+    const docReopened = await waitFor(
+      cdp,
+      `document.querySelector("#doc-draft").value.indexOf("测试自动保存") >= 0 &&
+        document.querySelector("#doc-status").textContent.indexOf("打开保存的草稿") >= 0`,
+      3000
+    ).catch(() => false);
+    ok("打开已保存草稿", !!docReopened);
+
     // ── 合同范本：本地生成 / 表单联动 / 导出 ──
     await cdp.eval(`document.querySelector('.nav-item[data-view="templates"]').click(); true`);
     await waitFor(cdp, `!document.querySelector("#view-templates").classList.contains("hidden")`, 3000);
@@ -918,6 +999,41 @@ async function main() {
     const attachmentsAfterReload = await cdp.eval(`(async () => (await WB.Attachments.list(${JSON.stringify(attachmentEntryId)})).length)()`);
     ok("附件刷新后仍在", attachmentsAfterReload === 1, `${attachmentsAfterReload} 个`);
 
+    await cdp.eval(`document.querySelector('.nav-item[data-view="documents"]').click(); true`);
+    const draftAfterReload = await waitFor(
+      cdp,
+      `document.querySelector("#doc-draft").value.indexOf("测试自动保存") >= 0 &&
+        document.querySelector("#doc-saved-select").value !== ""`,
+      5000
+    ).catch(() => false);
+    const draftOptionsAfterReload = await cdp.eval(`document.querySelectorAll("#doc-saved-select option").length`);
+    ok(
+      "文书草稿刷新后恢复",
+      !!draftAfterReload && draftOptionsAfterReload >= 2,
+      `${draftOptionsAfterReload} 个选项`
+    );
+
+    const draftDelete = await cdp.eval(`(async () => {
+      const original = window.confirm;
+      window.confirm = function () { return true; };
+      try {
+        document.querySelector("#btn-doc-saved-delete").click();
+        await new Promise(function (r) { setTimeout(r, 350); });
+        return {
+          count: (await WB.listDocDrafts()).length,
+          toast: document.querySelector("#toast").textContent,
+          textKept: document.querySelector("#doc-draft").value.length > 0
+        };
+      } finally {
+        window.confirm = original;
+      }
+    })()`);
+    ok(
+      "删除已保存草稿",
+      draftDelete.count === 0 && draftDelete.toast.indexOf("草稿已删除") >= 0 && draftDelete.textKept,
+      JSON.stringify(draftDelete)
+    );
+
     await cdp.eval(`document.querySelector('.nav-item[data-view="home"]').click(); true`);
     const historyAfterReload = await cdp.eval(`document.querySelectorAll("#history-list .history-item").length`);
     ok("历史刷新后仍在", historyAfterReload >= 1, `${historyAfterReload} 条`);
@@ -1208,6 +1324,57 @@ async function main() {
       JSON.stringify(remoteSync)
     );
     await cdp.eval(`(async () => { await WB.RuleStore.resetBuiltin(); return true; })()`);
+
+    // ── 规则包：导入合并 / 导出 ──
+    const rulePackDoc = await cdp.send("DOM.getDocument", { depth: 1 });
+    const rulePackNode = await cdp.send("DOM.querySelector", { nodeId: rulePackDoc.result.root.nodeId, selector: "#rule-pack-input" });
+    await cdp.send("DOM.setFileInputFiles", { nodeId: rulePackNode.result.nodeId, files: [RULE_PACK_FILE] });
+    // 导入确认弹窗在 file.text() 之后异步出现，固定延时容易错过；测试里直接放行 confirm。
+    await cdp.eval(`window.__rulePackConfirm = window.confirm; window.confirm = function () { return true; }; true`);
+    await cdp.eval(`document.querySelector("#rule-pack-input").dispatchEvent(new Event("change", { bubbles: true })); true`);
+    const rulePackImported = await waitFor(
+      cdp,
+      `WB.RuleStore.find("r_lease_penalty").advice === "UI 导入建议" &&
+        WB.RULES.filter(function (r) { return !r.builtin; }).length === 1 &&
+        document.querySelector("#toast").textContent.indexOf("规则包已导入") >= 0`,
+      5000
+    ).catch(() => false);
+    const rulePackState = await cdp.eval(`(() => {
+      const exported = WB.RuleStore.exportPack("导出测试");
+      const parsed = WB.RulePack.parse(JSON.stringify(exported));
+      const custom = WB.RULES.filter(function (r) { return !r.builtin; })[0];
+      return {
+        name: parsed.name,
+        custom: parsed.custom.length,
+        overrides: Object.keys(parsed.overrides).length,
+        row: custom ? !!document.querySelector('[data-rule-row="' + custom.id + '"]') : false,
+        advice: WB.RuleStore.find("r_lease_penalty").advice
+      };
+    })()`);
+    ok(
+      "规则包导入导出",
+      !!rulePackImported && rulePackState.name === "导出测试" && rulePackState.custom === 1 &&
+        rulePackState.overrides >= 1 && rulePackState.row && rulePackState.advice === "UI 导入建议",
+      JSON.stringify(rulePackState)
+    );
+    await cdp.eval(`window.confirm = window.__rulePackConfirm; true`);
+
+    const rulePackCleanup = await cdp.eval(`(async () => {
+      const custom = WB.RULES.filter(function (r) { return !r.builtin; });
+      for (let i = 0; i < custom.length; i++) await WB.RuleStore.removeCustom(custom[i].id);
+      await WB.RuleStore.resetBuiltin();
+      return {
+        custom: WB.RULES.filter(function (r) { return !r.builtin; }).length,
+        enabled: WB.RuleStore.find("r_lease_penalty").enabled,
+        advice: WB.RuleStore.find("r_lease_penalty").advice
+      };
+    })()`);
+    ok(
+      "规则包导入清理",
+      rulePackCleanup.custom === 0 && rulePackCleanup.enabled === true &&
+        rulePackCleanup.advice.indexOf("违约金上限") >= 0,
+      JSON.stringify(rulePackCleanup)
+    );
 
     // ── 法条速查 ──
     await cdp.eval(`document.querySelector('.nav-item[data-view="law"]').click(); true`);

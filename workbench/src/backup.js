@@ -43,6 +43,7 @@
     // 导出与导入共用同一个上限，避免导出的备份自己无法导入。
     const reviews = Array.isArray(p.reviews) ? p.reviews.slice(0, MAX_RECORDS) : [];
     const ledger = Array.isArray(p.ledger) ? p.ledger.slice(0, MAX_RECORDS) : [];
+    const documents = Array.isArray(p.documents) ? p.documents.slice(0, MAX_RECORDS) : [];
     return {
       app: APP,
       version: VERSION,
@@ -51,6 +52,7 @@
         settings: safeSettings(p.settings),
         reviews: reviews,
         ledger: ledger,
+        documents: documents,
         rules: p.rules && typeof p.rules === "object" ? p.rules : null,
         current: p.current && typeof p.current === "object" ? p.current : null,
       },
@@ -70,6 +72,7 @@
       settings: safeSettings(data.settings),
       reviews: cleanRecords(data.reviews, "审查历史"),
       ledger: cleanRecords(data.ledger, "合同台账"),
+      documents: data.documents == null ? null : cleanRecords(data.documents, "文书草稿"),
       rules: rules,
       current: current,
     };

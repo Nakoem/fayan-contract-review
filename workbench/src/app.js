@@ -90,6 +90,9 @@
     docData: null,
     docSourceFilled: false,
     docBusy: false,
+    savedDocs: [],
+    docSaveTimer: null,
+    docSwitchToken: 0,
     templateKey: "lease",
     templateValues: {},
     templateText: "",
@@ -117,6 +120,7 @@
     state.history = history;
     state.ledger = ledger;
     await refreshAttachmentCounts();
+    await loadDocDrafts();
     if (WB.RuleStore) {
       try { await WB.RuleStore.load(); } catch (e) { /* 保留内置默认规则 */ }
       WB.RuleStore.onRemoteChange = refreshRulesFromStorage;
@@ -204,6 +208,9 @@
     ui.ruleBackdrop = $("#rule-backdrop");
     ui.ruleAdd = $("#btn-rule-add");
     ui.ruleReset = $("#btn-rule-reset");
+    ui.rulePackExport = $("#btn-rule-pack-export");
+    ui.rulePackImport = $("#btn-rule-pack-import");
+    ui.rulePackInput = $("#rule-pack-input");
     ui.topbar = $("#topbar");
     ui.homeStats = $("#home-stats");
     ui.homeGreetingBlock = $("#home-greeting-block");
@@ -265,6 +272,9 @@
     ui.ledgerReviewId = $("#ledger-review-id");
     ui.docSource = $("#doc-source");
     ui.docType = $("#doc-type");
+    ui.docSavedSelect = $("#doc-saved-select");
+    ui.btnDocSavedOpen = $("#btn-doc-saved-open");
+    ui.btnDocSavedDelete = $("#btn-doc-saved-delete");
     ui.docSender = $("#doc-sender");
     ui.docCounterparty = $("#doc-counterparty");
     ui.docAmount = $("#doc-amount");
@@ -746,6 +756,61 @@
     toast("规则已删除");
   }
 
+  function exportRulePack() {
+    if (!WB.RuleStore || !WB.RulePack) return;
+    const pack = WB.RuleStore.exportPack("合同工作台规则包");
+    downloadText(
+      JSON.stringify(pack, null, 2),
+      `规则包-${dateStamp()}.json`,
+      "application/json"
+    );
+    toast(`规则包已导出：覆盖 ${Object.keys(pack.overrides).length} 条 · 自定义 ${pack.custom.length} 条`);
+  }
+
+  async function importRulePack(file) {
+    if (!file) return;
+    const input = ui.rulePackInput;
+    if (file.size > 2 * 1024 * 1024) {
+      toast("规则包超过 2MB，请确认文件是否正确", "error");
+      if (input) input.value = "";
+      return;
+    }
+    let pack;
+    try {
+      pack = WB.RulePack.parse(await file.text());
+    } catch (err) {
+      toast((err && err.message) || "规则包无法读取", "error");
+      if (input) input.value = "";
+      return;
+    }
+    const summary = `覆盖 ${Object.keys(pack.overrides).length} 条 · 自定义 ${pack.custom.length} 条`;
+    if (!window.confirm(`导入规则包「${pack.name}」（${summary}）会合并到本机规则，同名内置规则会被覆盖。继续？`)) {
+      if (input) input.value = "";
+      return;
+    }
+    let res;
+    try {
+      res = await WB.RuleStore.importPack(pack);
+    } catch (err) {
+      toast((err && err.message) || "规则包导入失败", "error");
+      if (input) input.value = "";
+      return;
+    }
+    if (!res.ok) {
+      ruleErrorToast(res);
+      if (input) input.value = "";
+      return;
+    }
+    renderRuleFilters();
+    renderRules();
+    renderClauses();
+    if (input) input.value = "";
+    toast(
+      `规则包已导入：覆盖 ${res.overrides} 条 · 自定义 ${res.custom} 条` +
+      (res.skipped ? ` · ${res.skipped} 条超出上限未导入` : "")
+    );
+  }
+
   async function resetBuiltinRules() {
     const count = Object.keys(WB.RuleStore.state().overrides).length;
     if (!count) {
@@ -919,6 +984,16 @@
       });
     }
     if (ui.ruleAdd) ui.ruleAdd.addEventListener("click", () => openRuleForm(null));
+    if (ui.rulePackExport) ui.rulePackExport.addEventListener("click", exportRulePack);
+    if (ui.rulePackImport) ui.rulePackImport.addEventListener("click", () => {
+      if (ui.rulePackInput) ui.rulePackInput.click();
+    });
+    if (ui.rulePackInput) {
+      ui.rulePackInput.addEventListener("change", () => {
+        const file = ui.rulePackInput.files && ui.rulePackInput.files[0];
+        if (file) importRulePack(file);
+      });
+    }
     if (ui.ruleReset) ui.ruleReset.addEventListener("click", resetBuiltinRules);
     if (ui.ruleBackdrop) ui.ruleBackdrop.addEventListener("click", closeRuleForm);
     if (ui.ruleForm) ui.ruleForm.addEventListener("submit", saveRuleFromForm);
@@ -1116,6 +1191,23 @@
     if (ui.btnDocGenerate) ui.btnDocGenerate.addEventListener("click", generateDocument);
     if (ui.btnDocCopy) ui.btnDocCopy.addEventListener("click", () => copyText(ui.docDraft.value, "已复制文书草稿"));
     if (ui.btnDocExport) ui.btnDocExport.addEventListener("click", exportDocumentDocx);
+    if (ui.docDraft) {
+      ui.docDraft.addEventListener("input", scheduleDocSave);
+      ui.docDraft.addEventListener("blur", () => {
+        if (ui.docDraft.value.trim()) saveCurrentDocDraft({ silent: true }).catch(() => {});
+      });
+    }
+    [ui.docSender, ui.docCounterparty, ui.docAmount, ui.docDueDate, ui.docDemandDate, ui.docFacts]
+      .forEach((el) => { if (el) el.addEventListener("input", scheduleDocSave); });
+    if (ui.docClauseList) ui.docClauseList.addEventListener("change", scheduleDocSave);
+    if (ui.btnDocSavedOpen) ui.btnDocSavedOpen.addEventListener("click", openSelectedSavedDoc);
+    if (ui.btnDocSavedDelete) ui.btnDocSavedDelete.addEventListener("click", deleteSelectedSavedDoc);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden" && state.docSaveTimer) {
+        cancelDocSaveTimer();
+        saveCurrentDocDraft({ silent: true }).catch(() => {});
+      }
+    });
 
     if (ui.templateList) ui.templateList.addEventListener("click", onTemplatePick);
     if (ui.btnTemplateGenerate) ui.btnTemplateGenerate.addEventListener("click", () => generateTemplateText({ force: true }));
@@ -2442,6 +2534,213 @@
     return null;
   }
 
+  async function loadDocDrafts() {
+    if (!WB.listDocDrafts) return [];
+    try { state.savedDocs = await WB.listDocDrafts(); }
+    catch (e) { state.savedDocs = []; }
+    return state.savedDocs;
+  }
+
+  function docSourceIdentity() {
+    if (state.docSource === "current") {
+      return "review:" + (state.lastReviewId || "current");
+    }
+    return state.docSource;
+  }
+
+  function docSourceValue(identity) {
+    const key = String(identity || "");
+    if (key === "review:" + (state.lastReviewId || "current")) return "current";
+    if (key.indexOf("review:") === 0) {
+      const historyKey = "history:" + key.slice(7);
+      const exists = Array.from(ui.docSource.options).some((opt) => opt.value === historyKey);
+      if (exists) return historyKey;
+    }
+    return key;
+  }
+
+  function docFormValues() {
+    return {
+      sender: ui.docSender ? ui.docSender.value.trim() : "",
+      counterparty: ui.docCounterparty ? ui.docCounterparty.value.trim() : "",
+      amount: ui.docAmount ? ui.docAmount.value.trim() : "",
+      dueDate: ui.docDueDate ? ui.docDueDate.value : "",
+      demandDate: ui.docDemandDate ? ui.docDemandDate.value : "",
+      facts: ui.docFacts ? ui.docFacts.value.trim() : "",
+    };
+  }
+
+  function selectedDocIndexes() {
+    if (!ui.docClauseList) return [];
+    return $$("#doc-clause-list input:checked")
+      .map((el) => Number(el.dataset.docFinding))
+      .filter((n) => Number.isInteger(n));
+  }
+
+  function currentDocRecord(content) {
+    const identity = docSourceIdentity();
+    const id = WB.docDraftId(identity, state.docType);
+    const old = (state.savedDocs || []).find((item) => item.id === id);
+    const now = Date.now();
+    const data = state.docData || {};
+    return {
+      id: id,
+      contractKey: identity,
+      contractTitle: data.title || (old && old.contractTitle) || "",
+      contractType: data.contractType || (old && old.contractType) || "",
+      docType: state.docType,
+      content: String(content || ""),
+      form: docFormValues(),
+      selected: selectedDocIndexes(),
+      createdAt: old ? Number(old.createdAt) || now : now,
+      updatedAt: now,
+    };
+  }
+
+  function cancelDocSaveTimer() {
+    if (state.docSaveTimer) {
+      clearTimeout(state.docSaveTimer);
+      state.docSaveTimer = null;
+    }
+  }
+
+  async function saveCurrentDocDraft(opts) {
+    const content = ui.docDraft ? ui.docDraft.value.trim() : "";
+    if (!state.docSource || !content) return null;
+    const record = currentDocRecord(content);
+    let saved = null;
+    try { saved = await WB.saveDocDraft(record); }
+    catch (e) { saved = null; }
+    if (!saved) {
+      if (!opts || !opts.silent) setDocStatus("自动保存失败：本机存储不可用，请先导出文书。", "error");
+      return null;
+    }
+    state.savedDocs = await WB.listDocDrafts();
+    renderSavedDocOptions(saved.id);
+    if (!opts || !opts.silent) setDocStatus("已自动保存到本机。");
+    return saved;
+  }
+
+  function scheduleDocSave() {
+    cancelDocSaveTimer();
+    if (!ui.docDraft || !ui.docDraft.value.trim()) return;
+    state.docSaveTimer = setTimeout(() => {
+      state.docSaveTimer = null;
+      saveCurrentDocDraft({ silent: true }).catch(() => {});
+    }, 700);
+  }
+
+  function docDraftLabel(record) {
+    const meta = WB.docTypeMeta(record.docType);
+    const date = new Date(Number(record.updatedAt) || Date.now());
+    return `${record.contractTitle || "未命名合同"} · ${meta.label} · ${date.toLocaleString("zh-CN")}`;
+  }
+
+  function renderSavedDocOptions(selectedId) {
+    if (!ui.docSavedSelect) return;
+    const list = state.savedDocs || [];
+    const keep = selectedId != null ? selectedId : ui.docSavedSelect.value;
+    ui.docSavedSelect.innerHTML =
+      `<option value="">${list.length ? `选择已保存草稿（${list.length}）` : "还没有已保存草稿"}</option>` +
+      list.map((record) => `<option value="${esc(record.id)}">${esc(docDraftLabel(record))}</option>`).join("");
+    if (keep && list.some((record) => record.id === keep)) ui.docSavedSelect.value = keep;
+  }
+
+  function applySavedDoc(record) {
+    if (!record) return false;
+    const meta = WB.docTypeMeta(record.docType);
+    state.docType = meta.key;
+    ui.docType.value = meta.key;
+    updateDocLabels();
+
+    const selectValue = docSourceValue(record.contractKey);
+    const sourceExists = Boolean(selectValue) && Array.from(ui.docSource.options).some((opt) => opt.value === selectValue);
+    if (sourceExists) {
+      ui.docSource.value = selectValue;
+      state.docSource = selectValue;
+      state.docSourceFilled = true;
+      state.docData = docSourceData(record.contractKey);
+      state.docFindings = state.docData && state.docData.result && Array.isArray(state.docData.result.findings)
+        ? state.docData.result.findings.slice()
+        : [];
+      renderDocClauses();
+    } else {
+      // 原合同可能已删除；保留来源标识，草稿仍可继续编辑和保存。
+      state.docSource = record.contractKey;
+      state.docData = null;
+      state.docFindings = [];
+      if (ui.docSource) ui.docSource.value = "";
+      if (ui.docClauseList) ui.docClauseList.innerHTML = "";
+    }
+
+    const form = record.form || {};
+    ui.docSender.value = form.sender || "";
+    ui.docCounterparty.value = form.counterparty || "";
+    ui.docAmount.value = form.amount || "";
+    ui.docDueDate.value = form.dueDate || "";
+    ui.docDemandDate.value = form.demandDate || "";
+    ui.docFacts.value = form.facts || "";
+    setDocDraft(record.content || "");
+    const selected = Array.isArray(record.selected) ? record.selected.map(Number) : [];
+    $$("#doc-clause-list input").forEach((el) => {
+      el.checked = selected.indexOf(Number(el.dataset.docFinding)) >= 0;
+    });
+    const data = state.docData;
+    ui.docMeta.textContent = data
+      ? `合同：${data.title}${data.contractType && data.contractType !== data.title ? " · " + data.contractType : ""} · ${data.stanceLabel || "中立（双方）"}`
+      : `合同：${record.contractTitle || "未命名合同"}（原合同已不在本机）`;
+    ui.btnDocGenerate.disabled = !data;
+    ui.docSavedSelect.value = record.id;
+    setDocStatus("已打开保存的草稿。");
+    return true;
+  }
+
+  function restoreSavedDoc() {
+    if (!state.docSource || !ui.docDraft || ui.docDraft.value.trim()) return false;
+    const id = WB.docDraftId(docSourceIdentity(), state.docType);
+    const record = (state.savedDocs || []).find((item) => item.id === id);
+    return record ? applySavedDoc(record) : false;
+  }
+
+  async function openSelectedSavedDoc() {
+    const id = ui.docSavedSelect ? ui.docSavedSelect.value : "";
+    if (!id) {
+      toast("先在「已保存草稿」里选一份");
+      return;
+    }
+    const record = (state.savedDocs || []).find((item) => item.id === id);
+    if (!record) {
+      toast("这份草稿已不存在", "error");
+      return;
+    }
+    cancelDocSaveTimer();
+    if (state.docSource && ui.docDraft && ui.docDraft.value.trim()) {
+      try { await saveCurrentDocDraft({ silent: true }); } catch (e) { /* 当前草稿保存失败不阻止打开 */ }
+    }
+    applySavedDoc(record);
+    toast("已打开保存的草稿");
+  }
+
+  async function deleteSelectedSavedDoc() {
+    const id = ui.docSavedSelect ? ui.docSavedSelect.value : "";
+    if (!id) {
+      toast("先在「已保存草稿」里选一份");
+      return;
+    }
+    const record = (state.savedDocs || []).find((item) => item.id === id);
+    if (!record) return;
+    if (!window.confirm(`删除保存的草稿「${docDraftLabel(record)}」？`)) return;
+    try { await WB.deleteDocDraft(id); }
+    catch (e) {
+      toast("删除失败：本机存储不可用", "error");
+      return;
+    }
+    state.savedDocs = (state.savedDocs || []).filter((item) => item.id !== id);
+    renderSavedDocOptions("");
+    setDocStatus("已删除保存的草稿，当前正文仍保留。");
+    toast("草稿已删除");
+  }
+
   function populateDocSources() {
     if (!ui.docSource) return;
     const groups = [];
@@ -2472,6 +2771,13 @@
       ? groups.join("")
       : '<option value="">还没有可用的合同</option>';
     let next = state.docSource;
+    if (next && values.indexOf(next) < 0 && ui.docDraft && ui.docDraft.value.trim()) {
+      // 正在查看一份原合同已不在本机的草稿：保留在选项里，避免切页后清空正文。
+      const draft = (state.savedDocs || []).find((item) => item.id === WB.docDraftId(next, state.docType));
+      const label = `原合同已不在本机 · ${(draft && draft.contractTitle) || "已保存草稿"}`;
+      ui.docSource.innerHTML += `<option value="${esc(next)}">${esc(label)}</option>`;
+      values.push(next);
+    }
     if (values.indexOf(next) < 0) next = values[0] || "";
     const changed = next !== state.docSource;
     state.docSource = next;
@@ -2485,7 +2791,9 @@
       if (changed) setDocDraft("");
       fillDocForm();
       state.docSourceFilled = true;
+      restoreSavedDoc();
     }
+    renderSavedDocOptions();
   }
 
   function docExtractedFacts(data) {
@@ -2555,6 +2863,7 @@
   }
 
   function clearDocForm() {
+    cancelDocSaveTimer();
     state.docData = null;
     state.docFindings = [];
     if (ui.docSender) ui.docSender.value = "";
@@ -2617,25 +2926,31 @@
     ui.docStatus.className = "docs-status" + (kind ? " " + kind : "");
   }
 
-  function onDocSourceChange() {
+  async function onDocSourceChange() {
     const next = ui.docSource.value;
-    if (next !== state.docSource && ui.docDraft.value.trim() && !window.confirm("切换合同会清空当前草稿，继续？")) {
-      ui.docSource.value = state.docSource;
-      return;
-    }
+    if (next === state.docSource) return;
+    const token = ++state.docSwitchToken;
+    cancelDocSaveTimer();
+    if (ui.docDraft.value.trim()) await saveCurrentDocDraft({ silent: true });
+    if (token !== state.docSwitchToken) return;
     state.docSource = next;
     state.docSourceFilled = Boolean(state.docSource);
     setDocDraft("");
     fillDocForm();
-    if (state.docSource) setDocStatus("已带入合同事实，请核对。");
+    const restored = restoreSavedDoc();
+    renderSavedDocOptions();
+    if (state.docSource) {
+      setDocStatus(restored ? "已恢复这份合同保存的草稿。" : "已带入合同事实，请核对。");
+    }
   }
 
-  function onDocTypeChange() {
+  async function onDocTypeChange() {
     const next = ui.docType.value;
-    if (next !== state.docType && ui.docDraft.value.trim() && !window.confirm("切换文书类型会清空当前草稿，继续？")) {
-      ui.docType.value = state.docType;
-      return;
-    }
+    if (next === state.docType) return;
+    const token = ++state.docSwitchToken;
+    cancelDocSaveTimer();
+    if (ui.docDraft.value.trim()) await saveCurrentDocDraft({ silent: true });
+    if (token !== state.docSwitchToken) return;
     state.docType = next;
     updateDocLabels();
     if (state.docData) {
@@ -2645,13 +2960,17 @@
     if (ui.docDemandDate) ui.docDemandDate.value = defaultDocDate(state.docType);
     renderDocClauses();
     setDocDraft("");
-    setDocStatus("已切换文书类型，请重新生成。");
+    const restored = restoreSavedDoc();
+    renderSavedDocOptions();
+    setDocStatus(restored ? "已恢复这个文书类型保存的草稿。" : "已切换文书类型，请重新生成。");
   }
 
   function renderDocuments() {
     if (!ui.docSource) return;
     populateDocTypes();
     populateDocSources();
+    renderSavedDocOptions();
+    if (state.docSource && ui.docDraft && !ui.docDraft.value.trim()) restoreSavedDoc();
   }
 
   function docMetaText() {
@@ -2708,7 +3027,15 @@
       const text = WB.cleanDocText(res.content);
       if (!text) throw new Error("模型没有返回可用的文书内容");
       setDocDraft(text);
-      setDocStatus("草稿已生成，请逐字核对事实、金额和日期后再发出。");
+      let savedDraft = null;
+      try { savedDraft = await saveCurrentDocDraft({ silent: true }); } catch (e) { savedDraft = null; }
+      renderSavedDocOptions();
+      setDocStatus(
+        savedDraft
+          ? "草稿已生成并自动保存，请逐字核对事实、金额和日期后再发出。"
+          : "草稿已生成，但本机存储不可用，未能自动保存，请先导出文书。",
+        savedDraft ? "" : "error"
+      );
       toast("文书草稿已生成");
     } catch (err) {
       const message = (err && err.message) || "生成失败，请重试";
@@ -3843,9 +4170,10 @@
   }
 
   async function exportBackup() {
-    const [reviews, ledger, current] = await Promise.all([
+    const [reviews, ledger, documents, current] = await Promise.all([
       WB.listReviews(),
       WB.listLedger(),
+      WB.listDocDrafts(),
       WB.loadCurrent(),
     ]);
     const ruleState = WB.RuleStore ? WB.RuleStore.state() : null;
@@ -3857,6 +4185,7 @@
       settings: state.settings,
       reviews: reviews,
       ledger: ledger,
+      documents: documents,
       rules: rules,
       current: current,
     });
@@ -3886,10 +4215,12 @@
       $("#backup-input").value = "";
       return;
     }
-    const summary = `审查历史 ${data.reviews.length} 条 · 合同台账 ${data.ledger.length} 条`;
+    const hasDrafts = Array.isArray(data.documents);
+    const summary = `审查历史 ${data.reviews.length} 条 · 合同台账 ${data.ledger.length} 条` +
+      (hasDrafts ? ` · 文书草稿 ${data.documents.length} 条` : " · 旧备份不含文书草稿");
     const ok = window.confirm(
-      `导入会覆盖本机的审查历史、合同台账和规则（${summary}），设置会恢复，API Key 保留。` +
-      `备份不包含附件文件，现有台账的附件会按新台账清理。继续？`
+      `导入会覆盖本机的审查历史、合同台账、规则${hasDrafts ? "和文书草稿" : ""}（${summary}），` +
+      `设置会恢复，API Key 保留。备份不包含附件文件，现有台账的附件会按新台账清理。继续？`
     );
     if (!ok) {
       $("#backup-input").value = "";
@@ -3898,6 +4229,7 @@
     try {
       await WB.replaceReviews(data.reviews);
       await WB.replaceLedger(data.ledger);
+      if (Array.isArray(data.documents)) await WB.replaceDocDrafts(data.documents);
       if (WB.Attachments) {
         try { await WB.Attachments.prune(data.ledger.map((entry) => entry.id)); } catch (e) { /* 附件清理失败不阻塞导入 */ }
       }

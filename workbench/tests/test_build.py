@@ -160,6 +160,12 @@ def test_rule_editor_embedded(html):
     assert 'id="rule-drawer"' in html
 
 
+def test_rule_pack_embedded(html):
+    assert 'id="btn-rule-pack-export"' in html
+    assert 'id="btn-rule-pack-import"' in html
+    assert "WB.RulePack" in html
+
+
 def test_file_parsers_embedded(html):
     assert 'id="pdfjs-main"' in html
     assert 'id="pdfjs-worker"' in html
@@ -183,6 +189,7 @@ def test_no_missing_scripts():
         "storage.js",
         "attachments.js",
         "rule_store.js",
+        "rule_pack.js",
         "file_parser.js",
         "app.js",
         "prompts.js",

@@ -248,6 +248,116 @@
     }
   };
 
+  // ───────────────────────── 文书草稿（V3.1） ─────────────────────────
+
+  const DOC_DRAFTS_KEY = "document-drafts";
+  const MAX_DOC_DRAFTS = 50;
+
+  function cleanDocDraft(item) {
+    if (!item || typeof item !== "object" || typeof item.id !== "string" || !item.id) return null;
+    const form = item.form && typeof item.form === "object" ? item.form : {};
+    const text = (value, max) => String(value == null ? "" : value).slice(0, max);
+    return {
+      id: text(item.id, 160),
+      contractKey: text(item.contractKey, 200),
+      contractTitle: text(item.contractTitle, 200),
+      contractType: text(item.contractType, 40),
+      docType: text(item.docType, 40),
+      content: text(item.content, 30000),
+      form: {
+        sender: text(form.sender, 200),
+        counterparty: text(form.counterparty, 200),
+        amount: text(form.amount, 100),
+        dueDate: text(form.dueDate, 20),
+        demandDate: text(form.demandDate, 20),
+        facts: text(form.facts, 10000),
+      },
+      selected: Array.isArray(item.selected)
+        ? item.selected.slice(0, 200).map(Number).filter((n) => Number.isInteger(n) && n >= 0)
+        : [],
+      createdAt: Number(item.createdAt) || Number(item.updatedAt) || Date.now(),
+      updatedAt: Number(item.updatedAt) || 0,
+    };
+  }
+
+  function cleanDocDrafts(list) {
+    return (Array.isArray(list) ? list : [])
+      .map(cleanDocDraft)
+      .filter(Boolean)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, MAX_DOC_DRAFTS);
+  }
+
+  WB.docDraftId = function (source, type) {
+    const clean = String(source || "manual").replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 80);
+    const kind = String(type || "doc").replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 40);
+    return "doc_" + clean + "_" + kind;
+  };
+
+  function mergeDocDrafts(idbList, lsList) {
+    const merged = new Map();
+    const put = (item) => {
+      const prev = merged.get(item.id);
+      if (!prev || (Number(item.updatedAt) || 0) >= (Number(prev.updatedAt) || 0)) {
+        merged.set(item.id, item);
+      }
+    };
+    cleanDocDrafts(lsList).forEach(put);
+    cleanDocDrafts(idbList).forEach(put);
+    return Array.from(merged.values())
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, MAX_DOC_DRAFTS);
+  }
+
+  WB.listDocDrafts = async function () {
+    let idbList = null;
+    try { idbList = await idbGet("settings", DOC_DRAFTS_KEY); }
+    catch (e) { idbList = null; }
+    // IndexedDB 与降级期写入的 localStorage 合并，避免存储短暂不可用后丢草稿。
+    return mergeDocDrafts(idbList, lsGet(DOC_DRAFTS_KEY));
+  };
+
+  async function writeDocDrafts(list) {
+    const clean = cleanDocDrafts(list);
+    try {
+      await idbPut("settings", DOC_DRAFTS_KEY, clean);
+    } catch (e) {
+      // IndexedDB 不可用时回退 localStorage；两处都失败必须让调用方知道没存上。
+      if (!lsPut(DOC_DRAFTS_KEY, clean)) throw new Error("本机存储不可用，草稿没有保存");
+      return clean;
+    }
+    // 成功写入后同步降级副本，删除 / 覆盖时不会从旧 localStorage 复活。
+    lsPut(DOC_DRAFTS_KEY, clean);
+    return clean;
+  }
+
+  WB.saveDocDraft = async function (record) {
+    if (!record || !record.id) return null;
+    const list = await WB.listDocDrafts();
+    const id = String(record.id);
+    const index = list.findIndex((item) => item.id === id);
+    if (index >= 0) list.splice(index, 1);
+    list.unshift(record);
+    const saved = await writeDocDrafts(list);
+    return saved.find((item) => item.id === id) || null;
+  };
+
+  WB.deleteDocDraft = async function (id) {
+    const list = (await WB.listDocDrafts()).filter((item) => item.id !== id);
+    await writeDocDrafts(list);
+    return true;
+  };
+
+  WB.replaceDocDrafts = async function (list) {
+    await writeDocDrafts(list);
+    return true;
+  };
+
+  WB.clearDocDrafts = async function () {
+    await writeDocDrafts([]);
+    return true;
+  };
+
   // ───────────────────────── 通用记录（审查历史 / 台账） ─────────────────────────
 
   async function saveRecord(store, lsKey, record) {

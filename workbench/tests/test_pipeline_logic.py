@@ -1003,25 +1003,36 @@ def test_backup():
               },
               reviews: [{ id: 'rv_1', contractText: '合同正文', result: { score: 1 } }],
               ledger: [{ id: 'ct_1', title: '租赁合同' }],
+              documents: [{ id: 'doc_demand', docType: 'demand', content: '催款函草稿' }],
               rules: { overrides: {}, custom: [], updatedAt: 123 },
               current: { result: { score: 1 }, contractText: '合同正文' }
             });
             assert(JSON.stringify(backup).indexOf('sk-secret') < 0);
             assert.strictEqual(backup.data.settings.model, 'deepseek-v4.1-flash');
             assert.strictEqual(backup.data.reviews.length, 1);
+            assert.strictEqual(backup.data.documents.length, 1);
             assert.strictEqual(backup.data.current.result.score, 1);
 
             const parsed = WB.parseBackup(JSON.stringify(backup));
             assert.strictEqual(parsed.reviews[0].id, 'rv_1');
             assert.strictEqual(parsed.ledger[0].id, 'ct_1');
+            assert.strictEqual(parsed.documents[0].content, '催款函草稿');
             assert.strictEqual(parsed.rules.updatedAt, 123);
+            // 旧备份没有 documents 字段：导入时应保留本机草稿，而不是清空。
+            const legacy = WB.validateBackup({ app: 'contract-workbench', version: 1, data: { reviews: [], ledger: [] } });
+            assert.strictEqual(legacy.documents, null);
             assert.throws(() => WB.parseBackup('not json'), /JSON/);
             assert.throws(() => WB.parseBackup('{}'), /合同工作台/);
             const tooMany = Array.from({ length: 501 }, (_x, i) => ({ id: 'rv_' + i }));
             assert.throws(() => WB.validateBackup({ app: 'contract-workbench', version: 1, data: { reviews: tooMany } }), /500/);
-            const capped = WB.buildBackup({ reviews: tooMany, ledger: tooMany });
+            const capped = WB.buildBackup({ reviews: tooMany, ledger: tooMany, documents: tooMany });
             assert.strictEqual(capped.data.reviews.length, 500);
             assert.strictEqual(capped.data.ledger.length, 500);
+            assert.strictEqual(capped.data.documents.length, 500);
+            assert.throws(
+              () => WB.validateBackup({ app: 'contract-workbench', version: 1, data: { documents: tooMany } }),
+              /500/
+            );
             console.log('OK');
             """,
         ]

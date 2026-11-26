@@ -51,6 +51,7 @@ SCRIPT_ORDER = [
     "docx.js",
     "storage.js",
     "attachments.js",
+    "rule_pack.js",
     "rule_store.js",
     "backup.js",
     "ledger.js",
@@ -216,6 +217,7 @@ def check() -> int:
         ("含附件管理", 'id="btn-add-attachment"' in html and "WB.Attachments" in html),
         ("含对方档案", 'id="party-drawer"' in html and "partyGroups" in html),
         ("含法条速查", 'id="view-law"' in html and "WB.searchLaw" in html),
+        ("含规则包", 'id="btn-rule-pack-export"' in html and "WB.RulePack" in html),
     ]
     for name, passed in checks:
         print(f"[check] {'✓' if passed else '✗'} {name}")
