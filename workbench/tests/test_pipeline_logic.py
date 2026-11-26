@@ -317,6 +317,7 @@ def test_ledger_extract():
               contractType: '房屋租赁合同', stance: 'tenant', now
             });
             assert.strictEqual(leaseTenant.counterparty, '张三');
+            assert.strictEqual(leaseTenant.sender, '李四');
             assert.strictEqual(leaseTenant.startDate, '2026-06-01');
             assert.strictEqual(leaseTenant.endDate, '2029-05-31');
             assert.strictEqual(leaseTenant.amount, '15,000/月');
@@ -328,6 +329,7 @@ def test_ledger_extract():
               contractType: '房屋租赁合同', stance: 'landlord', now
             });
             assert.strictEqual(leaseLandlord.counterparty, '李四');
+            assert.strictEqual(leaseLandlord.sender, '张三');
 
             const leaseNeutral = WB.Ledger.extractDraft(samples.lease, {
               contractType: '房屋租赁合同', stance: 'neutral', now
@@ -433,6 +435,656 @@ def test_ledger_extract():
     )
     assert out.returncode == 0, out.stderr
     assert "OK" in out.stdout
+
+
+def test_ledger_nodes():
+    """台账多付款节点 / 续签：提醒、下次付款、ICS 与 CSV 都按节点展开。"""
+    script = "\n".join(
+        [
+            "const assert = require('node:assert');",
+            _require("ledger.js"),
+            "const WB = globalThis.WB;",
+            "const now = new Date(2026, 10, 25);",
+            """
+            const entry = {
+              id: 'ct_1', title: '租赁合同', status: '履行中', contractType: '房屋租赁合同',
+              counterparty: '张三', endDate: '2026-12-31', renewalDate: '2026-12-01',
+              payments: [
+                { id: 'p1', date: '2026-12-05', amount: '8000', note: '第二期' },
+                { id: 'p2', date: '2026-11-30', amount: '7000', note: '第一期' },
+              ],
+            };
+            const nodes = WB.Ledger.payments(entry);
+            assert.strictEqual(nodes.length, 2);
+            assert.strictEqual(nodes[0].id, 'p1');
+            assert.strictEqual(WB.Ledger.nextPayment(entry, now).id, 'p2');
+            assert.strictEqual(WB.Ledger.nextPayment({}, now), null);
+
+            const legacy = { id: 'ct_2', paymentDate: '2026-12-10', paymentAmount: '500' };
+            assert.strictEqual(WB.Ledger.payments(legacy).length, 1);
+            assert.strictEqual(WB.Ledger.payments(legacy)[0].id, 'legacy');
+            assert.strictEqual(WB.Ledger.payments({ payments: [{ date: 'bad' }] }).length, 0);
+
+            const reminders = WB.Ledger.reminders([entry], now);
+            assert(!reminders.some((r) => r.kind === '到期'));
+            assert(reminders.some((r) => r.kind === '续签' && r.days === 6));
+            assert.strictEqual(reminders.filter((r) => r.kind === '付款').length, 2);
+            assert(reminders.filter((r) => r.kind === '付款').some((r) => r.note === '第一期'));
+            assert(WB.Ledger.reminders([entry], now, 60).some((r) => r.kind === '到期' && r.days === 36));
+
+            const ics = WB.Ledger.buildICS([entry]);
+            assert(ics.includes('续签提醒'));
+            assert(ics.includes('付款节点'));
+            assert.strictEqual((ics.match(/BEGIN:VEVENT/g) || []).length, 4);
+            assert(ics.includes('UID:ct_1-pay-p1@'));
+            assert(ics.includes('UID:ct_1-pay-p2@'));
+            assert(ics.includes('UID:ct_1-renew@'));
+
+            const csv = WB.Ledger.buildCSV([entry]);
+            assert(csv.includes('续签日期'));
+            assert(csv.includes('付款节点'));
+            assert(csv.includes('第二期'));
+            const row = csv.split('\\r\\n')[1];
+            assert(row.includes('2026-11-30'));
+            assert(row.includes('2026-12-01'));
+            """,
+            "console.log('OK');",
+        ]
+    )
+    out = subprocess.run(
+        [_node(), "-e", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(ROOT),
+    )
+    assert out.returncode == 0, out.stderr
+    assert "OK" in out.stdout
+
+
+def test_attachments():
+    """附件管理：文件类型 / 大小限制与可读体积。"""
+    script = "\n".join(
+        [
+            "const assert = require('node:assert');",
+            _require("attachments.js"),
+            "const WB = globalThis.WB;",
+            """
+            assert.strictEqual(WB.Attachments.extension('合同 原件.PDF'), 'pdf');
+            assert.strictEqual(WB.Attachments.formatSize(512), '512 B');
+            assert.strictEqual(WB.Attachments.formatSize(2048), '2.0 KB');
+            assert.strictEqual(WB.Attachments.formatSize(25 * 1024 * 1024), '25.0 MB');
+            assert.strictEqual(WB.Attachments.checkFile({ name: '合同.pdf', size: 1024 }, 0), '');
+            assert(WB.Attachments.checkFile({ name: '程序.exe', size: 10 }, 0).indexOf('不支持') >= 0);
+            assert(WB.Attachments.checkFile({ name: '无扩展名', size: 10 }, 0).indexOf('扩展名') >= 0);
+            assert(WB.Attachments.checkFile({ name: '空.pdf', size: 0 }, 0).indexOf('空') >= 0);
+            assert(WB.Attachments.checkFile({ name: '大.pdf', size: WB.Attachments.MAX_FILE + 1 }, 0).indexOf('25.0 MB') >= 0);
+            assert(WB.Attachments.checkFile({ name: 'b.pdf', size: 1024 }, WB.Attachments.MAX_TOTAL).indexOf('合计') >= 0);
+            """,
+            "console.log('OK');",
+        ]
+    )
+    out = subprocess.run(
+        [_node(), "-e", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(ROOT),
+    )
+    assert out.returncode == 0, out.stderr
+    assert "OK" in out.stdout
+
+
+def test_law_lookup():
+    """法条速查：本地知识库、分类过滤与离线检索。"""
+    script = "\n".join(
+        [
+            "const assert = require('node:assert');",
+            _require("data/knowledge.js"),
+            _require("law.js"),
+            "const WB = globalThis.WB;",
+            """
+            const docs = WB.lawDocs();
+            assert(docs.length >= 40, String(docs.length));
+            const counts = WB.lawCategoryCounts();
+            assert(counts['法规'] > 0 && counts['判例'] > 0 && counts['地方'] > 0 && counts['税务'] > 0 && counts['新规'] > 0);
+            assert.strictEqual(counts['全部'], docs.length);
+
+            const deposit = WB.searchLaw('押金', '全部');
+            assert(deposit.length > 0);
+            assert(deposit[0].doc.text.indexOf('押金') >= 0 || deposit[0].doc.title.indexOf('押金') >= 0);
+
+            const cases = WB.searchLaw('违约金', '判例');
+            assert(cases.length > 0);
+            assert(cases.every((r) => r.doc.category === '判例'));
+
+            const local = WB.searchLaw('备案', '地方');
+            assert(local.length > 0);
+            assert(local.every((r) => r.doc.category === '地方'));
+
+            const tax = WB.searchLaw('', '税务');
+            assert(tax.length > 0);
+            assert(tax.every((r) => r.doc.category === '税务'));
+
+            assert.strictEqual(WB.searchLaw('火星基地不存在', '全部').length, 0);
+            assert(WB.lawTokenize('押金退还').indexOf('押金') >= 0);
+            """,
+            "console.log('OK');",
+        ]
+    )
+    out = subprocess.run(
+        [_node(), "-e", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(ROOT),
+    )
+    assert out.returncode == 0, out.stderr
+    assert "OK" in out.stdout
+
+
+def test_documents():
+    """V2 文书：提示词、纯文本清理、Word HTML 转义。"""
+    node = _node()
+    script = "\n".join(
+        [
+            "const assert = require('node:assert');",
+            _require("prompts.js"),
+            _require("llm.js"),
+            _require("pipeline.js"),
+            _require("docx.js"),
+            _require("documents.js"),
+            "const WB = globalThis.WB;",
+            """
+            const input = {
+              docType: 'demand',
+              contractTitle: '房屋租赁合同',
+              contractType: '房屋租赁合同',
+              stanceLabel: '承租人',
+              sender: '李四',
+              counterparty: '张三',
+              amount: '15,000/月',
+              dueDate: '2026-12-05',
+              demandDate: '2026-12-20',
+              facts: '承租人未按约支付租金。',
+              findings: [{
+                clause_index: 3, rule_name: '租金支付', level: '高',
+                clause_text: '乙方应于每月5日前支付租金',
+                risk_reason: '承租人逾期未付', basis: '民法典第721条'
+              }]
+            };
+            const messages = WB.buildDocMessages(input);
+            assert(messages[0].content.indexOf('文书起草助手') >= 0);
+            assert(messages[0].content.indexOf('不得编造') >= 0);
+            assert(messages[0].content.indexOf('律师复核') >= 0);
+            assert(messages[1].content.indexOf('【发函方】李四') >= 0);
+            assert(messages[1].content.indexOf('【对方主体】张三') >= 0);
+            assert(messages[1].content.indexOf('第 3 条') >= 0);
+            assert(messages[1].content.indexOf('乙方应于每月5日前支付租金') >= 0);
+
+            const terminate = WB.buildDocMessages(Object.assign({}, input, { docType: 'terminate' }));
+            assert(terminate[0].content.indexOf('解除合同通知书') >= 0);
+            const rectify = WB.buildDocMessages(Object.assign({}, input, { docType: 'rectify' }));
+            assert(rectify[0].content.indexOf('整改函') >= 0);
+            assert.strictEqual(WB.DOC_TYPES.length, 6);
+            const lawyer = WB.buildDocMessages(Object.assign({}, input, { docType: 'lawyer' }));
+            assert(lawyer[0].content.indexOf('律师函（草稿）') >= 0);
+            assert(lawyer[0].content.indexOf('不得编造律所') >= 0);
+            assert(lawyer[0].content.indexOf('本稿需执业律师复核后方可发出') >= 0);
+            assert(lawyer[1].content.indexOf('【文书类型】律师函（草稿）') >= 0);
+            const renewal = WB.buildDocMessages(Object.assign({}, input, { docType: 'renewal' }));
+            assert(renewal[0].content.indexOf('续签提醒函') >= 0);
+            const notice = WB.buildDocMessages(Object.assign({}, input, { docType: 'notice' }));
+            assert(notice[0].content.indexOf('合同变更通知') >= 0);
+            assert.strictEqual(WB.docTypeMeta('missing').key, 'demand');
+
+            const cleaned = WB.cleanDocText('```text\\n催款函\\n\\n正文\\n```');
+            assert(cleaned.indexOf('```') < 0);
+            assert(cleaned.indexOf('律师复核') >= 0);
+
+            const html = WB.buildDocumentHtml({
+              text: '催款函\\n\\n致：<script>alert(1)</script>\\n\\n正文',
+              meta: '合同：<b>x</b>'
+            });
+            assert(html.indexOf('WordSection1') >= 0);
+            assert(html.indexOf('&lt;script&gt;') >= 0);
+            assert(html.indexOf('<script>') < 0);
+            assert(html.indexOf('&lt;b&gt;x&lt;/b&gt;') >= 0);
+
+            const blob = WB.buildDocDocx({ text: '催款函\\n\\n正文', meta: '测试' });
+            assert(blob.type.indexOf('openxmlformats') >= 0);
+            assert(blob.size > 1000);
+            """,
+            "console.log('OK');",
+        ]
+    )
+    out = subprocess.run(
+        [node, "-e", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(ROOT),
+    )
+    assert out.returncode == 0, out.stderr
+    assert "OK" in out.stdout
+
+
+def test_templates():
+    """V2 范本：本地字段替换、占位符、HTML 转义与 .docx。"""
+    node = _node()
+    script = "\n".join(
+        [
+            "const assert = require('node:assert');",
+            _require("prompts.js"),
+            _require("llm.js"),
+            _require("pipeline.js"),
+            _require("docx.js"),
+            _require("documents.js"),
+            _require("templates.js"),
+            "const WB = globalThis.WB;",
+            """
+            assert.strictEqual(WB.TEMPLATES.length, 6);
+            const available = WB.TEMPLATES.filter((t) => t.available).map((t) => t.key);
+            assert.deepStrictEqual(available, ['lease', 'employment', 'sales', 'service', 'cooperation', 'loan']);
+            assert.strictEqual(WB.templateMeta('employment').contractType, '劳动合同');
+            assert.strictEqual(WB.templateMeta('missing').key, 'lease');
+            assert.strictEqual(WB.buildTemplateText('missing', {}), '');
+            assert.strictEqual(WB.buildTemplateText('sales', {}).length > 0, true);
+            WB.TEMPLATES.forEach((t) => {
+              const text = WB.buildTemplateText(t.key, {});
+              assert(text.length > 0, t.key);
+              assert(text.indexOf('{{') < 0, t.key);
+              const fieldKeys = new Set(t.fields.map((f) => f.key));
+              const tokens = Array.from((t.body || '').matchAll(/\\{\\{([a-zA-Z0-9_]+)\\}\\}/g)).map((m) => m[1]);
+              assert(tokens.every((key) => fieldKeys.has(key)), t.key);
+            });
+
+            const lease = WB.buildTemplateText('lease', {
+              lessor: '李四', lessee: '张三', property: '上海市某区某路 1 号',
+              monthlyRent: '5000 元'
+            });
+            assert(lease.indexOf('房屋租赁合同') >= 0);
+            assert(lease.indexOf('李四') >= 0);
+            assert(lease.indexOf('上海市某区某路 1 号') >= 0);
+            assert(lease.indexOf('5000 元') >= 0);
+            assert(lease.indexOf('【待填写：押金】') >= 0);
+            assert(lease.indexOf('{{') < 0);
+            assert(lease.indexOf('律师复核') >= 0);
+
+            const labor = WB.buildTemplateText('employment', {
+              employer: '上海某公司', employee: '李四', position: '产品运营',
+              salary: '8000 元', probation: '无', probationSalary: '无',
+              workHours: '标准工时制'
+            });
+            assert(labor.indexOf('劳动合同') >= 0);
+            assert(labor.indexOf('上海某公司') >= 0);
+            assert(labor.indexOf('产品运营') >= 0);
+            assert(labor.indexOf('社会保险') >= 0);
+            assert(labor.indexOf('劳动争议仲裁') >= 0);
+            assert(labor.indexOf('试用期：无') >= 0);
+            assert(labor.indexOf('乙方实行标准工时制。') >= 0);
+
+            const sales = WB.buildTemplateText('sales', {
+              seller: '甲公司', buyer: '乙公司', subject: '办公电脑',
+              totalPrice: '100000 元', paymentTerms: '验收后 10 日内付清'
+            });
+            assert(sales.indexOf('买卖合同') >= 0);
+            assert(sales.indexOf('甲公司') >= 0);
+            assert(sales.indexOf('办公电脑') >= 0);
+            assert(sales.indexOf('验收后 10 日内付清') >= 0);
+            assert(sales.indexOf('风险，在交付之前') >= 0);
+
+            const service = WB.buildTemplateText('service', {
+              client: '甲公司', provider: '乙公司', serviceName: '品牌设计',
+              fee: '50000 元', ipOwnership: '归甲方'
+            });
+            assert(service.indexOf('服务合同') >= 0);
+            assert(service.indexOf('品牌设计') >= 0);
+            assert(service.indexOf('知识产权归属：归甲方') >= 0);
+            assert(service.indexOf('保密义务') >= 0);
+
+            const cooperation = WB.buildTemplateText('cooperation', {
+              partyA: '甲公司', partyB: '乙公司', projectName: '联名项目',
+              profitShare: '甲方 60%、乙方 40%', term: '长期'
+            });
+            assert(cooperation.indexOf('合作协议') >= 0);
+            assert(cooperation.indexOf('联名项目') >= 0);
+            assert(cooperation.indexOf('甲方 60%、乙方 40%') >= 0);
+            assert(cooperation.indexOf('退出机制') >= 0);
+
+            const loan = WB.buildTemplateText('loan', {
+              lender: '甲公司', borrower: '乙公司', amount: '100000 元',
+              interestRate: '年利率 6%', guarantee: '无'
+            });
+            assert(loan.indexOf('借款合同') >= 0);
+            assert(loan.indexOf('100000 元') >= 0);
+            assert(loan.indexOf('年利率 6%') >= 0);
+            assert(loan.indexOf('LPR 的四倍') >= 0);
+            assert(loan.indexOf('担保方式：无') >= 0);
+
+            const special = WB.buildTemplateText('lease', { lessor: 'A$&B' });
+            assert(special.indexOf('A$&B') >= 0);
+
+            const html = WB.buildTemplateHtml({
+              text: '劳动合同\\n\\n甲方：<script>alert(1)</script>',
+              meta: '合同：<b>x</b>'
+            });
+            assert(html.indexOf('WordSection1') >= 0);
+            assert(html.indexOf('&lt;script&gt;') >= 0);
+            assert(html.indexOf('<script>') < 0);
+            assert(html.indexOf('&lt;b&gt;x&lt;/b&gt;') >= 0);
+
+            const blob = WB.buildTemplateDocx({ text: '劳动合同\\n\\n正文', meta: '测试' });
+            assert(blob.type.indexOf('openxmlformats') >= 0);
+            assert(blob.size > 1000);
+            """,
+            "console.log('OK');",
+        ]
+    )
+    out = subprocess.run(
+        [node, "-e", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(ROOT),
+    )
+    assert out.returncode == 0, out.stderr
+    assert "OK" in out.stdout
+
+
+def test_compare():
+    """V3 版本对比：条款对齐、风险变化、转义与 .docx。"""
+    node = _node()
+    script = "\n".join(
+        [
+            "const assert = require('node:assert');",
+            _require("prompts.js"),
+            _require("llm.js"),
+            _require("pipeline.js"),
+            _require("docx.js"),
+            _require("compare.js"),
+            "const WB = globalThis.WB;",
+            """
+            assert.strictEqual(WB.compareContracts('', 'x'), null);
+            assert.strictEqual(WB.compareContracts('x', ''), null);
+
+            const oldText = [
+              '房屋租赁合同', '',
+              '第一条 租金', '乙方应于每月5日前支付租金5000元。', '',
+              '第二条 押金', '押金为10000元。', '',
+              '第三条 转租', '未经甲方书面同意不得转租。'
+            ].join('\\n');
+            const newText = [
+              '房屋租赁合同', '',
+              '第一条 租金', '乙方应于每月10日前支付租金6000元。', '',
+              '第二条 押金', '押金为10000元。', '',
+              '第四条 维修', '房屋维修由甲方负责。'
+            ].join('\\n');
+            const result = WB.compareContracts(oldText, newText);
+            assert.deepStrictEqual(result.summary, { same: 2, modified: 1, added: 1, removed: 1 });
+            assert.strictEqual(result.rows.filter((r) => r.type === 'modified').length, 1);
+            const modified = result.rows.find((r) => r.type === 'modified');
+            assert(modified.oldHtml.indexOf('<del>') >= 0);
+            assert(modified.newHtml.indexOf('<ins>') >= 0);
+            assert.strictEqual(result.risk, null);
+            assert(WB.renderCompareBody(result, { onlyChanged: true }).indexOf('只看变化') >= 0);
+
+            const renumbered = WB.compareContracts(
+              '第一条 租金\\n每月5日支付。\\n\\n第二条 押金\\n押金一万元。',
+              '第三条 租金\\n每月5日支付。\\n\\n第四条 押金\\n押金一万元。'
+            );
+            assert.strictEqual(renumbered.summary.same, 2);
+            assert.strictEqual(renumbered.summary.added, 0);
+            assert.strictEqual(renumbered.summary.removed, 0);
+
+            // 没有条款编号的纯段落文本：中间插一段，不能把后面整段都算成“修改”。
+            const block = WB.compareContracts(
+              '租金每月五千元，每月五日支付。\\n押金一万元，退租时无息返还。',
+              '租金每月五千元，每月五日支付。\\n维修由甲方负责，七日内到场。\\n押金一万元，退租时无息返还。'
+            );
+            assert.deepStrictEqual(block.summary, { same: 2, modified: 0, added: 1, removed: 0 });
+
+            // 超大文本（2000+ 条）走线性回退，避免 O(n×m) 动态规划卡死页面。
+            const manyOld = Array.from({ length: 2001 }, (_x, i) =>
+              '第' + (i + 1) + '条 条款' + (i + 1) + '\\n内容' + (i + 1) + '。'
+            ).join('\\n');
+            const manyNew = manyOld.replace('内容2001。', '内容2001变更。');
+            const many = WB.compareContracts(manyOld, manyNew);
+            assert.strictEqual(many.summary.same, 2000);
+            assert.strictEqual(many.summary.modified, 1);
+
+            const risk = WB.compareRisk({
+              findings: [
+                { rule_id: 'a', rule_name: '租金', level: '高', clause_index: 1, clause_text: '租金5000', risk_reason: '旧' },
+                { rule_id: 'b', rule_name: '押金', level: '中', clause_index: 2, clause_text: '押金', risk_reason: '押金' }
+              ],
+              score: 50, contractType: '房屋租赁合同', stanceLabel: '中立（双方）'
+            }, {
+              findings: [
+                { rule_id: 'a', rule_name: '租金', level: '中', clause_index: 1, clause_text: '租金6000', risk_reason: '新' },
+                { rule_id: 'c', rule_name: '维修', level: '高', clause_index: 3, clause_text: '维修', risk_reason: '维修' }
+              ],
+              score: 55, contractType: '房屋租赁合同', stanceLabel: '中立（双方）'
+            });
+            assert.deepStrictEqual(risk.added.map((r) => r.rule_name), ['维修']);
+            assert.deepStrictEqual(risk.resolved.map((r) => r.rule_name), ['押金']);
+            assert.strictEqual(risk.levelChanged.length, 1);
+            assert.strictEqual(risk.levelChanged[0].old.level, '高');
+            assert.strictEqual(risk.levelChanged[0].new.level, '中');
+            assert.strictEqual(risk.delta.score, 5);
+
+            // 报告统计里的低风险包含 lowRiskClauses，比较时优先使用结果自带的 counts。
+            const counted = WB.compareRisk({
+              findings: [], counts: { high: 0, mid: 1, low: 7 }, score: 13
+            }, {
+              findings: [], counts: { high: 1, mid: 0, low: 9 }, score: 24
+            });
+            assert.deepStrictEqual(counted.old.counts, { high: 0, mid: 1, low: 7 });
+            assert.deepStrictEqual(counted.new.counts, { high: 1, mid: 0, low: 9 });
+            assert.strictEqual(counted.delta.low, 2);
+            assert.strictEqual(counted.delta.score, 11);
+
+            const emptyRisk = WB.compareRisk(null, undefined);
+            assert.deepStrictEqual(emptyRisk.old.counts, { high: 0, mid: 0, low: 0 });
+            assert.strictEqual(emptyRisk.delta.score, null);
+
+            const unsafe = WB.compareContracts(
+              '合同\\n\\n第一条 租金\\n<script>alert(1)</script>5000元。',
+              '合同\\n\\n第一条 租金\\n<script>alert(2)</script>6000元。'
+            );
+            const unsafeHtml = WB.renderCompareBody(unsafe, { onlyChanged: true });
+            assert(unsafeHtml.indexOf('<script>') < 0);
+            assert(unsafeHtml.indexOf('&lt;script&gt;') >= 0);
+
+            const html = WB.buildCompareHtml(result, '旧版：A · 新版：B');
+            assert(html.indexOf('WordSection1') >= 0);
+            assert(html.indexOf('合同版本对比') >= 0);
+            assert(html.indexOf('<script>') < 0);
+            // Word 会吞掉 <del>，导出 HTML 必须换成普通 span。
+            assert(html.indexOf('<del>') < 0);
+            assert(html.indexOf('<ins>') < 0);
+            assert(html.indexOf('diff-del') >= 0);
+            assert(html.indexOf('diff-ins') >= 0);
+
+            const blob = WB.buildCompareDocx(result, '旧版：A · 新版：B');
+            assert(blob.type.indexOf('openxmlformats') >= 0);
+            assert(blob.size > 1000);
+            """,
+            "console.log('OK');",
+        ]
+    )
+    out = subprocess.run(
+        [node, "-e", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(ROOT),
+    )
+    assert out.returncode == 0, out.stderr
+    assert "OK" in out.stdout
+
+
+def test_ocr():
+    """OCR：图片消息格式、复用当前模型配置、无 Key / 非图片文件报错。"""
+    node = _node()
+    script = "\n".join(
+        [
+            "const assert = require('node:assert');",
+            _require("prompts.js"),
+            _require("llm.js"),
+            _require("file_parser.js"),
+            _require("ocr.js"),
+            "const WB = globalThis.WB;",
+            """
+            (async () => {
+              const original = WB.callLLM;
+              let captured = null;
+              WB.callLLM = async (opts) => {
+                captured = opts;
+                return { content: '第一条 租金\\n乙方应于每月5日前支付租金5000元。', usage: null };
+              };
+              const settings = {
+                provider: 'dashscope',
+                baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+                model: 'deepseek-v4.1-flash',
+                apiKeys: { dashscope: 'test-key' }
+              };
+              try {
+                const text = await WB.ocrImage('data:image/jpeg;base64,AAAA', settings);
+                assert(text.indexOf('第一条 租金') >= 0);
+                assert.strictEqual(captured.jsonMode, false);
+                assert.strictEqual(captured.messages[0].content[1].type, 'image_url');
+                assert.strictEqual(captured.messages[0].content[1].image_url.detail, 'high');
+                assert.strictEqual(captured.extraBody.enable_thinking, false);
+
+                await assert.rejects(
+                  WB.ocrImage('data:image/jpeg;base64,AAAA', {
+                    provider: 'dashscope', baseUrl: 'x', model: 'm', apiKeys: {}
+                  }),
+                  /API Key/
+                );
+                await assert.rejects(
+                  WB.ocrFile(new File(['x'], 'x.txt', { type: 'text/plain' }), settings),
+                  /只支持/
+                );
+              } finally {
+                WB.callLLM = original;
+              }
+              console.log('OK');
+            })().catch((e) => { console.error(e); process.exit(1); });
+            """,
+        ]
+    )
+    out = subprocess.run(
+        [node, "-e", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(ROOT),
+    )
+    assert out.returncode == 0, out.stderr
+    assert "OK" in out.stdout
+
+
+def test_backup():
+    """备份：不导出 API Key、结构校验、记录上限。"""
+    node = _node()
+    script = "\n".join(
+        [
+            "const assert = require('node:assert');",
+            _require("backup.js"),
+            "const WB = globalThis.WB;",
+            """
+            const backup = WB.buildBackup({
+              settings: {
+                provider: 'dashscope', model: 'deepseek-v4.1-flash',
+                apiKeys: { dashscope: 'sk-secret', deepseek: 'sk-other' },
+                masking: true, hiddenNames: ['张三']
+              },
+              reviews: [{ id: 'rv_1', contractText: '合同正文', result: { score: 1 } }],
+              ledger: [{ id: 'ct_1', title: '租赁合同' }],
+              rules: { overrides: {}, custom: [], updatedAt: 123 },
+              current: { result: { score: 1 }, contractText: '合同正文' }
+            });
+            assert(JSON.stringify(backup).indexOf('sk-secret') < 0);
+            assert.strictEqual(backup.data.settings.model, 'deepseek-v4.1-flash');
+            assert.strictEqual(backup.data.reviews.length, 1);
+            assert.strictEqual(backup.data.current.result.score, 1);
+
+            const parsed = WB.parseBackup(JSON.stringify(backup));
+            assert.strictEqual(parsed.reviews[0].id, 'rv_1');
+            assert.strictEqual(parsed.ledger[0].id, 'ct_1');
+            assert.strictEqual(parsed.rules.updatedAt, 123);
+            assert.throws(() => WB.parseBackup('not json'), /JSON/);
+            assert.throws(() => WB.parseBackup('{}'), /合同工作台/);
+            const tooMany = Array.from({ length: 501 }, (_x, i) => ({ id: 'rv_' + i }));
+            assert.throws(() => WB.validateBackup({ app: 'contract-workbench', version: 1, data: { reviews: tooMany } }), /500/);
+            const capped = WB.buildBackup({ reviews: tooMany, ledger: tooMany });
+            assert.strictEqual(capped.data.reviews.length, 500);
+            assert.strictEqual(capped.data.ledger.length, 500);
+            console.log('OK');
+            """,
+        ]
+    )
+    out = subprocess.run(
+        [node, "-e", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(ROOT),
+    )
+    assert out.returncode == 0, out.stderr
+    assert "OK" in out.stdout
+
+
+def test_document_docx_package(tmp_path):
+    """文书导出也是真 .docx，正文转义且含律师复核提示。"""
+    node = _node()
+    out = tmp_path / "letter.docx"
+    script = "\n".join(
+        [
+            "const assert = require('node:assert');",
+            "const fs = require('node:fs');",
+            _require("prompts.js"),
+            _require("llm.js"),
+            _require("pipeline.js"),
+            _require("docx.js"),
+            _require("documents.js"),
+            "const WB = globalThis.WB;",
+            "(async () => {",
+            "  const blob = WB.buildDocDocx({",
+            "    text: '催款函\\n\\n致：<script>x</script>\\n\\n正文\\n\\n本函为 AI 辅助草稿，正式发出前请由律师复核。',",
+            "    meta: '关联合同：房屋租赁合同 · 文书类型：催款函'",
+            "  });",
+            "  assert(blob.type.indexOf('openxmlformats') >= 0);",
+            "  const buf = Buffer.from(await blob.arrayBuffer());",
+            "  fs.writeFileSync(process.env.DOCX_OUT, buf);",
+            "  assert(buf[0] === 0x50 && buf[1] === 0x4b);",
+            "  console.log('OK');",
+            "})().catch((e) => { console.error(e); process.exit(1); });",
+        ]
+    )
+    env = os.environ.copy()
+    env["DOCX_OUT"] = str(out)
+    proc = subprocess.run(
+        [node, "-e", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(ROOT),
+        env=env,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "OK" in proc.stdout
+
+    with zipfile.ZipFile(out) as z:
+        names = set(z.namelist())
+        assert "word/afchunk.html" in names
+        html = z.read("word/afchunk.html").decode("utf-8")
+        assert "催款函" in html
+        assert "律师复核" in html
+        assert "&lt;script&gt;" in html
+        assert "<script" not in html.lower()
 
 
 def test_docx_export_package(tmp_path):

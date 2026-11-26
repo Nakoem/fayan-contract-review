@@ -13,6 +13,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WB_DIR = path.resolve(__dirname, "..");
 const INDEX = path.join(WB_DIR, "dist", "index.html");
 const SHOT_DIR = path.join(WB_DIR, "screenshots");
+fs.mkdirSync(SHOT_DIR, { recursive: true });
+const ATTACH_FILE = path.join(SHOT_DIR, "ui-attachment.txt");
+fs.writeFileSync(ATTACH_FILE, "合同附件测试\n第二行\n", "utf8");
 
 const isoDate = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -22,12 +25,22 @@ const payDay = new Date(today); payDay.setDate(payDay.getDate() + 5);
 const dueDay = new Date(today); dueDay.setDate(dueDay.getDate() + 10);
 const START_ISO = isoDate(startDay);
 const PAY_ISO = isoDate(payDay);
+const PAY2_ISO = isoDate(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 8));
+const RENEW_ISO = isoDate(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 6));
 const DUE_ISO = isoDate(dueDay);
 const XSS_RULE_NAME = "<b>测试自定义规则</b>";
 
 const MOCK = String.raw`(() => {
   WB.callLLM = async function (opts) {
-    const sys = (opts.messages && opts.messages[0] && opts.messages[0].content) || "";
+    const first = opts.messages && opts.messages[0] && opts.messages[0].content;
+    if (Array.isArray(first) && first.some(function (part) { return part && part.type === "image_url"; })) {
+      window.__mockOcrCalls = (window.__mockOcrCalls || 0) + 1;
+      return {
+        content: "第一条 租金\n乙方应于每月5日前支付租金5000元。\n\n第二条 押金\n押金为10000元。",
+        usage: null
+      };
+    }
+    const sys = first || "";
     if (sys.indexOf("条款抽取器") >= 0) {
       const text = document.querySelector("#contract-input").value;
       const parts = text.split(/\n\s*\n/).filter(function (s) { return s.trim(); });
@@ -75,6 +88,13 @@ const MOCK = String.raw`(() => {
           lowRiskClauses: low,
           summary: "合同整体风险中等，重点关注违约金与单方解除条款。"
         }),
+        usage: null
+      };
+    }
+    if (sys.indexOf("文书起草助手") >= 0) {
+      window.__mockDocUser = (opts.messages && opts.messages[1] && opts.messages[1].content) || "";
+      return {
+        content: "催款函\n\n致：张三\n\n根据双方签订的《房屋租赁合同》，贵方应于每月 5 日前支付租金。截至本函发出之日，贵方仍未支付到期租金人民币 15,000 元。\n\n请贵方于收到本函后 15 日内付清上述款项。逾期未付的，我方将按合同约定继续主张违约责任。\n\n此致\n\n上海某公司\n2026年11月26日\n\n本函为 AI 辅助草稿，正式发出前请由律师复核。",
         usage: null
       };
     }
@@ -181,9 +201,11 @@ async function main() {
     const marks = await cdp.eval(`document.querySelectorAll("#contract-view mark").length`);
     const sections = await cdp.eval(`document.querySelectorAll("#report-view .report-section").length`);
     const signText = await cdp.eval(`document.querySelector("#report-view .sign-advice") ? document.querySelector("#report-view .sign-advice").textContent : ""`);
+    const stampText = await cdp.eval(`(document.querySelector("#report-view .report-stamp") || {}).textContent || ""`);
 
     ok("结果渲染", riskItems === 3, `风险条目 ${riskItems} 条 · 正文标色 ${marks} 处`);
     ok("报告六段", sections === 6, `${sections} 段`);
+    ok("报告已审查印章", stampText.indexOf("已审查") >= 0, stampText.trim());
     ok("签约建议", signText.indexOf("修改后签") >= 0, signText.trim());
     ok("评分概览", stats.indexOf("综合评分") >= 0, stats);
     const reportMeta = await cdp.eval(`(document.querySelector("#report-view .report-meta") || {}).textContent || ""`);
@@ -247,7 +269,7 @@ async function main() {
         report: getComputedStyle(document.querySelector("#report-view")).display,
         contract: getComputedStyle(document.querySelector(".contract-panel")).display,
         toolbar: getComputedStyle(document.querySelector(".result-toolbar")).display,
-        otherViews: ["view-home", "view-ledger", "view-clauses", "view-rules"]
+        otherViews: ["view-home", "view-ledger", "view-documents", "view-templates", "view-compare", "view-clauses", "view-law", "view-rules"]
           .map(function (id) { return getComputedStyle(document.getElementById(id)).display; })
       };
     })()`);
@@ -271,8 +293,14 @@ async function main() {
       amount: document.querySelector("#ledger-amount").value,
       start: document.querySelector("#ledger-start").value,
       end: document.querySelector("#ledger-end").value,
-      paymentDate: document.querySelector("#ledger-payment-date").value,
-      paymentAmount: document.querySelector("#ledger-payment-amount").value,
+      renewal: document.querySelector("#ledger-renewal").value,
+      payments: Array.from(document.querySelectorAll("#ledger-payments .payment-row")).map(function (row) {
+        return {
+          date: row.querySelector(".payment-date").value,
+          amount: row.querySelector(".payment-amount").value,
+          note: row.querySelector(".payment-note").value
+        };
+      }),
       note: document.querySelector("#ledger-note").value
     })`);
     ok(
@@ -285,8 +313,10 @@ async function main() {
         draft.amount.indexOf("15,000") >= 0 &&
         draft.start === "2026-06-01" &&
         draft.end === "2029-05-31" &&
-        /-05$/.test(draft.paymentDate) &&
-        draft.paymentAmount === "15000" &&
+        draft.renewal === "" &&
+        draft.payments.length === 1 &&
+        /-05$/.test(draft.payments[0].date) &&
+        draft.payments[0].amount === "15000" &&
         draft.note.indexOf("押金") >= 0,
       JSON.stringify(draft)
     );
@@ -296,16 +326,34 @@ async function main() {
       const set = (sel, value) => { const el = document.querySelector(sel); el.value = value; el.dispatchEvent(new Event("input", { bubbles: true })); };
       set("#ledger-start", ${JSON.stringify(START_ISO)});
       set("#ledger-end", ${JSON.stringify(DUE_ISO)});
-      set("#ledger-payment-date", ${JSON.stringify(PAY_ISO)});
+      set("#ledger-renewal", ${JSON.stringify(RENEW_ISO)});
       set("#ledger-counterparty", "测试对方");
       set("#ledger-amount", "120000");
-      set("#ledger-payment-amount", "8000");
       set("#ledger-note", "押金两个月");
+      const first = document.querySelector("#ledger-payments .payment-row");
+      first.querySelector(".payment-date").value = ${JSON.stringify(PAY_ISO)};
+      first.querySelector(".payment-amount").value = "8000";
+      document.querySelector("#btn-add-payment").click();
+      const rows = document.querySelectorAll("#ledger-payments .payment-row");
+      const second = rows[rows.length - 1];
+      second.querySelector(".payment-date").value = ${JSON.stringify(PAY2_ISO)};
+      second.querySelector(".payment-amount").value = "7000";
+      second.querySelector(".payment-note").value = "第二期";
       document.querySelector("#ledger-form").requestSubmit();
       return true;
     })()`);
     const ledgerSaved = await waitFor(cdp, `(async () => (await WB.listLedger()).length)()`, 5000).catch(() => 0);
-    ok("台账保存", ledgerSaved === 1, `${ledgerSaved} 条`);
+    const savedEntry = await cdp.eval(`(async () => (await WB.listLedger())[0])()`);
+    ok(
+      "台账保存",
+      ledgerSaved === 1 &&
+        savedEntry.renewalDate === RENEW_ISO &&
+        Array.isArray(savedEntry.payments) &&
+        savedEntry.payments.length === 2 &&
+        savedEntry.payments[1].amount === "7000" &&
+        savedEntry.payments[1].note === "第二期",
+      `${ledgerSaved} 条 · ${JSON.stringify(savedEntry && savedEntry.payments)}`
+    );
 
     await cdp.eval(`document.querySelector('.nav-item[data-view="home"]').click(); true`);
     await sleep(250);
@@ -328,6 +376,52 @@ async function main() {
     ok("台账关联审查", linkedReview === 1, `${linkedReview} 个入口`);
     await cdp.eval(`document.querySelector("#toast").classList.add("hidden"); true`);
     await shot("ui-ledger.png");
+
+    // ── 对方主体档案 ──
+    await cdp.eval(`document.querySelector("#btn-ledger-parties").click(); true`);
+    await waitFor(cdp, `!document.querySelector("#party-drawer").classList.contains("hidden")`, 3000);
+    const partyState = await cdp.eval(`({
+      cards: document.querySelectorAll("#party-list .party-card").length,
+      summary: document.querySelector("#party-summary").textContent,
+      badge: (document.querySelector("#party-list .party-risk-badge") || {}).textContent || ""
+    })`);
+    await cdp.eval(`document.querySelector("#party-list .party-head").click(); true`);
+    const partyOpen = await cdp.eval(`({
+      open: !!document.querySelector("#party-list .party-card.open"),
+      contracts: document.querySelectorAll("#party-list .party-contract").length,
+      risks: document.querySelectorAll("#party-list .party-risk-item").length,
+      body: (document.querySelector("#party-list .party-body") || { innerText: "" }).innerText.replace(/\\s+/g, " ")
+    })`);
+    ok(
+      "对方档案汇总",
+      partyState.cards === 1 && partyState.summary.indexOf("1 个对方主体") >= 0 && partyState.badge.indexOf("未审查") < 0,
+      `${partyState.cards} 个 · ${partyState.summary} · ${partyState.badge}`
+    );
+    ok(
+      "对方档案展开",
+      partyOpen.open && partyOpen.contracts === 1 && partyOpen.risks >= 1 && partyOpen.body.indexOf("历史条款口径") >= 0,
+      `${partyOpen.contracts} 份合同 · ${partyOpen.risks} 条历史风险`
+    );
+    await shot("ui-party-drawer.png");
+
+    await cdp.eval(`(() => { const s = document.querySelector("#party-search"); s.value = "测试"; s.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    const partyHits = await cdp.eval(`document.querySelectorAll("#party-list .party-card").length`);
+    await cdp.eval(`(() => { const s = document.querySelector("#party-search"); s.value = "不存在"; s.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    const partyMiss = await cdp.eval(`document.querySelector("#party-list").innerText`);
+    await cdp.eval(`(() => { const s = document.querySelector("#party-search"); s.value = ""; s.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    ok("对方档案搜索", partyHits === 1 && partyMiss.indexOf("没有匹配") >= 0, `${partyHits} 条`);
+
+    await cdp.eval(`document.querySelector("#party-list .party-contract").click(); true`);
+    await waitFor(cdp, `!document.querySelector("#ledger-drawer").classList.contains("hidden")`, 3000);
+    const partyContractTitle = await cdp.eval(`document.querySelector("#ledger-title").value`);
+    await cdp.eval(`document.querySelector("#btn-cancel-ledger").click(); true`);
+    ok("对方档案合同入口", partyContractTitle.length > 0, partyContractTitle);
+
+    await cdp.eval(`document.querySelector("#ledger-list [data-open-party]").click(); true`);
+    await waitFor(cdp, `!document.querySelector("#party-drawer").classList.contains("hidden")`, 3000);
+    const partyLinkOpen = await cdp.eval(`!!document.querySelector("#party-list .party-card.open")`);
+    await cdp.eval(`document.querySelector("#btn-close-party").click(); true`);
+    ok("台账对方链接", partyLinkOpen === true);
 
     await cdp.eval(`(() => { const s = document.querySelector("#ledger-search"); s.value = "测试对方"; s.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
     const ledgerSearch = await cdp.eval(`document.querySelectorAll("#ledger-list .ledger-row").length`);
@@ -359,6 +453,335 @@ async function main() {
     })()`);
     const edited = await waitFor(cdp, `(async () => { const rows = await WB.listLedger(); return rows.length === 1 && rows[0].counterparty === "修改后对方"; })()`, 5000).catch(() => false);
     ok("台账编辑", !!edited);
+
+    // ── 附件管理：挂到台账合同、刷新后仍在、删合同时清理 ──
+    await cdp.eval(`document.querySelector("#ledger-list [data-edit-ledger]").click(); true`);
+    await waitFor(cdp, `!document.querySelector("#ledger-drawer").classList.contains("hidden")`, 3000);
+    const attachmentEntryId = await cdp.eval(`(async () => (await WB.listLedger())[0].id)()`);
+    const attachmentDoc = await cdp.send("DOM.getDocument", { depth: -1 });
+    const attachmentNode = await cdp.send("DOM.querySelector", { nodeId: attachmentDoc.result.root.nodeId, selector: "#attachment-input" });
+    await cdp.send("DOM.setFileInputFiles", { nodeId: attachmentNode.result.nodeId, files: [ATTACH_FILE] });
+    await cdp.eval(`document.querySelector("#attachment-input").dispatchEvent(new Event("change", { bubbles: true })); true`);
+    await waitFor(cdp, `document.querySelectorAll("#ledger-attachments .attachment-row").length === 1`, 5000);
+    const attachmentState = await cdp.eval(`(async () => {
+      const metas = await WB.Attachments.list(${JSON.stringify(attachmentEntryId)});
+      const blob = metas[0] ? await WB.Attachments.getBlob(metas[0].id) : null;
+      return {
+        rows: document.querySelectorAll("#ledger-attachments .attachment-row").length,
+        text: document.querySelector("#ledger-attachments").innerText.replace(/\\s+/g, " "),
+        name: metas[0] && metas[0].name,
+        size: metas[0] && metas[0].size,
+        blobSize: blob && blob.size,
+        enabled: !document.querySelector("#btn-add-attachment").disabled
+      };
+    })()`);
+    ok(
+      "附件上传",
+      attachmentState.rows === 1 &&
+        attachmentState.name === "ui-attachment.txt" &&
+        attachmentState.size > 0 &&
+        attachmentState.blobSize === attachmentState.size &&
+        attachmentState.text.indexOf("ui-attachment.txt") >= 0 &&
+        attachmentState.enabled,
+      JSON.stringify(attachmentState)
+    );
+    await shot("ui-attachment.png");
+    await cdp.eval(`document.querySelector("#btn-cancel-ledger").click(); true`);
+
+    // ── 文书起草：当前审查 → 催款函 ──
+    await cdp.eval(`document.querySelector('.nav-item[data-view="documents"]').click(); true`);
+    await waitFor(cdp, `!document.querySelector("#view-documents").classList.contains("hidden")`, 3000);
+    const docSetup = await cdp.eval(`({
+      types: Array.from(document.querySelectorAll("#doc-type option")).map(function (o) { return o.textContent; }),
+      source: document.querySelector("#doc-source").value,
+      sender: document.querySelector("#doc-sender").value,
+      counterparty: document.querySelector("#doc-counterparty").value,
+      amount: document.querySelector("#doc-amount").value,
+      due: document.querySelector("#doc-due-date").value,
+      demand: document.querySelector("#doc-demand-date").value,
+      clauses: document.querySelectorAll("#doc-clause-list input:checked").length
+    })`);
+    ok(
+      "文书入口与预填",
+      docSetup.types.length === 6 &&
+        docSetup.types.indexOf("催款函") >= 0 &&
+        docSetup.types.indexOf("整改函") >= 0 &&
+        docSetup.types.indexOf("律师函（草稿）") >= 0 &&
+        docSetup.types.indexOf("续签提醒函") >= 0 &&
+        docSetup.types.indexOf("变更通知函") >= 0 &&
+        docSetup.source === "current" &&
+        docSetup.sender === "李四" &&
+        docSetup.counterparty === "张三" &&
+        docSetup.amount.indexOf("15,000") >= 0 &&
+        /-05$/.test(docSetup.due) &&
+        docSetup.demand.length === 10 &&
+        docSetup.clauses >= 1,
+      JSON.stringify(docSetup)
+    );
+
+    const lawyerMeta = await cdp.eval(`(() => {
+      const s = document.querySelector("#doc-type");
+      s.value = "lawyer";
+      s.dispatchEvent(new Event("change", { bubbles: true }));
+      return {
+        due: document.querySelector("#doc-due-label").textContent,
+        demand: document.querySelector("#doc-demand-label").textContent,
+        facts: document.querySelector("#doc-facts-label").textContent,
+        status: document.querySelector("#doc-status").textContent
+      };
+    })()`);
+    ok(
+      "律师函草稿入口",
+      lawyerMeta.due === "合同到期日（可选）" &&
+        lawyerMeta.demand === "要求回应期限" &&
+        lawyerMeta.facts.indexOf("委托事项") >= 0,
+      JSON.stringify(lawyerMeta)
+    );
+    await cdp.eval(`(() => {
+      const s = document.querySelector("#doc-type");
+      s.value = "demand";
+      s.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    })()`);
+
+    await cdp.eval(`document.querySelector("#btn-doc-generate").click(); true`);
+    await waitFor(cdp, `document.querySelector("#doc-draft").value.length > 0 && !document.querySelector("#doc-draft").classList.contains("hidden")`, 5000);
+    const docDraft = await cdp.eval(`document.querySelector("#doc-draft").value`);
+    const docRequest = await cdp.eval(`window.__mockDocUser || ""`);
+    const docStatus = await cdp.eval(`document.querySelector("#doc-status").textContent`);
+    const docxDocCheck = await cdp.eval(`(async () => {
+      const b = WB.buildDocDocx({ text: document.querySelector("#doc-draft").value, meta: "测试合同 · 催款函" });
+      return { type: b.type, size: b.size };
+    })()`);
+    ok(
+      "文书草稿生成",
+      docDraft.indexOf("催款函") >= 0 &&
+        docDraft.indexOf("律师复核") >= 0 &&
+        docRequest.indexOf("发函方") >= 0 &&
+        docRequest.indexOf("对方主体") >= 0 &&
+        docStatus.indexOf("草稿已生成") >= 0,
+      `草稿 ${docDraft.length} 字 · ${docStatus}`
+    );
+    ok(
+      "文书导出 .docx",
+      docxDocCheck.type.indexOf("openxmlformats") >= 0 && docxDocCheck.size > 1000,
+      `${docxDocCheck.size}B`
+    );
+    await shot("ui-documents.png");
+
+    // ── 合同范本：本地生成 / 表单联动 / 导出 ──
+    await cdp.eval(`document.querySelector('.nav-item[data-view="templates"]').click(); true`);
+    await waitFor(cdp, `!document.querySelector("#view-templates").classList.contains("hidden")`, 3000);
+    const templateSetup = await cdp.eval(`({
+      cards: document.querySelectorAll("#template-list .template-card").length,
+      available: document.querySelectorAll("#template-list .template-card:not(:disabled)").length,
+      active: (document.querySelector("#template-list .template-card.active .template-card-name") || {}).textContent || "",
+      fields: document.querySelectorAll("#template-fields [data-template-field]").length,
+      text: document.querySelector("#template-text").value,
+      meta: document.querySelector("#template-meta").textContent,
+      topbarType: getComputedStyle(document.querySelector("#contract-type").closest(".type-select-wrap")).display
+    })`);
+    ok(
+      "范本入口与租赁默认",
+      templateSetup.cards === 6 &&
+        templateSetup.available === 6 &&
+        templateSetup.active === "房屋租赁合同" &&
+        templateSetup.fields >= 10 &&
+        templateSetup.text.indexOf("房屋租赁合同") >= 0 &&
+        templateSetup.text.indexOf("律师复核") >= 0 &&
+        templateSetup.topbarType === "none",
+      JSON.stringify({ cards: templateSetup.cards, available: templateSetup.available, fields: templateSetup.fields })
+    );
+
+    await cdp.eval(`document.querySelector('[data-template="employment"]').click(); true`);
+    await sleep(100);
+    const laborTemplate = await cdp.eval(`({
+      active: (document.querySelector("#template-list .template-card.active .template-card-name") || {}).textContent || "",
+      title: document.querySelector("#template-form-title").textContent,
+      labels: Array.from(document.querySelectorAll("#template-fields .field-label")).map(function (el) { return el.textContent.trim(); }),
+      text: document.querySelector("#template-text").value
+    })`);
+    ok(
+      "范本切换劳动合同",
+      laborTemplate.active === "劳动合同" &&
+        laborTemplate.title === "劳动合同" &&
+        laborTemplate.labels.some(function (x) { return x.indexOf("甲方（用人单位）") >= 0; }) &&
+        laborTemplate.labels.some(function (x) { return x.indexOf("乙方（劳动者）") >= 0; }) &&
+        laborTemplate.text.indexOf("劳动合同") >= 0 &&
+        laborTemplate.text.indexOf("社会保险") >= 0,
+      `${laborTemplate.active} · ${laborTemplate.labels.length} 个字段`
+    );
+
+    await cdp.eval(`(() => {
+      const set = (key, value) => {
+        const el = document.querySelector('[data-template-field="' + key + '"]');
+        el.value = value;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      };
+      set("employer", "上海测试公司");
+      set("employee", "李四");
+      set("position", "产品运营");
+      set("salary", "8000 元");
+      return true;
+    })()`);
+    const laborText = await cdp.eval(`document.querySelector("#template-text").value`);
+    const templateStatus = await cdp.eval(`document.querySelector("#template-status").textContent`);
+    ok(
+      "范本表单联动",
+      laborText.indexOf("上海测试公司") >= 0 &&
+        laborText.indexOf("李四") >= 0 &&
+        laborText.indexOf("产品运营") >= 0 &&
+        laborText.indexOf("8000 元") >= 0 &&
+        templateStatus.indexOf("随表单更新") >= 0,
+      `${laborText.length} 字 · ${templateStatus}`
+    );
+
+    const templateDocx = await cdp.eval(`(async () => {
+      const b = WB.buildTemplateDocx({
+        text: document.querySelector("#template-text").value,
+        meta: "合同范本：劳动合同"
+      });
+      return { type: b.type, size: b.size };
+    })()`);
+    ok(
+      "范本导出 .docx",
+      templateDocx.type.indexOf("openxmlformats") >= 0 && templateDocx.size > 1000,
+      `${templateDocx.size}B`
+    );
+    await cdp.eval(`document.querySelector("#toast").classList.add("hidden"); true`);
+    await shot("ui-templates.png");
+
+    // ── 合同版本对比：本地条款差异 ──
+    await cdp.eval(`document.querySelector('.nav-item[data-view="compare"]').click(); true`);
+    await waitFor(cdp, `!document.querySelector("#view-compare").classList.contains("hidden")`, 3000);
+    const compareEntry = await cdp.eval(`({
+      sources: document.querySelectorAll("#compare-old-source option").length,
+      view: !document.querySelector("#view-compare").classList.contains("hidden"),
+      topbarType: getComputedStyle(document.querySelector("#contract-type").closest(".type-select-wrap")).display
+    })`);
+    ok(
+      "版本对比入口",
+      compareEntry.view && compareEntry.sources >= 3 && compareEntry.topbarType === "none",
+      `${compareEntry.sources} 个来源`
+    );
+
+    const compareOldText = [
+      "房屋租赁合同",
+      "",
+      "第一条 租金",
+      "乙方应于每月5日前支付租金5000元。",
+      "",
+      "第二条 押金",
+      "押金为10000元。",
+      "",
+      "第三条 转租",
+      "未经甲方书面同意不得转租。",
+    ].join("\n");
+    const compareNewText = [
+      "房屋租赁合同",
+      "",
+      "第一条 租金",
+      "乙方应于每月10日前支付租金6000元。",
+      "",
+      "第二条 押金",
+      "押金为10000元。",
+      "",
+      "第四条 维修",
+      "房屋维修由甲方负责。",
+    ].join("\n");
+    await cdp.eval(`(() => {
+      const set = (sel, value) => {
+        const el = document.querySelector(sel);
+        el.value = value;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      };
+      set("#compare-old-text", ${JSON.stringify(compareOldText)});
+      set("#compare-new-text", ${JSON.stringify(compareNewText)});
+      document.querySelector("#btn-compare-run").click();
+      return true;
+    })()`);
+    await waitFor(cdp, `!document.querySelector("#compare-output").classList.contains("hidden") && document.querySelectorAll("#compare-output .compare-row").length > 0`, 3000);
+    const compareCounts = await cdp.eval(`({
+      same: document.querySelector("#compare-output .compare-stat.same").innerText,
+      modified: document.querySelector("#compare-output .compare-stat.modified").innerText,
+      added: document.querySelector("#compare-output .compare-stat.added").innerText,
+      removed: document.querySelector("#compare-output .compare-stat.removed").innerText
+    })`);
+    const compareRows = await cdp.eval(`document.querySelectorAll("#compare-output .compare-row").length`);
+    const compareStatus = await cdp.eval(`document.querySelector("#compare-status").textContent`);
+    const compareDiff = await cdp.eval(`document.querySelector("#compare-output").innerText`);
+    ok(
+      "版本对比条款差异",
+      compareCounts.modified.indexOf("1") >= 0 &&
+        compareCounts.added.indexOf("1") >= 0 &&
+        compareCounts.removed.indexOf("1") >= 0 &&
+        compareRows === 3 &&
+        compareDiff.indexOf("每月5日") >= 0 &&
+        compareDiff.indexOf("每月10日") >= 0 &&
+        compareStatus.indexOf("已比较") >= 0,
+      `${compareRows} 行 · ${JSON.stringify(compareCounts)}`
+    );
+
+    await cdp.eval(`(() => { const el = document.querySelector("#compare-only-changed"); el.checked = false; el.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`);
+    const allCompareRows = await cdp.eval(`document.querySelectorAll("#compare-output .compare-row").length`);
+    const compareDocx = await cdp.eval(`(async () => {
+      const r = WB.compareContracts(document.querySelector("#compare-old-text").value, document.querySelector("#compare-new-text").value);
+      const b = WB.buildCompareDocx(r, "旧版：租赁合同 · 新版：租赁合同");
+      return { type: b.type, size: b.size };
+    })()`);
+    ok(
+      "版本对比展开与导出",
+      allCompareRows === 5 &&
+        compareDocx.type.indexOf("openxmlformats") >= 0 &&
+        compareDocx.size > 1000,
+      `${allCompareRows} 行 · ${compareDocx.size}B`
+    );
+    await cdp.eval(`document.querySelector("#toast").classList.add("hidden"); true`);
+    await shot("ui-compare.png");
+
+    // ── OCR：图片走现有上传入口，识别后回填文本框 ──
+    const ocrImage = path.join(SHOT_DIR, "ocr-test.png");
+    fs.writeFileSync(
+      ocrImage,
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAIAAAAt/+nTAAAATElEQVR4nNXOQREAIADDsFL/nocIHlyjIGcbZRIncRIncRIncRIncRIncRIncRIncRIncRIncRIncRIncRIncRIncRIncRIncf4OvLoyKwM90wQTbwAAAABJRU5ErkJggg==",
+        "base64"
+      )
+    );
+    await cdp.eval(`document.querySelector('.nav-item[data-view="review"]').click(); true`);
+    await cdp.eval(`(() => {
+      const result = document.querySelector("#review-result");
+      if (result && !result.classList.contains("hidden")) document.querySelector("#btn-new").click();
+      return true;
+    })()`);
+    await waitFor(cdp, `!document.querySelector("#review-empty").classList.contains("hidden")`, 3000);
+    const domDoc = await cdp.send("DOM.getDocument", { depth: -1 });
+    const fileNode = await cdp.send("DOM.querySelector", { nodeId: domDoc.result.root.nodeId, selector: "#file-input" });
+    await cdp.send("DOM.setFileInputFiles", { nodeId: fileNode.result.nodeId, files: [ocrImage] });
+    await cdp.eval(`document.querySelector("#file-input").dispatchEvent(new Event("change", { bubbles: true })); true`);
+    await waitFor(
+      cdp,
+      `!document.querySelector("#btn-ocr").classList.contains("hidden") && document.querySelector("#file-status").textContent.indexOf("OCR") >= 0`,
+      5000
+    );
+    await cdp.eval(`document.querySelector("#btn-ocr").click(); true`);
+    await waitFor(
+      cdp,
+      `document.querySelector("#contract-input").value.indexOf("第一条 租金") >= 0 && document.querySelector("#btn-ocr").classList.contains("hidden")`,
+      5000
+    );
+    const ocrState = await cdp.eval(`({
+      calls: window.__mockOcrCalls || 0,
+      chars: document.querySelector("#contract-input").value.length,
+      status: document.querySelector("#file-status").textContent
+    })`);
+    ok(
+      "OCR 图片识别",
+      ocrState.calls >= 1 && ocrState.chars > 20 && ocrState.status.indexOf("已识别") >= 0,
+      `${ocrState.calls} 次调用 · ${ocrState.chars} 字`
+    );
+    await shot("ui-ocr.png");
+    await cdp.eval(`document.querySelector("#btn-clear").click(); true`);
 
     await cdp.eval(`document.querySelector('.nav-item[data-view="home"]').click(); true`);
     await cdp.eval(`document.querySelector("#home-tab-contracts").click(); true`);
@@ -395,9 +818,25 @@ async function main() {
     const dateLogic = await cdp.eval(`WB.Ledger.daysUntil("2026-11-25", new Date(2026, 10, 19))`);
     ok("台账日期计算", dateLogic === 6, `${dateLogic} 天`);
     const ics = await cdp.eval(`(async () => WB.Ledger.buildICS(await WB.listLedger()))()`);
-    ok("台账 ICS 内容", ics.indexOf("BEGIN:VEVENT") >= 0 && ics.indexOf("合同到期") >= 0 && ics.indexOf("VALARM") >= 0, `${ics.length} 字符`);
+    ok(
+      "台账 ICS 内容",
+      ics.indexOf("BEGIN:VEVENT") >= 0 &&
+        ics.indexOf("合同到期") >= 0 &&
+        ics.indexOf("续签提醒") >= 0 &&
+        ics.indexOf("付款节点") >= 0 &&
+        ics.indexOf("VALARM") >= 0,
+      `${ics.length} 字符 · ${(ics.match(/BEGIN:VEVENT/g) || []).length} 个事件`
+    );
     const csv = await cdp.eval(`(async () => WB.Ledger.buildCSV(await WB.listLedger()))()`);
-    ok("台账 CSV 内容", csv.indexOf("合同名称") >= 0 && csv.indexOf("修改后对方") >= 0, `${csv.length} 字符`);
+    ok(
+      "台账 CSV 内容",
+      csv.indexOf("合同名称") >= 0 &&
+        csv.indexOf("续签日期") >= 0 &&
+        csv.indexOf("付款节点") >= 0 &&
+        csv.indexOf("修改后对方") >= 0 &&
+        csv.indexOf("第二期") >= 0,
+      `${csv.length} 字符`
+    );
     const csvSafe = await cdp.eval(`WB.Ledger.buildCSV([{ title: "=1+1" }])`);
     ok("CSV 公式防护", csvSafe.indexOf("'=1+1") >= 0, csvSafe.split("\n")[1]);
 
@@ -476,6 +915,8 @@ async function main() {
     const ledgerAfterReload = (await waitFor(cdp, `document.querySelectorAll("#ledger-list .ledger-row").length`, 3000).catch(() => 0)) || 0;
     const ledgerTextAfterReload = await cdp.eval(`document.querySelector("#ledger-list").innerText`);
     ok("台账刷新后仍在", ledgerAfterReload === 1 && ledgerTextAfterReload.indexOf("修改后对方") >= 0, `${ledgerAfterReload} 条`);
+    const attachmentsAfterReload = await cdp.eval(`(async () => (await WB.Attachments.list(${JSON.stringify(attachmentEntryId)})).length)()`);
+    ok("附件刷新后仍在", attachmentsAfterReload === 1, `${attachmentsAfterReload} 个`);
 
     await cdp.eval(`document.querySelector('.nav-item[data-view="home"]').click(); true`);
     const historyAfterReload = await cdp.eval(`document.querySelectorAll("#history-list .history-item").length`);
@@ -508,6 +949,12 @@ async function main() {
     const ledgerDeleted = await waitFor(cdp, `(async () => (await WB.listLedger()).length === 0)()`, 3000).catch(() => false);
     const ledgerRowsAfterDelete = await cdp.eval(`document.querySelectorAll("#ledger-list .ledger-row").length`);
     ok("删除台账记录", !!ledgerDeleted && ledgerRowsAfterDelete === 0, `剩余 ${ledgerRowsAfterDelete} 行`);
+    const attachmentsAfterDelete = await waitFor(
+      cdp,
+      `(async () => (await WB.Attachments.list(${JSON.stringify(attachmentEntryId)})).length === 0)()`,
+      3000
+    ).catch(() => false);
+    ok("删合同清理附件", attachmentsAfterDelete === true, `清理 ${attachmentsAfterDelete}`);
 
     await cdp.eval(`document.querySelector("#ledger-list [data-ledger-add]").click(); true`);
     await waitFor(cdp, `!document.querySelector("#ledger-drawer").classList.contains("hidden")`, 3000);
@@ -761,6 +1208,58 @@ async function main() {
       JSON.stringify(remoteSync)
     );
     await cdp.eval(`(async () => { await WB.RuleStore.resetBuiltin(); return true; })()`);
+
+    // ── 法条速查 ──
+    await cdp.eval(`document.querySelector('.nav-item[data-view="law"]').click(); true`);
+    await sleep(150);
+    const lawInitial = await cdp.eval(`({
+      chips: document.querySelectorAll("#law-filters .filter-chip").length,
+      cards: document.querySelectorAll("#law-list .law-card").length,
+      title: document.querySelector("#view-law .view-title").textContent
+    })`);
+    ok(
+      "法条速查渲染",
+      lawInitial.chips === 6 && lawInitial.cards >= 40 && lawInitial.title === "法条速查",
+      `${lawInitial.chips} 个分类 · ${lawInitial.cards} 条`
+    );
+    await cdp.eval(`(() => { const s = document.querySelector("#law-search"); s.value = "押金"; s.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    const lawSearch = await cdp.eval(`({
+      cards: document.querySelectorAll("#law-list .law-card").length,
+      open: document.querySelectorAll("#law-list .law-card[open]").length,
+      marks: document.querySelectorAll("#law-list .law-card[open] mark").length,
+      text: (document.querySelector("#law-list .law-card[open] .law-body") || { innerText: "" }).innerText
+    })`);
+    ok("法条速查搜索", lawSearch.cards > 0 && lawSearch.open === 1 && lawSearch.marks > 0 && lawSearch.text.indexOf("押金") >= 0, `${lawSearch.cards} 条 · ${lawSearch.marks} 处高亮`);
+    await cdp.eval(`document.querySelector('#law-filters [data-law-cat="判例"]').click(); true`);
+    const lawCases = await cdp.eval(`({
+      cards: document.querySelectorAll("#law-list .law-card").length,
+      cats: Array.from(document.querySelectorAll("#law-list .law-cat")).map(function (el) { return el.textContent; })
+    })`);
+    ok("法条分类过滤", lawCases.cards > 0 && lawCases.cats.every(function (c) { return c === "判例"; }), `${lawCases.cards} 条`);
+    await cdp.eval(`(() => { const s = document.querySelector("#law-search"); s.value = "火星基地不存在"; s.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
+    const lawMiss = await cdp.eval(`({ cards: document.querySelectorAll("#law-list .law-card").length, text: document.querySelector("#law-list").innerText })`);
+    ok("法条空态", lawMiss.cards === 0 && lawMiss.text.indexOf("没有匹配") >= 0);
+    await cdp.eval(`(() => { const s = document.querySelector("#law-search"); s.value = ""; s.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+    await cdp.eval(`document.querySelector('#law-filters [data-law-cat="全部"]').click(); true`);
+
+    // ── 范本送去审查 ──
+    await cdp.eval(`document.querySelector('.nav-item[data-view="templates"]').click(); true`);
+    await sleep(150);
+    await cdp.eval(`document.querySelector("#btn-template-review").click(); true`);
+    const templateSend = await cdp.eval(`({
+      view: !document.querySelector("#view-review").classList.contains("hidden"),
+      text: document.querySelector("#contract-input").value,
+      type: document.querySelector("#contract-type").value,
+      chars: document.querySelector("#char-count").textContent
+    })`);
+    ok(
+      "范本送去审查",
+      templateSend.view &&
+        templateSend.text.indexOf("房屋租赁合同") >= 0 &&
+        templateSend.type === "房屋租赁合同" &&
+        templateSend.chars.indexOf("字") >= 0,
+      `${templateSend.type} · ${templateSend.chars}`
+    );
 
     ok("无控制台异常", cdp.exceptions.length === 0, cdp.exceptions.slice(0, 3).join(" | "));
   } catch (err) {

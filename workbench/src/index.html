@@ -39,11 +39,23 @@
         <button class="nav-item active" data-view="review" type="button">
           <span class="nav-icon" data-icon="review"></span><span>审查台</span>
         </button>
+        <button class="nav-item" data-view="templates" type="button">
+          <span class="nav-icon" data-icon="template"></span><span>合同范本</span>
+        </button>
         <button class="nav-item" data-view="ledger" type="button">
           <span class="nav-icon" data-icon="ledger"></span><span>合同台账</span>
         </button>
+        <button class="nav-item" data-view="documents" type="button">
+          <span class="nav-icon" data-icon="document"></span><span>文书</span>
+        </button>
+        <button class="nav-item" data-view="compare" type="button">
+          <span class="nav-icon" data-icon="compare"></span><span>版本对比</span>
+        </button>
         <button class="nav-item" data-view="clauses" type="button">
           <span class="nav-icon" data-icon="clause"></span><span>条款库</span>
+        </button>
+        <button class="nav-item" data-view="law" type="button">
+          <span class="nav-icon" data-icon="search"></span><span>法条</span>
         </button>
         <button class="nav-item" data-view="rules" type="button">
           <span class="nav-icon" data-icon="rules"></span><span>审查规则</span>
@@ -134,30 +146,32 @@
           <div class="empty-inner">
             <p class="eyebrow">签约之前</p>
             <h1 class="empty-title">把合同贴进来，<br>看看有没有坑。</h1>
-            <p class="empty-desc">粘贴合同全文，或上传 PDF / Word。审查会调用你配置的模型；文件只在本机解析。</p>
+            <p class="empty-desc">粘贴合同全文，或上传 PDF / Word / 照片。审查会调用你配置的模型；文件默认只在本机解析，点「识别文字」时图片会发给所选服务商。</p>
             <div class="stance-row">
               <label class="stance-label" for="review-stance">审查视角</label>
               <select id="review-stance" class="type-select stance-select" aria-label="审查视角"></select>
               <span id="stance-hint" class="stance-hint">按合同角色选择，报告会从该方立场评估</span>
             </div>
-            <textarea id="contract-input" class="contract-input" placeholder="在此粘贴合同全文，或把 PDF / Word 拖进来……" spellcheck="false" aria-label="合同全文"></textarea>
+            <textarea id="contract-input" class="contract-input" placeholder="在此粘贴合同全文，或把 PDF / Word / 照片拖进来……" spellcheck="false" aria-label="合同全文"></textarea>
             <div class="input-meta">
               <span id="char-count" class="char-count">0 字</span>
               <span id="type-hint" class="type-hint"></span>
             </div>
             <div class="file-row">
               <button id="btn-file" class="file-btn" type="button">
-                <span class="file-icon" data-icon="upload" aria-hidden="true"></span>上传 PDF / Word
+                <span class="file-icon" data-icon="upload" aria-hidden="true"></span>上传 PDF / Word / 照片
               </button>
-              <input id="file-input" class="sr-only" type="file" accept=".pdf,.docx,.txt,.md" tabindex="-1">
-              <span id="file-status" class="file-status">支持文字层 PDF / DOCX / TXT，文件只在本机解析</span>
+              <input id="file-input" class="sr-only" type="file" accept=".pdf,.docx,.txt,.md,.jpg,.jpeg,.png,.webp" tabindex="-1">
+              <span id="file-status" class="file-status">支持文字层 PDF / DOCX / TXT / 照片；文件只在本机解析</span>
+              <button id="btn-ocr" class="file-btn hidden" type="button">识别文字</button>
+              <button id="btn-ocr-cancel" class="file-btn hidden" type="button">取消</button>
             </div>
             <div class="sample-row" id="sample-row" aria-label="示例合同"></div>
             <div class="empty-actions">
               <button id="btn-start" class="btn btn-primary" type="button">开始审查</button>
               <button id="btn-clear" class="btn btn-ghost" type="button">清空</button>
             </div>
-            <p class="privacy-note">默认开启脱敏 · 正式签署前请由执业律师复核</p>
+            <p class="privacy-note">默认开启脱敏 · OCR 图片会发给所选服务商 · 正式签署前请由执业律师复核</p>
           </div>
         </div>
 
@@ -243,7 +257,10 @@
                 <h3>全部合同</h3>
                 <span id="ledger-table-count"></span>
               </div>
-              <button id="btn-ledger-csv" class="btn btn-ghost btn-mini" type="button">导出 CSV</button>
+              <div class="ledger-table-actions">
+                <button id="btn-ledger-parties" class="btn btn-ghost btn-mini" type="button">对方档案</button>
+                <button id="btn-ledger-csv" class="btn btn-ghost btn-mini" type="button">导出 CSV</button>
+              </div>
             </div>
             <div class="ledger-table-header" aria-hidden="true">
               <span>合同名称</span>
@@ -272,6 +289,188 @@
         </div>
       </section>
 
+      <!-- ═══════════ 文书起草 ═══════════ -->
+      <section id="view-documents" class="view hidden" aria-label="文书起草">
+        <div class="docs-head">
+          <div>
+            <p class="eyebrow">V2 · AI 草稿可改</p>
+            <h2 class="view-title">文书起草</h2>
+            <p class="view-desc">从当前审查、历史记录或台账带合同事实，起草催款函、解除 / 终止通知、整改函、律师函草稿与通知类文书。</p>
+          </div>
+        </div>
+        <div class="docs-layout">
+          <div class="home-card docs-form-card">
+            <div class="docs-form-head">
+              <h3 class="home-card-title">1. 选择合同与文书</h3>
+              <p class="home-card-desc">事实会自动带入，生成前都可以改。</p>
+            </div>
+            <div class="docs-form">
+              <label class="field">
+                <span class="field-label">合同来源</span>
+                <select id="doc-source" class="type-select" aria-label="文书合同来源"></select>
+              </label>
+              <label class="field">
+                <span class="field-label">文书类型</span>
+                <select id="doc-type" class="type-select" aria-label="文书类型"></select>
+              </label>
+              <label class="field">
+                <span class="field-label">发函方 / 我方</span>
+                <input id="doc-sender" type="text" maxlength="80" autocomplete="off" placeholder="公司 / 个人">
+              </label>
+              <div class="docs-grid">
+                <label class="field">
+                  <span class="field-label">对方主体</span>
+                  <input id="doc-counterparty" type="text" maxlength="80" autocomplete="off" placeholder="公司 / 个人">
+                </label>
+                <label class="field">
+                  <span class="field-label">合同金额</span>
+                  <input id="doc-amount" type="text" maxlength="40" autocomplete="off" placeholder="例如 120000 或 12 万">
+                </label>
+                <label class="field">
+                  <span id="doc-due-label" class="field-label">应付 / 到期日</span>
+                  <input id="doc-due-date" type="date">
+                </label>
+                <label class="field">
+                  <span id="doc-demand-label" class="field-label">要求付款期限</span>
+                  <input id="doc-demand-date" type="date">
+                </label>
+              </div>
+              <label class="field">
+                <span id="doc-facts-label" class="field-label">欠款事实 / 补充说明</span>
+                <textarea id="doc-facts" rows="4" maxlength="1200" placeholder="把要写进文书的事实填在这里"></textarea>
+              </label>
+              <div class="field">
+                <span class="field-label">依据条款（可多选）</span>
+                <div id="doc-clause-list" class="docs-clause-list"></div>
+                <span class="field-note">默认勾选高风险条款；没有审查结果时可手动在补充事实里写依据。</span>
+              </div>
+              <button id="btn-doc-generate" class="btn btn-primary btn-block" type="button">生成草稿</button>
+              <p id="doc-form-note" class="docs-form-note">生成时会调用当前配置的模型；只发送上述事实和勾选条款，不发送整份合同。草稿不会保存，刷新即清。</p>
+            </div>
+          </div>
+          <div class="home-card docs-preview-card">
+            <div class="docs-preview-head">
+              <div>
+                <h3 class="home-card-title">2. 草稿</h3>
+                <p id="doc-meta" class="home-card-desc">选好合同后点「生成草稿」</p>
+              </div>
+              <div class="docs-actions">
+                <button id="btn-doc-copy" class="btn btn-ghost btn-mini" type="button" disabled>复制</button>
+                <button id="btn-doc-export" class="btn btn-ghost btn-mini" type="button" disabled>导出 .docx</button>
+              </div>
+            </div>
+            <div id="doc-empty" class="docs-empty">
+              <p>生成的文书会出现在这里。</p>
+              <p class="docs-empty-sub">可以逐字修改，确认后再复制或导出。</p>
+            </div>
+            <textarea id="doc-draft" class="doc-draft hidden" spellcheck="false" placeholder="生成的草稿会出现在这里，可直接修改"></textarea>
+            <p id="doc-status" class="docs-status" role="status" aria-live="polite"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════ 合同范本 ═══════════ -->
+      <section id="view-templates" class="view hidden" aria-label="合同范本">
+        <div class="docs-head">
+          <div>
+            <p class="eyebrow">V2 · 本地范本</p>
+            <h2 class="view-title">合同范本</h2>
+            <p class="view-desc">从标准范本开始，填好关键信息，生成一份可编辑的合同初稿。范本在本地生成，不调用模型。</p>
+          </div>
+        </div>
+        <div class="templates-layout">
+          <div class="home-card templates-form-card">
+            <div class="docs-form-head">
+              <div>
+                <h3 class="home-card-title">1. 选择范本</h3>
+                <p class="home-card-desc">6 类合同范本已开放，条款均为通用初稿，可逐字修改。</p>
+              </div>
+            </div>
+            <div id="template-list" class="template-list"></div>
+            <div id="template-form-wrap" class="template-form-wrap">
+              <div class="template-form-head">
+                <h3 id="template-form-title" class="home-card-title">房屋租赁合同</h3>
+                <p id="template-form-desc" class="home-card-desc"></p>
+              </div>
+              <div id="template-fields" class="template-fields"></div>
+              <button id="btn-template-generate" class="btn btn-primary btn-block" type="button">生成 / 更新正文</button>
+              <p class="docs-form-note">范本在本地生成，不上传、不调用模型。未填字段会保留【待填写】占位，生成后可直接修改。</p>
+            </div>
+          </div>
+          <div class="home-card templates-preview-card">
+            <div class="docs-preview-head">
+              <div>
+                <h3 class="home-card-title">2. 合同正文</h3>
+                <p id="template-meta" class="home-card-desc">选好范本后自动生成</p>
+              </div>
+              <div class="docs-actions">
+                <button id="btn-template-copy" class="btn btn-ghost btn-mini" type="button" disabled>复制</button>
+                <button id="btn-template-export" class="btn btn-ghost btn-mini" type="button" disabled>导出 .docx</button>
+                <button id="btn-template-review" class="btn btn-primary btn-mini" type="button" disabled>送去审查</button>
+              </div>
+            </div>
+            <div id="template-empty" class="docs-empty">
+              <p>选好范本后，合同正文会出现在这里。</p>
+              <p class="docs-empty-sub">可以直接改字，也可以先填左侧信息。</p>
+            </div>
+            <textarea id="template-text" class="doc-draft template-text hidden" spellcheck="false" maxlength="50000" placeholder="合同正文会出现在这里，可直接修改"></textarea>
+            <p id="template-status" class="docs-status" role="status" aria-live="polite"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════ 合同版本对比 ═══════════ -->
+      <section id="view-compare" class="view hidden" aria-label="合同版本对比">
+        <div class="docs-head">
+          <div>
+            <p class="eyebrow">V3 · 本地对比</p>
+            <h2 class="view-title">合同版本对比</h2>
+            <p class="view-desc">把旧版和新版放在一起，看条款怎么变、风险变好还是变坏。对比在本地完成，不调用模型。</p>
+          </div>
+        </div>
+        <div class="compare-inputs">
+          <div class="home-card compare-input-card">
+            <div class="compare-input-head">
+              <div>
+                <h3 class="home-card-title">旧版</h3>
+                <p id="compare-old-meta" class="compare-meta">手动粘贴或上传旧版合同</p>
+              </div>
+              <div class="compare-source-actions">
+                <select id="compare-old-source" class="type-select" aria-label="旧版合同来源"></select>
+                <button id="btn-compare-old-file" class="btn btn-ghost btn-mini" type="button">上传</button>
+                <input id="compare-old-file" class="sr-only" type="file" accept=".pdf,.docx,.txt,.md" tabindex="-1">
+              </div>
+            </div>
+            <textarea id="compare-old-text" class="compare-textarea" maxlength="50000" spellcheck="false" aria-label="旧版合同文本" placeholder="粘贴旧版合同全文，或上传 PDF / Word"></textarea>
+          </div>
+          <div class="home-card compare-input-card">
+            <div class="compare-input-head">
+              <div>
+                <h3 class="home-card-title">新版</h3>
+                <p id="compare-new-meta" class="compare-meta">手动粘贴或上传新版合同</p>
+              </div>
+              <div class="compare-source-actions">
+                <select id="compare-new-source" class="type-select" aria-label="新版合同来源"></select>
+                <button id="btn-compare-new-file" class="btn btn-ghost btn-mini" type="button">上传</button>
+                <input id="compare-new-file" class="sr-only" type="file" accept=".pdf,.docx,.txt,.md" tabindex="-1">
+              </div>
+            </div>
+            <textarea id="compare-new-text" class="compare-textarea" maxlength="50000" spellcheck="false" aria-label="新版合同文本" placeholder="粘贴新版合同全文，或上传 PDF / Word"></textarea>
+          </div>
+        </div>
+        <div class="compare-toolbar">
+          <label class="compare-toggle"><input id="compare-only-changed" type="checkbox" checked> 只看变化</label>
+          <button id="btn-compare-run" class="btn btn-primary" type="button">开始对比</button>
+          <button id="btn-compare-export" class="btn btn-ghost" type="button" disabled>导出对比报告 .docx</button>
+        </div>
+        <p id="compare-status" class="docs-status" role="status" aria-live="polite"></p>
+        <div id="compare-empty" class="compare-empty">
+          <p>把旧版和新版放在一起，点「开始对比」。</p>
+          <p class="docs-empty-sub">两边都从历史审查记录带入，才能同时比较风险变化。</p>
+        </div>
+        <div id="compare-output" class="compare-output hidden"></div>
+      </section>
+
       <!-- ═══════════ 条款库 ═══════════ -->
       <section id="view-clauses" class="view hidden" aria-label="条款库">
         <div class="clauses-head">
@@ -283,6 +482,22 @@
           <div id="clause-filters" class="clause-filters"></div>
         </div>
         <div id="clause-list" class="clause-list"></div>
+      </section>
+
+      <!-- ═══════════ 法条速查 ═══════════ -->
+      <section id="view-law" class="view hidden" aria-label="法条速查">
+        <div class="law-head">
+          <div>
+            <p class="eyebrow">离线 · 不需 API Key</p>
+            <h2 class="view-title">法条速查</h2>
+            <p class="view-desc">在法规、判例、地方政策、税务口径和新规动态里本地检索，不联网、不调用模型。</p>
+          </div>
+        </div>
+        <div class="law-toolbar">
+          <div id="law-filters" class="clause-filters law-filters"></div>
+          <input id="law-search" class="history-search law-search" type="search" placeholder="搜押金、违约金、竞业限制、印花税……" aria-label="搜索法规库">
+        </div>
+        <div id="law-list" class="law-list"></div>
       </section>
 
       <!-- ═══════════ 审查规则 ═══════════ -->
@@ -317,7 +532,7 @@
   </div>
 
   <footer class="statusbar">
-    <span>合同工作台 · MVP</span>
+    <span>合同工作台 · V2</span>
     <span class="statusbar-disclaimer">AI 辅助结果，不构成法律意见</span>
   </footer>
 </div>
@@ -364,6 +579,17 @@
       <textarea id="set-names" rows="3" spellcheck="false" placeholder="每行一个，例如：&#10;张三&#10;上海某某科技有限公司"></textarea>
       <span class="field-note">脱敏开启时，这些名称会先替换为【主体N】再发给模型</span>
     </label>
+
+    <div class="settings-divider"></div>
+    <div class="field">
+      <span class="field-label">备份与恢复</span>
+      <span class="field-note">导出审查历史、合同台账、规则和设置；备份里不包含 API Key 与附件文件（附件只存本机）。</span>
+      <div class="backup-row">
+        <button id="btn-backup-export" class="btn btn-ghost btn-mini" type="button">导出备份 .json</button>
+        <button id="btn-backup-import" class="btn btn-ghost btn-mini" type="button">导入备份</button>
+        <input id="backup-input" class="sr-only" type="file" accept=".json,application/json" tabindex="-1">
+      </div>
+    </div>
 
     <div class="drawer-actions">
       <button id="btn-save-settings" class="btn btn-primary" type="button">保存设置</button>
@@ -416,26 +642,55 @@
         <input id="ledger-end" type="date">
       </label>
     </div>
-    <div class="field-row">
-      <label class="field">
-        <span class="field-label">下次付款日</span>
-        <input id="ledger-payment-date" type="date">
-      </label>
-      <label class="field">
-        <span class="field-label">付款金额</span>
-        <input id="ledger-payment-amount" type="text" maxlength="40" autocomplete="off" placeholder="例如 80000">
-      </label>
+    <label class="field">
+      <span class="field-label">续签日</span>
+      <input id="ledger-renewal" type="date">
+      <span class="field-note">可选；临近续签日会在案头提醒</span>
+    </label>
+    <div class="field">
+      <div class="field-head">
+        <span class="field-label">付款节点</span>
+        <button id="btn-add-payment" class="btn btn-ghost btn-mini" type="button">+ 添加付款节点</button>
+      </div>
+      <div id="ledger-payments" class="payment-list"></div>
+      <span class="field-note">可添加多期付款；没有日期的行不会保存。</span>
     </div>
     <label class="field">
       <span class="field-label">备注</span>
       <textarea id="ledger-note" rows="3" maxlength="300" placeholder="续签条件、押金、联系人……"></textarea>
     </label>
+    <div class="field attachment-field">
+      <div class="field-head">
+        <span class="field-label">附件</span>
+        <button id="btn-add-attachment" class="btn btn-ghost btn-mini" type="button" disabled>+ 添加附件</button>
+      </div>
+      <div id="ledger-attachments" class="attachment-list"></div>
+      <input id="attachment-input" type="file" multiple class="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.gif,.txt,.md,.zip,.rar,.7z">
+      <span class="field-note">合同原件、补充协议、往来记录等，仅存本机；单份 ≤ 25MB，合计 ≤ 100MB。</span>
+    </div>
     <div class="drawer-actions ledger-form-actions">
       <button class="btn btn-primary" type="submit">保存合同</button>
       <button id="btn-cancel-ledger" class="btn btn-ghost" type="button">取消</button>
       <p class="drawer-tip">只保存在本机浏览器；到期 / 付款节点会在案头提醒，也可导出到手机日历。</p>
     </div>
   </form>
+</aside>
+
+<!-- ═══════════ 对方主体档案抽屉 ═══════════ -->
+<div id="party-backdrop" class="backdrop hidden"></div>
+<aside id="party-drawer" class="drawer drawer-wide hidden" aria-label="对方主体档案">
+  <div class="drawer-head">
+    <div>
+      <p class="eyebrow">本机台账</p>
+      <h2 class="drawer-title">对方主体档案</h2>
+      <p id="party-summary" class="drawer-sub"></p>
+    </div>
+    <button id="btn-close-party" class="icon-btn" type="button" aria-label="关闭对方档案">×</button>
+  </div>
+  <div class="drawer-body">
+    <input id="party-search" class="party-search" type="search" placeholder="搜索对方、合同名" aria-label="搜索对方主体档案">
+    <div id="party-list" class="party-list"></div>
+  </div>
 </aside>
 
 <!-- ═══════════ 规则编辑抽屉 ═══════════ -->

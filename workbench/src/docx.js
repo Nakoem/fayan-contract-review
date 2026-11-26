@@ -108,14 +108,18 @@
 <w:body><w:altChunk r:id="htmlChunk"/><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body>
 </w:document>`;
 
-  WB.buildDocx = function (result) {
-    const html = WB.buildDocHtml(result || {});
+  // 任意 Word 友好 HTML → 真 .docx。报告和文书共用同一套 OOXML 包装。
+  WB.buildDocxFromHtml = function (html) {
     return zipStore([
       { name: "[Content_Types].xml", data: CONTENT_TYPES },
       { name: "_rels/.rels", data: ROOT_RELS },
       { name: "word/document.xml", data: DOCUMENT },
       { name: "word/_rels/document.xml.rels", data: DOC_RELS },
-      { name: "word/afchunk.html", data: html },
+      { name: "word/afchunk.html", data: String(html || "") },
     ]);
+  };
+
+  WB.buildDocx = function (result) {
+    return WB.buildDocxFromHtml(WB.buildDocHtml(result || {}));
   };
 })(globalThis);

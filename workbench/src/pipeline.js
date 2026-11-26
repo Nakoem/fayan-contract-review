@@ -532,7 +532,10 @@
       ${sectionHTML("四、低风险条款（可接受）", lowHTML, "（无）")}
       ${sectionHTML("五、修改优先级建议", priority)}
       ${sectionHTML("六、签约建议", `<p class="sign-advice ${advice.cls}">${advice.text}</p>`)}
-      <footer class="report-foot">${(WB.REPORT_LABELS && WB.REPORT_LABELS.disclaimer) || "本工具输出为 AI 辅助结果，不构成法律意见。正式签署前请由执业律师复核。"}</footer>
+      <footer class="report-foot">
+        <span class="report-foot-text">${(WB.REPORT_LABELS && WB.REPORT_LABELS.disclaimer) || "本工具输出为 AI 辅助结果，不构成法律意见。正式签署前请由执业律师复核。"}</span>
+        <span class="report-stamp" aria-hidden="true"><b>已审查</b><i>AI 辅助</i></span>
+      </footer>
     </div>`;
   };
 

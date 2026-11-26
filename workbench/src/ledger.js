@@ -51,7 +51,7 @@
 
   function countdown(kind, days) {
     if (days == null) return "";
-    const verb = kind === "付款" ? "付款" : "到期";
+    const verb = kind === "付款" ? "付款" : kind === "续签" ? "续签" : "到期";
     if (days < 0) return `已逾期 ${-days} 天`;
     if (days === 0) return `今天${verb}`;
     if (days === 1) return `明天${verb}`;
@@ -70,7 +70,41 @@
     return STATUS_CLS[status] || STATUS_CLS["履行中"];
   }
 
-  /** 汇总未来 N 天内（含已逾期）的到期与付款节点。 */
+  /** 统一付款节点：新数据用 payments 数组，旧数据回退到单个 paymentDate。 */
+  function payments(entry) {
+    const list = Array.isArray(entry && entry.payments) ? entry.payments : [];
+    const clean = list
+      .filter((p) => p && parseDate(p.date))
+      .map((p, i) => ({
+        id: String(p.id || "pay_" + i),
+        date: p.date,
+        amount: String(p.amount || ""),
+        note: String(p.note || ""),
+      }));
+    if (clean.length) return clean;
+    if (entry && parseDate(entry.paymentDate)) {
+      return [{
+        id: "legacy",
+        date: entry.paymentDate,
+        amount: String(entry.paymentAmount || ""),
+        note: "",
+      }];
+    }
+    return [];
+  }
+
+  function nextPayment(entry, now) {
+    const list = payments(entry).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    if (!list.length) return null;
+    const today = todayIso(now);
+    return list.find((p) => p.date >= today) || list[list.length - 1];
+  }
+
+  function createPaymentId() {
+    return "pay_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+  }
+
+  /** 汇总未来 N 天内（含已逾期）的到期、续签与付款节点。 */
   function reminders(entries, now, withinDays) {
     const limit = withinDays == null ? REMIND_DAYS : withinDays;
     const out = [];
@@ -80,10 +114,24 @@
       if (due != null && due <= limit) {
         out.push({ entry, kind: "到期", date: entry.endDate, days: due, amount: "" });
       }
-      const pay = daysUntil(entry.paymentDate, now);
-      if (pay != null && pay <= limit) {
-        out.push({ entry, kind: "付款", date: entry.paymentDate, days: pay, amount: entry.paymentAmount || "" });
+      const renew = daysUntil(entry.renewalDate, now);
+      if (renew != null && renew <= limit) {
+        out.push({ entry, kind: "续签", date: entry.renewalDate, days: renew, amount: "" });
       }
+      payments(entry).forEach((p) => {
+        const pay = daysUntil(p.date, now);
+        if (pay != null && pay <= limit) {
+          out.push({
+            entry,
+            kind: "付款",
+            date: p.date,
+            days: pay,
+            amount: p.amount || "",
+            paymentId: p.id,
+            note: p.note || "",
+          });
+        }
+      });
     });
     return out.sort(
       (a, b) =>
@@ -126,31 +174,35 @@
     );
   }
 
-  function entryDescription(entry, kind, date) {
+  function entryDescription(entry, kind, date, amount, note) {
     const parts = [`节点：${kind} ${formatDate(date)}`, `类型：${entry.contractType || "未分类"}`];
     if (entry.counterparty) parts.push(`对方：${entry.counterparty}`);
     if (entry.amount) parts.push(`合同金额：${entry.amount}`);
-    if (kind === "付款" && entry.paymentAmount) parts.push(`本次付款：${entry.paymentAmount}`);
+    if (kind === "付款" && amount) parts.push(`本次付款：${amount}`);
     if (entry.note) parts.push(`备注：${entry.note}`);
+    if (note) parts.push(`节点备注：${note}`);
     return parts.join("\n");
   }
 
-  function eventFor(entry, kind, date, alarmDays) {
+  function eventFor(entry, kind, date, alarmDays, amount, note, uidExtra) {
     if (!parseDate(date)) return "";
-    const suffix = kind === "付款" ? "pay" : "due";
+    const suffix = kind === "付款" ? "pay" : kind === "续签" ? "renew" : "due";
     const uidSeed = String(entry.id || "contract").replace(/[^A-Za-z0-9_-]/g, "");
+    const uidTail = String(uidExtra || "").replace(/[^A-Za-z0-9_-]/g, "");
     const summary =
       kind === "付款"
-        ? `付款节点：${entry.title || "未命名合同"}${entry.paymentAmount ? " · " + entry.paymentAmount : ""}`
-        : `合同到期：${entry.title || "未命名合同"}`;
+        ? `付款节点：${entry.title || "未命名合同"}${amount ? " · " + amount : ""}`
+        : kind === "续签"
+          ? `续签提醒：${entry.title || "未命名合同"}`
+          : `合同到期：${entry.title || "未命名合同"}`;
     const lines = [
       "BEGIN:VEVENT",
-      `UID:${uidSeed}-${suffix}@contract-workbench.local`,
+      `UID:${uidSeed}-${suffix}${uidTail ? "-" + uidTail : ""}@contract-workbench.local`,
       `DTSTAMP:${utcStamp()}`,
       `DTSTART;VALUE=DATE:${icsDate(date)}`,
       `DTEND;VALUE=DATE:${icsNextDay(date)}`,
       `SUMMARY:${icsEscape(summary)}`,
-      `DESCRIPTION:${icsEscape(entryDescription(entry, kind, date))}`,
+      `DESCRIPTION:${icsEscape(entryDescription(entry, kind, date, amount, note))}`,
     ];
     if (alarmDays != null) {
       lines.push(
@@ -175,10 +227,14 @@
         const ev = eventFor(entry, "到期", entry.endDate, 7);
         if (ev) events.push(ev);
       }
-      if (entry.paymentDate) {
-        const ev = eventFor(entry, "付款", entry.paymentDate, 1);
+      if (entry.renewalDate) {
+        const ev = eventFor(entry, "续签", entry.renewalDate, 7);
         if (ev) events.push(ev);
       }
+      payments(entry).forEach((p) => {
+        const ev = eventFor(entry, "付款", p.date, 1, p.amount, p.note, p.id);
+        if (ev) events.push(ev);
+      });
     });
     if (!events.length) return "";
     return [
@@ -204,6 +260,8 @@
     "下次付款日",
     "付款金额",
     "备注",
+    "续签日期",
+    "付款节点",
   ];
 
   function csvCell(value) {
@@ -217,6 +275,10 @@
     const rows = [CSV_HEADERS.join(",")];
     (entries || []).forEach((entry) => {
       if (!entry) return;
+      const nodeText = payments(entry)
+        .map((p) => [p.date, p.amount, p.note].filter(Boolean).join(" "))
+        .join("; ");
+      const next = nextPayment(entry, new Date());
       rows.push(
         [
           entry.title,
@@ -226,9 +288,11 @@
           entry.startDate,
           entry.endDate,
           entry.status,
-          entry.paymentDate,
-          entry.paymentAmount,
+          next ? next.date : "",
+          next ? next.amount : "",
           entry.note,
+          entry.renewalDate,
+          nodeText,
         ]
           .map(csvCell)
           .join(",")
@@ -385,6 +449,19 @@
     if (nameA) both.push(`甲方 ${nameA}`);
     if (nameB) both.push(`乙方 ${nameB}`);
     return both.join(" / ").slice(0, 80);
+  }
+
+  function pickSender(parties, stance, contractType) {
+    if (!stance || stance === "neutral") return "";
+    const base = own(PARTY_DEFAULT_ROLE, contractType) || {};
+    const roleA = parties.roleA || base.a || "";
+    const roleB = parties.roleB || base.b || "";
+    const nameA = parties.a || (roleA ? parties.byRole[roleA] : "") || "";
+    const nameB = parties.b || (roleB ? parties.byRole[roleB] : "") || "";
+    if (parties.byRole[stance]) return parties.byRole[stance];
+    if (roleA === stance && nameA) return nameA;
+    if (roleB === stance && nameB) return nameB;
+    return "";
   }
 
   function normalizeDateToken(token) {
@@ -685,11 +762,16 @@
     const paymentDate = payment.date && term.end && payment.date > term.end ? "" : payment.date;
     return {
       counterparty: pickCounterparty(parties, stance, contractType),
+      sender: pickSender(parties, stance, contractType),
       amount,
       startDate,
       endDate: term.end,
+      renewalDate: "",
       paymentDate,
       paymentAmount,
+      payments: paymentDate
+        ? [{ id: "auto", date: paymentDate, amount: paymentAmount, note: "" }]
+        : [],
       note: extractNote(src, { startFromSign, schedule: payment.schedule }),
     };
   }
@@ -704,7 +786,10 @@
     countdownShort,
     statusClass,
     reminders,
+    payments,
+    nextPayment,
     createId,
+    createPaymentId,
     buildICS,
     buildCSV,
     extractDraft,

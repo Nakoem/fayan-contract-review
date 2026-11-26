@@ -9,11 +9,14 @@
   const MAX_TEXT_CHARS = 50000;
   const MAX_TEXT_HARD = 200000;
   const MAX_PDF_PAGES = 300;
+  const MAX_OCR_PAGES = 30;
+  const OCR_IMAGE_WIDTH = 1600;
 
   WB.PARSE_LIMITS = {
     maxFileBytes: MAX_FILE_BYTES,
     maxTextChars: MAX_TEXT_CHARS,
     maxPdfPages: MAX_PDF_PAGES,
+    maxOcrPages: MAX_OCR_PAGES,
   };
 
   // Chrome / Word 导出的部分 PDF 会把汉字映射成康熙部首，统一还原成常用字。
@@ -143,9 +146,24 @@
         );
       }
       if (!text || text.length < 50) {
+        if (emptyPages.length === pdf.numPages) {
+          if (pdf.numPages > MAX_OCR_PAGES) {
+            throw parseError(
+              "pdf_ocr_pages",
+              "这份扫描 PDF 有 " + pdf.numPages + " 页，OCR 最多支持 " + MAX_OCR_PAGES + " 页，请拆分后再上传"
+            );
+          }
+          return {
+            text: "",
+            warnings: ["这份 PDF 没有文字层，可以点「识别文字」用 OCR 读取"],
+            needsOcr: true,
+            ocrKind: "pdf",
+            meta: { pages: pdf.numPages, emptyPages },
+          };
+        }
         throw parseError(
           "pdf_scanned",
-          "这份 PDF 没有可提取的文字层，可能是扫描件。V1 暂不支持 OCR，请粘贴文字或上传 DOCX。"
+          "这份 PDF 提取到的文字过少，请检查文件是否完整，或粘贴文字 / 上传 DOCX。"
         );
       }
       return { text, warnings, meta: { pages: pdf.numPages, emptyPages } };
@@ -181,6 +199,109 @@
     return { text, warnings: [], meta: {} };
   }
 
+  // ───────────────────────── OCR 图片准备 ─────────────────────────
+
+  async function imageToBitmap(file) {
+    try {
+      return await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch (e) {
+      // 部分浏览器不支持 imageOrientation，退回普通解码。
+      try {
+        return await createImageBitmap(file);
+      } catch (e2) {
+        throw parseError("image_parse", "图片读取失败：" + ((e2 && e2.message) || e2));
+      }
+    }
+  }
+
+  WB.imageFileToDataUrl = async function (file, opts) {
+    const options = opts || {};
+    const maxWidth = options.maxWidth || OCR_IMAGE_WIDTH;
+    const quality = options.quality || 0.82;
+    const bitmap = await imageToBitmap(file);
+    let canvas = null;
+    try {
+      const scale = Math.min(1, maxWidth / Math.max(1, bitmap.width));
+      const width = Math.max(1, Math.round(bitmap.width * scale));
+      const height = Math.max(1, Math.round(bitmap.height * scale));
+      canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw parseError("image_parse", "浏览器无法创建图片画布");
+      // 扫描件常有透明区域，铺白底避免 OCR 把透明当黑底。
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(bitmap, 0, 0, width, height);
+      return { dataUrl: canvas.toDataURL("image/jpeg", quality), width, height };
+    } finally {
+      if (canvas) {
+        canvas.width = 0;
+        canvas.height = 0;
+      }
+      try { bitmap.close(); } catch (e) { /* ignore */ }
+    }
+  };
+
+  // 把扫描 PDF 的每一页渲染成 JPEG data URL，交给 OCR 模型。
+  WB.renderPdfPageImages = async function (file, opts) {
+    const options = opts || {};
+    const maxPages = Math.min(options.maxPages || MAX_OCR_PAGES, MAX_OCR_PAGES);
+    const width = options.width || OCR_IMAGE_WIDTH;
+    const quality = options.quality || 0.82;
+    const mod = await loadPdfLib();
+    let pdf;
+    try {
+      const buf = await file.arrayBuffer();
+      pdf = await mod.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
+    } catch (e) {
+      const msg = String((e && e.message) || e);
+      if ((e && e.name === "PasswordException") || /password/i.test(msg)) {
+        throw parseError("pdf_password", "这份 PDF 有密码，请先解除密码后再上传");
+      }
+      throw parseError("pdf_parse", "PDF 解析失败：" + msg);
+    }
+
+    try {
+      if (pdf.numPages > maxPages) {
+        throw parseError(
+          "pdf_ocr_pages",
+          "这份扫描 PDF 有 " + pdf.numPages + " 页，OCR 最多支持 " + maxPages + " 页，请拆分后再上传"
+        );
+      }
+      const images = [];
+      for (let p = 1; p <= pdf.numPages; p++) {
+        if (options.signal && options.signal.aborted) {
+          const err = new Error("已取消 OCR");
+          err.code = "aborted";
+          throw err;
+        }
+        const page = await pdf.getPage(p);
+        const base = page.getViewport({ scale: 1 });
+        const scale = Math.min(2.5, width / Math.max(1, base.width));
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.ceil(viewport.width));
+        canvas.height = Math.max(1, Math.ceil(viewport.height));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw parseError("pdf_render", "浏览器无法创建 PDF 画布");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        images.push(canvas.toDataURL("image/jpeg", quality));
+        canvas.width = 0;
+        canvas.height = 0;
+        if (options.onProgress) options.onProgress(p, pdf.numPages);
+      }
+      return images;
+    } catch (e) {
+      if (e && (e.code === "aborted" || e.code === "pdf_ocr_pages" || e.code === "pdf_render")) throw e;
+      throw parseError("pdf_render", "扫描页渲染失败：" + ((e && e.message) || e));
+    } finally {
+      try { await pdf.destroy(); } catch (e) { /* ignore */ }
+    }
+  };
+
   WB.parseFile = async function (file) {
     if (!file) throw parseError("no_file", "没有选择文件");
     if (file.size > MAX_FILE_BYTES) {
@@ -194,10 +315,18 @@
     if (ext === "pdf") result = await parsePdf(file);
     else if (ext === "docx") result = await parseDocx(file);
     else if (ext === "txt" || ext === "md") result = await parsePlain(file);
-    else if (ext === "doc") {
+    else if (ext === "jpg" || ext === "jpeg" || ext === "png" || ext === "webp") {
+      result = {
+        text: "",
+        warnings: ["这是一张图片，可以点「识别文字」用 OCR 读取"],
+        needsOcr: true,
+        ocrKind: "image",
+        meta: { pages: 1, image: true },
+      };
+    } else if (ext === "doc") {
       throw parseError("doc_legacy", "暂不支持 .doc，请另存为 .docx 或直接粘贴文字");
     } else {
-      throw parseError("unsupported", "暂不支持这种文件，请上传 PDF / DOCX / TXT");
+      throw parseError("unsupported", "暂不支持这种文件，请上传 PDF / DOCX / TXT / 照片");
     }
 
     result.fileName = name;

@@ -50,9 +50,16 @@ SCRIPT_ORDER = [
     "pipeline.js",
     "docx.js",
     "storage.js",
+    "attachments.js",
     "rule_store.js",
+    "backup.js",
     "ledger.js",
+    "law.js",
+    "documents.js",
+    "templates.js",
+    "compare.js",
     "file_parser.js",
+    "ocr.js",
     "app.js",
 ]
 
@@ -202,6 +209,13 @@ def check() -> int:
         ("含文件解析入口", "WB.parseFile" in html),
         ("含合同台账", 'id="view-ledger"' in html and "WB.Ledger" in html),
         ("含规则编辑器", 'id="view-rules"' in html and "WB.RuleStore" in html),
+        ("含合同范本", 'id="view-templates"' in html and "WB.TEMPLATES" in html),
+        ("含版本对比", 'id="view-compare"' in html and "WB.compareContracts" in html),
+        ("含 OCR", 'id="btn-ocr"' in html and "WB.ocrFile" in html),
+        ("含本机备份", 'id="btn-backup-export"' in html and "WB.buildBackup" in html),
+        ("含附件管理", 'id="btn-add-attachment"' in html and "WB.Attachments" in html),
+        ("含对方档案", 'id="party-drawer"' in html and "partyGroups" in html),
+        ("含法条速查", 'id="view-law"' in html and "WB.searchLaw" in html),
     ]
     for name, passed in checks:
         print(f"[check] {'✓' if passed else '✗'} {name}")

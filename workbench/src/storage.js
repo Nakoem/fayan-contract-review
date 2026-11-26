@@ -305,16 +305,26 @@
     }
   }
 
+  async function replaceRecords(store, lsKey, list) {
+    await clearRecords(store, lsKey);
+    for (const record of list || []) {
+      await saveRecord(store, lsKey, record);
+    }
+    return true;
+  }
+
   // ───────────────────────── 审查历史 ─────────────────────────
 
   WB.saveReview = (review) => saveRecord("reviews", "reviews", review);
   WB.listReviews = () => listRecords("reviews", "reviews");
   WB.deleteReview = (id) => deleteRecord("reviews", "reviews", id);
   WB.clearReviews = () => clearRecords("reviews", "reviews");
+  WB.replaceReviews = (list) => replaceRecords("reviews", "reviews", list);
 
   // ───────────────────────── 合同台账 ─────────────────────────
 
   WB.saveLedgerEntry = (entry) => saveRecord("ledger", "ledger", entry);
   WB.listLedger = () => listRecords("ledger", "ledger");
   WB.deleteLedgerEntry = (id) => deleteRecord("ledger", "ledger", id);
+  WB.replaceLedger = (list) => replaceRecords("ledger", "ledger", list);
 })(globalThis);
